@@ -1,6 +1,6 @@
 [submodule "markdown-ppp"]
 	path = markdown-ppp
-	url = https://github.com/Pulsar33550336/markdown-ppp.git
+	url = https://github.com/tuack-ng/markdown-ppp.git
 [submodule "templates"]
 	path = templates
 	url = https://github.com/tuack-ng/templates
