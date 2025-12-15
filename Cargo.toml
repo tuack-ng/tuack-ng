@@ -30,7 +30,7 @@ strip = true
 [package.metadata.deb]
 assets = [
     "$auto",
-    ["templates/*/**", "usr/share/tuack-ng/templates/", "755"],
+    ["templates/*/**/*", "usr/share/tuack-ng/templates/", "755"],
 ]
 
 [package.metadata.aur]
