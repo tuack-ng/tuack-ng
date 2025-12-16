@@ -1,0 +1,25 @@
+{
+  "version": 3,
+  "folder": "problem",
+  "type": "program",
+  "name": "题目英文名称",
+  "title": "题目名称",
+  "time limit": 1.0,
+  "memory limit": "512 MiB",
+  "partial score": false,
+  "samples": [
+    {
+      "id": 1,
+      "input": "a.in",
+      "output": "a.ans"
+    }
+  ],
+  "data": [
+    {
+      "id": 1,
+      "score": 5,
+      "input": "1.in",
+      "output": "1.ans"
+    }
+  ]
+}

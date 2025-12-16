@@ -3,6 +3,7 @@ use std::sync::OnceLock;
 
 pub struct Context {
     pub template_dirs: Vec<PathBuf>,
+    pub scaffold_dirs: Vec<PathBuf>,
 }
 
 static GLOBAL_CONTEXT: OnceLock<Context> = OnceLock::new();

@@ -1,10 +1,10 @@
 use clap::Args;
 use log::{debug, error, info, warn};
+use markdown_ppp::ast_transform::Transform;
 use markdown_ppp::parser::*;
 use markdown_ppp::typst_printer::config::Config;
 use markdown_ppp::typst_printer::render_typst;
-use markdown_ppp::ast_transform::Transform;
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 use std::path::Path;
 use std::process::Command;
 use std::{fs, path::PathBuf};
@@ -21,20 +21,23 @@ use crate::{
 #[command(version)]
 pub struct RenArgs {
     /// 渲染目标模板
-    #[arg(default_value = "template")]
+    #[arg(required = true)]
     target: String,
 
     /// 要渲染的天的名称（可选，如果不指定则渲染所有天）
     #[arg(short, long)]
     day: Option<String>,
-    
+
     /// 保留临时目录用于调试
     #[arg(long)]
     keep_tmp: bool,
 }
 
 pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
-    debug!("当前目录: {}", Path::new(".").to_string_lossy());
+    debug!(
+        "当前目录: {}",
+        Path::new(".").canonicalize()?.to_string_lossy()
+    );
     let config = load_config(Path::new("."))?;
 
     let template_dir = context::get_context().template_dirs.iter().find(|dir| {
@@ -121,10 +124,6 @@ fn generate_data_json(
     let mut problems = Vec::new();
 
     for problem_config in &day_config.subconfig {
-        // 注意：这里根据你的Problem结构进行调整
-        // 由于ProblemConfig和DataJson::Problem结构不同，需要转换
-        // 这里我创建一个简化的转换，你可能需要根据实际需求调整
-
         let problem = Problem {
             name: problem_config.name.clone(),
             title: problem_config.title.clone(),
@@ -132,14 +131,13 @@ fn generate_data_json(
             exec: problem_config.name.clone(), // 默认值，你可能需要从配置文件读取
             input: problem_config.name.clone() + ".in",
             output: problem_config.name.clone() + ".out",
-            // problem_type: problem_config.problem_type.clone(),
             problem_type: match problem_config.problem_type.as_str() {
                 "program" => "传统型",
                 "output" => "提交答案型",
                 "interactive" => "交互型",
                 _ => {
                     warn!(
-                        "未知的题目类型 {} , 使用默认值 传统型",
+                        "未知的题目类型 {} , 使用默认值: 传统型",
                         problem_config.problem_type
                     );
                     "传统型"
@@ -157,20 +155,10 @@ fn generate_data_json(
 
     // 构建支持的语言列表
     // 注意：ContestConfig中没有support_languages字段，这里使用默认值
-    let support_languages = vec![
-        SupportLanguage {
-            name: "C++".to_string(),
-            compile_options: day_config.compile.cpp.clone(),
-        },
-        // SupportLanguage {
-        //     name: "C".to_string(),
-        //     compile_options: if !day_config.compile.c.is_empty() {
-        //         day_config.compile.c.clone()
-        //     } else {
-        //         "gcc -std=c11 -O2 -static -lm".to_string()
-        //     },
-        // },
-    ];
+    let support_languages = vec![SupportLanguage {
+        name: "C++".to_string(),
+        compile_options: day_config.compile.cpp.clone(),
+    }];
 
     // 创建日期信息
     let date = DateInfo {
@@ -192,12 +180,6 @@ fn generate_data_json(
         let manifest_content = fs::read_to_string(&path)?;
         serde_json::from_str::<TemplateManifest>(&manifest_content)?
     } else {
-        // // 如果找不到清单文件，使用硬编码的默认值
-        // TemplateManifest {
-        //     use_pretest: false,
-        //     noi_style: true,
-        //     file_io: true,
-        // }
         error!("找不到清单文件");
         return Err("致命错误: 找不到清单文件".into());
     };
@@ -296,10 +278,11 @@ fn render_day(
                 // 如果URL是相对路径且指向img目录，则替换为唯一ID路径
                 if url.starts_with("./img/") || url.starts_with("img/") {
                     // 提取文件名
-                    let filename = Path::new(&url).file_name()
+                    let filename = Path::new(&url)
+                        .file_name()
                         .and_then(|name| name.to_str())
                         .unwrap_or(&url);
-                    
+
                     // 计算文件的SHA256哈希值
                     let img_path = img_src_dir.join(filename);
                     if img_path.exists() {
@@ -309,12 +292,13 @@ fn render_day(
                                 if std::io::copy(&mut file, &mut hasher).is_ok() {
                                     let hash = hasher.finalize();
                                     let hash_hex = format!("{:x}", hash);
-                                    
+
                                     // 获取文件扩展名
-                                    let extension = img_path.extension()
+                                    let extension = img_path
+                                        .extension()
                                         .and_then(|ext| ext.to_str())
                                         .unwrap_or("");
-                                    
+
                                     // 生成唯一ID路径
                                     if extension.is_empty() {
                                         format!("img/{}", hash_hex)
@@ -324,13 +308,17 @@ fn render_day(
                                 } else {
                                     url // 如果计算哈希失败，保持原URL
                                 }
-                            },
-                            Err(_) => url // 如果打开文件失败，保持原URL
+                            }
+                            Err(_) => url, // 如果打开文件失败，保持原URL
                         }
                     } else {
                         url // 如果文件不存在，保持原URL
                     }
                 } else {
+                    warn!(
+                        "图片 url 不合法: {}, 不支持使用在 img/ 以外的图片, 可能会产生问题。",
+                        url
+                    );
                     url
                 }
             });
@@ -352,10 +340,14 @@ fn render_day(
             if !img_dst_dir.exists() {
                 fs::create_dir_all(&img_dst_dir)?;
             }
-            
+
             // 为每个图片分配唯一ID并复制
             process_images_with_unique_ids(&img_src_dir, &img_dst_dir, idx)?;
-            info!("处理图片资源: {} -> {}", img_src_dir.display(), img_dst_dir.display());
+            info!(
+                "处理图片资源: {} -> {}",
+                img_src_dir.display(),
+                img_dst_dir.display()
+            );
         }
     }
 
@@ -402,15 +394,14 @@ fn render_day(
 
         // 根据keep_tmp参数决定是否清理临时目录
         if args.keep_tmp {
-            info!("保留临时目录以供调试: {}", tmp_dir.display());
+            info!("保留临时目录: {}", tmp_dir.display());
         } else {
             fs::remove_dir_all(&tmp_dir)?;
             info!("清理临时目录");
         }
     } else {
         let error_output = String::from_utf8_lossy(&compile_result.stderr);
-        error!("编译失败:");
-        error!("{}", error_output);
+        error!("编译失败:\n{}", error_output);
 
         // 保留临时目录以供调试
         warn!("保留临时目录以供调试: {}", tmp_dir.display());
@@ -433,7 +424,7 @@ fn process_images_with_unique_ids(
     for entry in fs::read_dir(src_dir)? {
         let entry = entry?;
         let src_path = entry.path();
-        
+
         if src_path.is_file() {
             // 计算文件的SHA256哈希值
             let mut file = std::fs::File::open(&src_path)?;
@@ -441,12 +432,13 @@ fn process_images_with_unique_ids(
             std::io::copy(&mut file, &mut hasher)?;
             let hash = hasher.finalize();
             let hash_hex = format!("{:x}", hash);
-            
+
             // 获取文件扩展名
-            let extension = src_path.extension()
+            let extension = src_path
+                .extension()
                 .and_then(|ext| ext.to_str())
                 .unwrap_or("");
-            
+
             // 生成唯一ID: sha256.extension
             let unique_filename = if extension.is_empty() {
                 hash_hex
@@ -454,13 +446,13 @@ fn process_images_with_unique_ids(
                 format!("{}.{}", hash_hex, extension)
             };
             let dst_path = dst_dir.join(unique_filename);
-            
+
             // 复制文件
             fs::copy(&src_path, &dst_path)?;
             info!("复制图片: {} -> {}", src_path.display(), dst_path.display());
         }
     }
-    
+
     Ok(())
 }
 

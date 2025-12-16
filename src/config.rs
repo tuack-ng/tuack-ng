@@ -272,6 +272,12 @@ fn is_contest_config(path: &Path) -> Result<bool, Box<dyn std::error::Error>> {
     Ok(false)
 }
 
+/// 将配置序列化为JSON字符串
+pub fn serialize_config(config: &ContestConfig) -> Result<String, Box<dyn std::error::Error>> {
+    let json = serde_json::to_string_pretty(config)?;
+    Ok(json)
+}
+
 pub fn load_config(path: &Path) -> Result<ContestConfig, Box<dyn std::error::Error>> {
     let config_path = find_contest_config(path)?;
 
@@ -366,4 +372,108 @@ pub fn load_config(path: &Path) -> Result<ContestConfig, Box<dyn std::error::Err
     }
 
     Ok(config)
+}
+
+/// 将整个配置序列化并保存到文件系统中，与load_config功能相反
+pub fn save_config(
+    config: &ContestConfig,
+    base_path: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    // 检查基础目录是否存在
+    if !base_path.exists() {
+        return Err(format!("基础目录 {} 不存在", base_path.display()).into());
+    }
+
+    // 保存主配置文件（排除null字段）
+    let main_config_path = base_path.join("conf.json");
+    let main_config_json = serde_json::to_string_pretty(
+        &serde_json::to_value(config)?
+            .as_object()
+            .map(|obj| {
+                obj.iter()
+                    .filter(|(_, v)| !v.is_null())
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect::<serde_json::Map<_, _>>()
+            })
+            .ok_or("Failed to convert config to object")?,
+    )?;
+    fs::write(&main_config_path, main_config_json)?;
+
+    // 保存每个比赛日的配置
+    for (day_index, day_config) in config.subconfig.iter().enumerate() {
+        if config.subdir.len() <= day_index {
+            return Err(format!("子目录名称不足，无法保存第{}个比赛日配置", day_index).into());
+        }
+
+        let day_name = &config.subdir[day_index];
+        let day_path = base_path.join(day_name);
+
+        // 检查比赛日目录是否存在
+        if !day_path.exists() {
+            return Err(format!("比赛日目录 {} 不存在", day_path.display()).into());
+        }
+
+        let day_config_path = day_path.join("conf.json");
+        let day_config_json = serde_json::to_string_pretty(
+            &serde_json::to_value(day_config)?
+                .as_object()
+                .map(|obj| {
+                    obj.iter()
+                        .filter(|(_, v)| !v.is_null())
+                        .map(|(k, v)| (k.clone(), v.clone()))
+                        .collect::<serde_json::Map<_, _>>()
+                })
+                .ok_or("Failed to convert day config to object")?,
+        )?;
+        fs::write(&day_config_path, day_config_json)?;
+
+        // 保存每个题目的配置
+        for (problem_index, problem_config) in day_config.subconfig.iter().enumerate() {
+            if day_config.subdir.len() <= problem_index {
+                return Err(
+                    format!("子目录名称不足，无法保存第{}个题目配置", problem_index).into(),
+                );
+            }
+
+            let problem_name = &day_config.subdir[problem_index];
+            let problem_path = day_path.join(problem_name);
+
+            // 检查题目目录是否存在
+            if !problem_path.exists() {
+                return Err(format!("题目目录 {} 不存在", problem_path.display()).into());
+            }
+
+            let problem_config_path = problem_path.join("conf.json");
+            let problem_config_json = serde_json::to_string_pretty(
+                &serde_json::to_value(problem_config)?
+                    .as_object()
+                    .map(|obj| {
+                        obj.iter()
+                            .filter(|(_, v)| !v.is_null())
+                            .map(|(k, v)| (k.clone(), v.clone()))
+                            .collect::<serde_json::Map<_, _>>()
+                    })
+                    .ok_or("Failed to convert problem config to object")?,
+            )?;
+            fs::write(&problem_config_path, problem_config_json)?;
+        }
+    }
+
+    Ok(())
+}
+
+/// 将比赛日配置序列化为JSON字符串
+pub fn serialize_day_config(
+    config: &ContestDayConfig,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let json = serde_json::to_string_pretty(config)?;
+    Ok(json)
+}
+
+/// 将题目配置序列化为JSON字符串
+pub fn serialize_problem_config(
+    config: &ProblemConfig,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let json = serde_json::to_string_pretty(config)?;
+    Ok(json)
 }

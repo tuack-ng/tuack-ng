@@ -86,15 +86,23 @@ fn init_context() -> Result<(), Box<dyn std::error::Error>> {
         log::error!("无法获取 HOME 环境变量: {}", e);
         e
     })?;
-    
+
     let template_dirs = vec![
         #[cfg(debug_assertions)]
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("templates"),
-        PathBuf::from(home_dir).join(".local/share/tuack-ng/templates"),
+        PathBuf::from(&home_dir).join(".local/share/tuack-ng/templates"),
         PathBuf::from("/usr/share/tuack-ng/templates"),
     ];
+    let scaffold_dirs = vec![
+        #[cfg(debug_assertions)]
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("scaffold"),
+        PathBuf::from(&home_dir).join(".local/share/tuack-ng/scaffold"),
+        PathBuf::from("/usr/share/tuack-ng/scaffold"),
+    ];
+
     context::setup_context(context::Context {
         template_dirs: template_dirs,
+        scaffold_dirs: scaffold_dirs,
     })?;
     Ok(())
 }

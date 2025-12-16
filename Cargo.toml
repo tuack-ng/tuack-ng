@@ -19,7 +19,7 @@ markdown-ppp = { path = "./markdown-ppp", features = ["parser", "ast-serde", "as
 nom = "8.0.0"
 pretty = "0.12.5"
 serde = "1.0.228"
-serde_json = "1.0.145"
+serde_json = { version = "1.0.145", features = ["preserve_order"] }
 sha2 = "0.10.9"
 
 [profile.release]
@@ -32,10 +32,12 @@ strip = true
 assets = [
     "$auto",
     ["templates/*/**/*", "usr/share/tuack-ng/templates/", "755"],
+    ["scaffold/*/**/*", "usr/share/tuack-ng/scaffold/", "755"],
 ]
 
 [package.metadata.aur]
 files = [
     ["templates/", "/usr/share/tuack-ng/templates/", "755"],
+    ["scaffold/", "/usr/share/tuack-ng/scaffold/", "755"],
 ]
 depends = ["gcc-libs", "glibc"]

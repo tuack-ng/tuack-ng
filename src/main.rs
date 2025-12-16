@@ -1,11 +1,12 @@
+use crate::generate::GenArgs;
 use crate::ren::RenArgs;
-use clap::command;
 use clap::{Parser, Subcommand};
 use clap_i18n_richformatter::clap_i18n;
 use log::info;
 
 mod config;
 mod context;
+mod generate;
 mod init;
 mod ren;
 
@@ -24,6 +25,8 @@ struct Cli {
 enum Commands {
     /// 渲染题面
     Ren(RenArgs),
+    /// 生成工程文件夹
+    Gen(GenArgs),
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -36,6 +39,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let result = match cli.command {
         Commands::Ren(args) => ren::main(args),
+        Commands::Gen(args) => generate::main(args),
     };
 
     if let Err(e) = result {
