@@ -1,5 +1,6 @@
 use log::LevelFilter;
 use log4rs::{
+    Logger,
     append::console::ConsoleAppender,
     config::{Appender, Config, Root},
     encode::pattern::PatternEncoder,
@@ -10,6 +11,8 @@ use std::path::PathBuf;
 use crate::context;
 use chrono::Local;
 use colored::Colorize;
+use indicatif::MultiProgress;
+use indicatif_log_bridge::LogWrapper;
 use std::panic::{self, PanicHookInfo};
 
 #[cfg(debug_assertions)]
@@ -55,7 +58,7 @@ fn custom_panic_handler(panic_info: &PanicHookInfo, verbose: bool) {
     }
 }
 
-fn init_log(verbose: &bool) -> Result<(), Box<dyn std::error::Error>> {
+fn init_log(verbose: &bool) -> Result<MultiProgress, Box<dyn std::error::Error>> {
     let format = if DEBUG || *verbose {
         "{d(%Y-%m-%d %H:%M:%S)} | {h({l})} | {t} | {m}{n}"
     } else {
@@ -76,12 +79,16 @@ fn init_log(verbose: &bool) -> Result<(), Box<dyn std::error::Error>> {
         .appender(Appender::builder().build("stdout", Box::new(stdout)))
         .build(Root::builder().appender("stdout").build(loglevel))?;
 
-    log4rs::init_config(config)?;
+    let logger: log4rs::Logger = Logger::new(config);
+    let level = logger.max_log_level();
+    let multi = MultiProgress::new();
+    LogWrapper::new(multi.clone(), logger).try_init().unwrap();
+    log::set_max_level(level);
 
-    Ok(())
+    Ok(multi)
 }
 
-fn init_context() -> Result<(), Box<dyn std::error::Error>> {
+fn init_context(multi: MultiProgress) -> Result<(), Box<dyn std::error::Error>> {
     let home_dir = env::var("HOME").map_err(|e| {
         log::error!("无法获取 HOME 环境变量: {}", e);
         e
@@ -103,13 +110,14 @@ fn init_context() -> Result<(), Box<dyn std::error::Error>> {
     context::setup_context(context::Context {
         template_dirs: template_dirs,
         scaffold_dirs: scaffold_dirs,
+        multiprogress: multi,
     })?;
     Ok(())
 }
 
 pub fn init(verbose: &bool) -> Result<(), Box<dyn std::error::Error>> {
-    init_log(verbose)?;
-    init_context()?;
+    let multi = init_log(verbose)?;
+    init_context(multi)?;
     if !DEBUG {
         let verbose_value = *verbose;
         panic::set_hook(Box::new(move |panic_info| {

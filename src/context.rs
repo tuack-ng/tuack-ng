@@ -1,9 +1,11 @@
+use indicatif::MultiProgress;
 use std::path::PathBuf;
 use std::sync::OnceLock;
 
 pub struct Context {
     pub template_dirs: Vec<PathBuf>,
     pub scaffold_dirs: Vec<PathBuf>,
+    pub multiprogress: MultiProgress,
 }
 
 static GLOBAL_CONTEXT: OnceLock<Context> = OnceLock::new();

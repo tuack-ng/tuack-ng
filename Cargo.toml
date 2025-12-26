@@ -13,6 +13,8 @@ chrono = "0.4.42"
 clap = { version = "4.5.53", features = ["cargo", "derive"] }
 clap-i18n-richformatter = { version = "0.3.0", features = ["derive"] }
 colored = "3.0.0"
+indicatif = "0.18.3"
+indicatif-log-bridge = "0.2.3"
 log = "0.4.29"
 log4rs = "1.4.0"
 markdown-ppp = { path = "./markdown-ppp", features = ["parser", "ast-serde", "ast-transform", "typst-printer"] }

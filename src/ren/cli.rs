@@ -4,6 +4,8 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
+use indicatif::ProgressBar;
+
 use crate::{
     config::{ContestDayConfig, load_config},
     context,
@@ -101,11 +103,24 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
         config.subconfig.iter().collect()
     };
 
-    for day in days_to_render {
+    // 添加进度条
+    let multi = &context::get_context().multiprogress;
+    let pb = multi.add(ProgressBar::new(days_to_render.len() as u64));
+    pb.set_style(
+        indicatif::ProgressStyle::default_bar()
+            .template("  [{bar:40.green/blue}] {pos}/{len} {msg}")
+            .unwrap()
+            .progress_chars("=> "),
+    );
+
+    for day in days_to_render.iter() {
+        pb.set_message(format!("渲染天: {}", day.name));
         info!("开始渲染天: {}", day.name);
         render_day(&config, day, &template_dir, &statements_dir, &args)?;
+        pb.inc(1);
     }
 
+    pb.finish_with_message("渲染完成！");
     info!("所有天的题面渲染完成！");
     Ok(())
 }

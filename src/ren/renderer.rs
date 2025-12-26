@@ -7,6 +7,7 @@ use markdown_ppp::typst_printer::render_typst;
 use sha2::{Digest, Sha256};
 use std::path::Path;
 use std::process::Command;
+use std::time::Duration;
 use std::{fs, path::PathBuf};
 
 use super::data_json::generate_data_json;
@@ -44,7 +45,19 @@ pub fn render_day(
     info!("生成 data.json");
 
     // 复制问题资源和题面
+    let multi = &crate::context::get_context().multiprogress;
+    let problem_pb = multi.add(indicatif::ProgressBar::new(
+        day_config.subconfig.len() as u64
+    ));
+    problem_pb.set_style(
+        indicatif::ProgressStyle::default_bar()
+            .template("  [{bar:40.cyan/blue}] {pos}/{len} {msg}")
+            .unwrap()
+            .progress_chars("=> "),
+    );
+
     for (idx, problem) in day_config.subconfig.iter().enumerate() {
+        problem_pb.set_message(format!("处理问题: {}", problem.name));
         info!(
             "处理问题 {}/{}: {}",
             idx + 1,
@@ -58,6 +71,7 @@ pub fn render_day(
 
         if !statement_path.exists() {
             error!("未找到题面文件: {}", statement_path.display());
+            problem_pb.finish_with_message("遇到错误，停止处理");
             return Err(format!("未找到题面文件: {}", statement_path.display()).into());
         }
 
@@ -68,6 +82,7 @@ pub fn render_day(
             Ok(ast) => ast,
             Err(e) => {
                 error!("解析题面文件 {} 失败: {:?}", statement_path.display(), e);
+                problem_pb.finish_with_message("遇到错误，停止处理");
                 return Err("解析题面文件失败".into());
             }
         };
@@ -125,8 +140,12 @@ pub fn render_day(
             });
         }
 
+        // Update progress bar to show macro expansion
+        problem_pb.set_message(format!("展开宏: {}", problem.name));
         ast = expand_macro(ast, problem_dir, problem).unwrap();
 
+        // Update progress bar to show Typst rendering
+        problem_pb.set_message(format!("生成Typst: {}", problem.name));
         // 生成Typst内容
         let typst_output = render_typst(&ast, Config::default().with_width(1000000));
         let typst_output = format!("#import \"utils.typ\": *\n{}", typst_output);
@@ -152,7 +171,10 @@ pub fn render_day(
                 img_dst_dir.display()
             );
         }
+
+        problem_pb.inc(1);
     }
+    problem_pb.finish_and_clear();
 
     // 处理注意事项文件
     let precaution_path = contest_config.path.join("precaution.md");
@@ -163,6 +185,7 @@ pub fn render_day(
         let state = MarkdownParserState::new();
         match parse_markdown(state, &content) {
             Ok(ast) => {
+                problem_pb.set_message("生成注意事项Typst...");
                 let typst_output = render_typst(&ast, Config::default().with_width(1000000));
                 let typst_output = format!("#import \"utils.typ\": *\n{}", typst_output);
                 fs::write(tmp_dir.join("precaution.typ"), typst_output)?;
@@ -178,6 +201,11 @@ pub fn render_day(
 
     // 编译PDF
     info!("开始编译PDF...");
+    let multi = &crate::context::get_context().multiprogress;
+    let compile_pb = multi.add(indicatif::ProgressBar::new_spinner());
+    compile_pb.enable_steady_tick(Duration::from_millis(100));
+
+    compile_pb.set_message(format!("编译PDF: {}", day_config.name));
     let compile_result = Command::new("typst")
         .arg("compile")
         .arg("--font-path=fonts")
@@ -185,6 +213,7 @@ pub fn render_day(
         .arg(format!("{}.pdf", day_config.name))
         .current_dir(&tmp_dir)
         .output()?;
+    compile_pb.finish_and_clear();
 
     if compile_result.status.success() {
         info!("编译成功！");
