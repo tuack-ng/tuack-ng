@@ -36,15 +36,19 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
     );
     let config = load_config(Path::new("."))?;
 
-    let template_dir = context::get_context().template_dirs.iter().find(|dir| {
-        let subdir = dir.join(&args.target);
+    let template_dir = context::get_context().assets_dirs.iter().find(|dir| {
+        let subdir = dir.join("templates").join(&args.target);
+        // debug!("{:#?}", subdir);
         subdir.exists() && subdir.is_dir()
     });
 
     let template_dir = match template_dir {
         Some(dir) => {
-            info!("找到模板目录: {}", dir.join(&args.target).to_string_lossy());
-            dir.join(&args.target)
+            info!(
+                "找到模板目录: {}",
+                dir.join("templates").join(&args.target).to_string_lossy()
+            );
+            dir.join("templates").join(&args.target)
         }
         None => {
             error!("没有找到模板 {}", args.target);

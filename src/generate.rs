@@ -171,8 +171,8 @@ pub fn main(args: GenArgs) -> Result<(), Box<dyn std::error::Error>> {
 fn find_scaffold_dir(dir_name: &str) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let context = crate::context::get_context();
 
-    for scaffold_dir in &context.scaffold_dirs {
-        let path = scaffold_dir.join(dir_name);
+    for assets_dir in &context.assets_dirs {
+        let path = assets_dir.join("scaffold").join(dir_name);
         if path.exists() {
             return Ok(path);
         }

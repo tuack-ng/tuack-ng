@@ -35,13 +35,13 @@ strip = true
 [package.metadata.deb]
 assets = [
     "$auto",
-    ["templates/*/**/*", "usr/share/tuack-ng/templates/", "755"],
-    ["scaffold/*/**/*", "usr/share/tuack-ng/scaffold/", "755"],
+    ["assets/templates/*/**/*", "usr/share/tuack-ng/templates/", "755"],
+    ["assets/scaffold/*/**/*", "usr/share/tuack-ng/scaffold/", "755"],
 ]
 
 [package.metadata.aur]
 files = [
-    ["templates/", "/usr/share/tuack-ng/templates/", "755"],
-    ["scaffold/", "/usr/share/tuack-ng/scaffold/", "755"],
+    ["assets/templates/", "/usr/share/tuack-ng/templates/", "755"],
+    ["assets/scaffold/", "/usr/share/tuack-ng/scaffold/", "755"],
 ]
 depends = ["gcc-libs", "glibc"]

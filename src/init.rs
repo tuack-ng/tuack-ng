@@ -94,29 +94,15 @@ fn init_context(multi: MultiProgress) -> Result<(), Box<dyn std::error::Error>> 
         e
     })?;
 
-    let template_dirs = vec![
+    let assets_dirs = vec![
         #[cfg(debug_assertions)]
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("templates"),
-        PathBuf::from(&home_dir).join(".local/share/tuack-ng/templates"),
-        PathBuf::from("/usr/share/tuack-ng/templates"),
-    ];
-    let scaffold_dirs = vec![
-        #[cfg(debug_assertions)]
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("scaffold"),
-        PathBuf::from(&home_dir).join(".local/share/tuack-ng/scaffold"),
-        PathBuf::from("/usr/share/tuack-ng/scaffold"),
-    ];
-    let checkers_dirs = vec![
-        #[cfg(debug_assertions)]
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("checkers"),
-        PathBuf::from(&home_dir).join(".local/share/tuack-ng/checkers"),
-        PathBuf::from("/usr/share/tuack-ng/checkers"),
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets"),
+        PathBuf::from(&home_dir).join(".local/share/tuack-ng/"),
+        PathBuf::from("/usr/share/tuack-ng/"),
     ];
 
     context::setup_context(context::Context {
-        template_dirs: template_dirs,
-        scaffold_dirs: scaffold_dirs,
-        checkers_dirs: checkers_dirs,
+        assets_dirs: assets_dirs,
         multiprogress: multi,
     })?;
     Ok(())

@@ -1,6 +1,6 @@
 use log::{error, warn};
 use serde_json;
-use std::{fs};
+use std::fs;
 
 use crate::config::{
     ContestConfig, ContestDayConfig, DataJson, DateInfo, Problem, SupportLanguage, TemplateManifest,
@@ -59,8 +59,8 @@ pub fn generate_data_json(
     };
 
     // 读取模板目录中的清单文件以获取默认值
-    let manifest_path = context::get_context().template_dirs.iter().find_map(|dir| {
-        let manifest_file = dir.join("noi").join("manifest.json");
+    let manifest_path = context::get_context().assets_dirs.iter().find_map(|dir| {
+        let manifest_file = dir.join("templates").join("noi").join("manifest.json");
         if manifest_file.exists() {
             Some(manifest_file)
         } else {

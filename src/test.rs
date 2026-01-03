@@ -137,7 +137,7 @@ fn validate_output(
     fs::copy(answer_path, &ans_path)?;
 
     // 使用校验器验证
-    let validate_code = Command::new(&get_context().checkers_dirs[0].join("normal"))
+    let validate_code = Command::new(&get_context().assets_dirs[0].join("checkers").join("normal"))
         .arg(&input_path)
         .arg(&output_path)
         .arg(&ans_path)
@@ -183,6 +183,7 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
 
                 info!("文件路径：{}", path.display());
 
+                #[allow(unused_assignments)]
                 let mut problem_status = ProblemStatus::Waiting;
 
                 // 创建临时目录
