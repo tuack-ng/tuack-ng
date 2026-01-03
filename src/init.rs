@@ -106,10 +106,17 @@ fn init_context(multi: MultiProgress) -> Result<(), Box<dyn std::error::Error>> 
         PathBuf::from(&home_dir).join(".local/share/tuack-ng/scaffold"),
         PathBuf::from("/usr/share/tuack-ng/scaffold"),
     ];
+    let checkers_dirs = vec![
+        #[cfg(debug_assertions)]
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("checkers"),
+        PathBuf::from(&home_dir).join(".local/share/tuack-ng/checkers"),
+        PathBuf::from("/usr/share/tuack-ng/checkers"),
+    ];
 
     context::setup_context(context::Context {
         template_dirs: template_dirs,
         scaffold_dirs: scaffold_dirs,
+        checkers_dirs: checkers_dirs,
         multiprogress: multi,
     })?;
     Ok(())

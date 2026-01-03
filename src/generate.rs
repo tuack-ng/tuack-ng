@@ -13,6 +13,8 @@ use crate::config::save_contest_config;
 use crate::config::save_day_config;
 use crate::config::save_problem_config;
 
+const CONFIG_FILE_NAME: &str = "conf.json";
+
 #[derive(Debug, Clone, ValueEnum)]
 enum Targets {
     Contest,
@@ -44,13 +46,13 @@ pub fn main(args: GenArgs) -> Result<(), Box<dyn std::error::Error>> {
                 copy_dir_recursive(&scaffold_path, &current_dir.join(contest_name))?;
 
                 let mut contest_json: ContestConfig =
-                    load_contest_config(&current_dir.join(contest_name).join("conf.json"))?;
+                    load_contest_config(&current_dir.join(contest_name).join(CONFIG_FILE_NAME))?;
 
                 contest_json.name = contest_name.to_string();
 
                 let updated_content = save_contest_config(&contest_json)?;
                 std::fs::write(
-                    &current_dir.join(contest_name).join("conf.json"),
+                    &current_dir.join(contest_name).join(CONFIG_FILE_NAME),
                     updated_content,
                 )?;
             }
@@ -58,7 +60,7 @@ pub fn main(args: GenArgs) -> Result<(), Box<dyn std::error::Error>> {
         Targets::Day => {
             // 检查是否在contest目录下执行
             let current_dir = std::env::current_dir()?;
-            let config_path = current_dir.join("conf.json");
+            let config_path = current_dir.join(CONFIG_FILE_NAME);
 
             // 检查当前目录是否存在contest配置文件
             if !config_path.exists() {
@@ -84,13 +86,13 @@ pub fn main(args: GenArgs) -> Result<(), Box<dyn std::error::Error>> {
                 copy_dir_recursive(&scaffold_path, &current_dir.join(day_name))?;
 
                 let mut day_json: ContestDayConfig =
-                    load_day_config(&current_dir.join(day_name).join("conf.json"))?;
+                    load_day_config(&current_dir.join(day_name).join(CONFIG_FILE_NAME))?;
 
                 day_json.name = day_name.to_string();
 
                 let updated_content = save_day_config(&day_json)?;
                 std::fs::write(
-                    &current_dir.join(day_name).join("conf.json"),
+                    &current_dir.join(day_name).join(CONFIG_FILE_NAME),
                     updated_content,
                 )?;
             }
@@ -112,7 +114,7 @@ pub fn main(args: GenArgs) -> Result<(), Box<dyn std::error::Error>> {
         Targets::Problem => {
             // 检查是否在day目录下执行
             let current_dir = std::env::current_dir()?;
-            let config_path = current_dir.join("conf.json");
+            let config_path = current_dir.join(CONFIG_FILE_NAME);
 
             // 检查当前目录是否存在day配置文件
             if !config_path.exists() {
@@ -138,13 +140,13 @@ pub fn main(args: GenArgs) -> Result<(), Box<dyn std::error::Error>> {
                 copy_dir_recursive(&scaffold_path, &current_dir.join(problem_name))?;
 
                 let mut problem_json: ProblemConfig =
-                    load_problem_config(&current_dir.join(problem_name).join("conf.json"))?;
+                    load_problem_config(&current_dir.join(problem_name).join(CONFIG_FILE_NAME))?;
 
                 problem_json.name = problem_name.to_string();
 
                 let updated_content = save_problem_config(&problem_json)?;
                 std::fs::write(
-                    &current_dir.join(problem_name).join("conf.json"),
+                    &current_dir.join(problem_name).join(CONFIG_FILE_NAME),
                     updated_content,
                 )?;
             }

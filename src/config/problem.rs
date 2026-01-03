@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -22,7 +23,21 @@ pub struct ProblemConfig {
     // pub args: HashMap<String, serde_json::Value>,
     pub data: Vec<DataItem>,
     // pub pretest: Vec<PreItem>,
-    // pub tests: HashMap<String, serde_json::Value>,
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub tests: HashMap<String, TestCase>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TestCase {
+    pub expected: ExpectedScore, // 期望得分条件
+    pub path: String,            // 文件或文件夹路径
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ExpectedScore {
+    Single(String),        // 单个条件，如 ">= 60"
+    Multiple(Vec<String>), // 多个条件，如 [">= 60", "< 90"]
 }
 
 impl ProblemConfig {

@@ -1,6 +1,7 @@
 use crate::fun::Philia093Args;
 use crate::generate::GenArgs;
 use crate::ren::cli::RenArgs;
+use crate::test::TestArgs;
 use clap::ArgAction;
 use clap::{Parser, Subcommand};
 use clap_i18n_richformatter::clap_i18n;
@@ -12,6 +13,7 @@ mod fun;
 mod generate;
 mod init;
 mod ren;
+mod test;
 
 #[derive(Debug, Parser)]
 #[clap_i18n]
@@ -31,6 +33,8 @@ enum Commands {
     Ren(RenArgs),
     /// 生成工程文件夹
     Gen(GenArgs),
+    /// 使用题解代码测试
+    Test(TestArgs),
     /// see you *tomorrow*
     #[command(hide = true, name = "PhiLia093")]
     Philia093(Philia093Args),
@@ -47,6 +51,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let result = match cli.command {
         Commands::Ren(args) => crate::ren::cli::main(args),
         Commands::Gen(args) => generate::main(args),
+        Commands::Test(args) => test::main(args),
         Commands::Philia093(args) => fun::main(args, &cli.verbose),
     };
 

@@ -3,6 +3,8 @@ use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 
+const CONFIG_FILE_NAME: &str = "conf.json";
+
 pub mod contest;
 pub mod data;
 pub mod models;
@@ -19,7 +21,7 @@ fn find_contest_config(start_path: &Path) -> Result<PathBuf, Box<dyn std::error:
     loop {
         debug!("path: {}", current_path.to_string_lossy());
         // 检查配置文件并判断类型
-        let possible_file = "conf.json";
+        let possible_file = CONFIG_FILE_NAME;
         let file_path = current_path.join(possible_file);
         if file_path.exists() && is_contest_config(&file_path)? {
             return Ok(file_path);
@@ -73,7 +75,7 @@ pub fn load_config(path: &Path) -> Result<ContestConfig, Box<dyn std::error::Err
 
     // 递归加载子配置
     for dayconfig_name in &config.subdir {
-        let dayconfig_path = parent_dir.join(dayconfig_name).join("conf.json");
+        let dayconfig_path = parent_dir.join(dayconfig_name).join(CONFIG_FILE_NAME);
         let mut dayconfig = load_day_config(&dayconfig_path)?;
 
         // 递归加载题目配置
@@ -82,7 +84,7 @@ pub fn load_config(path: &Path) -> Result<ContestConfig, Box<dyn std::error::Err
             .map(|p| p.to_path_buf())
             .ok_or("无法获取配置文件父目录")?;
         for problemconfig_name in &dayconfig.subdir {
-            let problemconfig_path = day_parent_dir.join(problemconfig_name).join("conf.json");
+            let problemconfig_path = day_parent_dir.join(problemconfig_name).join(CONFIG_FILE_NAME);
             let problemconfig = load_problem_config(&problemconfig_path)?;
             dayconfig.subconfig.push(problemconfig);
         }
@@ -194,7 +196,7 @@ pub fn save_config(
     }
 
     // 保存主配置文件（排除null字段）
-    let main_config_path = base_path.join("conf.json");
+    let main_config_path = base_path.join(CONFIG_FILE_NAME);
     let main_config_json = save_contest_config(config)?;
     fs::write(&main_config_path, main_config_json)?;
 
@@ -212,7 +214,7 @@ pub fn save_config(
             return Err(format!("比赛日目录 {} 不存在", day_path.display()).into());
         }
 
-        let day_config_path = day_path.join("conf.json");
+        let day_config_path = day_path.join(CONFIG_FILE_NAME);
         let day_config_json = save_day_config(day_config)?;
         fs::write(&day_config_path, day_config_json)?;
 
@@ -232,7 +234,7 @@ pub fn save_config(
                 return Err(format!("题目目录 {} 不存在", problem_path.display()).into());
             }
 
-            let problem_config_path = problem_path.join("conf.json");
+            let problem_config_path = problem_path.join(CONFIG_FILE_NAME);
             let problem_config_json = save_problem_config(problem_config)?;
             fs::write(&problem_config_path, problem_config_json)?;
         }
