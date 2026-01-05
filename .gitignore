@@ -3,4 +3,3 @@
 *.pdf
 /assets/checkers/*
 !/assets/checkers/*.cpp
-!/assets/checkers/*.h
