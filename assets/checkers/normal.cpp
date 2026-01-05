@@ -8,7 +8,7 @@ int main(int argc, char* argv[])
 
     std::string expected, output;
 
-    // 读取整个标准答案文件
+    // 读取标准答案文件
     while (!ans.eof()) {
         expected += ans.readLine();
         if (!ans.eof()) {
@@ -16,7 +16,7 @@ int main(int argc, char* argv[])
         }
     }
 
-    // 读取整个用户输出文件
+    // 读取用户输出文件
     while (!ouf.eof()) {
         output += ouf.readLine();
         if (!ouf.eof()) {

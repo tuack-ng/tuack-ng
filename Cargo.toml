@@ -9,10 +9,12 @@ license = "AGPL-3.0-or-later"
 
 [dependencies]
 bytes = "1.11.0"
+bytesize = "2.3.1"
 chrono = "0.4.42"
 clap = { version = "4.5.53", features = ["cargo", "derive"] }
 clap-i18n-richformatter = { version = "0.3.0", features = ["derive"] }
 colored = "3.0.0"
+evalexpr = "13.1.0"
 indicatif = "0.18.3"
 indicatif-log-bridge = "0.2.3"
 log = "0.4.29"
@@ -32,16 +34,22 @@ lto = true
 codegen-units = 1
 strip = true
 
+[profile.debug-release]
+inherits = "release"
+lto = false
+codegen-units = 16
+strip = false
+
 [package.metadata.deb]
 assets = [
     "$auto",
-    ["assets/templates/*/**/*", "usr/share/tuack-ng/templates/", "755"],
-    ["assets/scaffold/*/**/*", "usr/share/tuack-ng/scaffold/", "755"],
+    ["assets/**/*", "usr/share/tuack-ng/", "755"],
+    # ["assets/scaffold/*/**/*", "usr/share/tuack-ng/scaffold/", "755"],
 ]
 
 [package.metadata.aur]
 files = [
-    ["assets/templates/", "/usr/share/tuack-ng/templates/", "755"],
-    ["assets/scaffold/", "/usr/share/tuack-ng/scaffold/", "755"],
+    ["assets/", "/usr/share/tuack-ng/", "755"],
+    # ["assets/scaffold/", "/usr/share/tuack-ng/scaffold/", "755"],
 ]
 depends = ["gcc-libs", "glibc"]
