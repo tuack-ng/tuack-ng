@@ -1,4 +1,4 @@
-name: Rust Check
+name: Rust Build and Release
 
 on:
   push:
