@@ -22,7 +22,7 @@ fn main() {
     if let Ok(entries) = fs::read_dir(checkers_dir) {
         for entry in entries.flatten() {
             let path = entry.path();
-            if path.is_file() && path.extension().map_or(false, |ext| ext == "cpp") {
+            if path.is_file() && path.extension().is_some_and(|ext| ext == "cpp") {
                 compile_cpp_if_needed(&path);
             }
         }
@@ -32,13 +32,11 @@ fn main() {
 fn download_file(url: &str, output_path: &str) {
     match ureq::get(url).call() {
         Ok(mut response) => {
-            if response.status() == 200 {
-                if let Ok(content) = response.body_mut().read_to_string() {
-                    if !fs::write(output_path, content).is_ok() {
+            if response.status() == 200
+                && let Ok(content) = response.body_mut().read_to_string()
+                    && fs::write(output_path, content).is_err() {
                         println!("cargo:warning=Failed to write: {}", output_path);
                     }
-                }
-            }
         }
         Err(e) => {
             println!("cargo:warning=Failed to download {}: {}", url, e);
@@ -53,7 +51,7 @@ fn download_file(url: &str, output_path: &str) {
 fn compile_cpp_if_needed(cpp_file: &Path) {
     let exe_name = cpp_file.with_extension("");
     let exe_name = exe_name.file_name().unwrap().to_string_lossy();
-    let exe_path = cpp_file.parent().unwrap().join(&exe_name.to_string());
+    let exe_path = cpp_file.parent().unwrap().join(exe_name.to_string());
 
     // 检查可执行文件是否存在，以及是否比源码更旧
     let need_compile = if exe_path.exists() {
@@ -82,7 +80,7 @@ fn compile_cpp_if_needed(cpp_file: &Path) {
             .arg("-O2")
             .arg(cpp_file.file_name().unwrap())
             .arg("-o")
-            .arg(&exe_name.to_string())
+            .arg(exe_name.to_string())
             .status();
 
         if let Ok(status) = status {

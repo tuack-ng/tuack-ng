@@ -102,7 +102,7 @@ fn init_context(multi: MultiProgress) -> Result<(), Box<dyn std::error::Error>> 
     ];
 
     context::setup_context(context::Context {
-        assets_dirs: assets_dirs,
+        assets_dirs,
         multiprogress: multi,
     })?;
     Ok(())

@@ -31,11 +31,14 @@ pub enum ProblemStatus {
 pub enum TestCaseStatus {
     Running,
     RE,
+    #[allow(clippy::upper_case_acronyms)]
     TLE,
+    #[allow(clippy::upper_case_acronyms)]
     MLE,
     WA,
     AC,
     #[allow(unused)]
+    #[allow(clippy::upper_case_acronyms)]
     UKE,
     CE,
 }
@@ -101,7 +104,7 @@ fn run_test_case(
     // 启动监控线程
     let monitor_thread = thread::spawn(move || {
         let mut sys = System::new();
-        let pid = Pid::from_u32(child_clone.id() as u32);
+        let pid = Pid::from_u32(child_clone.id());
 
         loop {
             thread::sleep(Duration::from_millis(50));
@@ -115,12 +118,12 @@ fn run_test_case(
             }
 
             // 检查内存限制
-            if let Some(process) = sys.process(pid) {
-                if process.memory() > memory_limit_bytes {
-                    let _ = child_clone.kill();
-                    *status_clone.lock().unwrap() = TestCaseStatus::MLE;
-                    break;
-                }
+            if let Some(process) = sys.process(pid)
+                && process.memory() > memory_limit_bytes
+            {
+                let _ = child_clone.kill();
+                *status_clone.lock().unwrap() = TestCaseStatus::MLE;
+                break;
             }
 
             // 检查进程是否已退出
@@ -223,7 +226,7 @@ fn write_results_to_csv(
 
     let mut wtr = Writer::from_path(&csv_path)?;
 
-    wtr.write_record(&["测试者", "测试点ID", "状态", "得分", "最高分"])?;
+    wtr.write_record(["测试者", "测试点ID", "状态", "得分", "最高分"])?;
 
     // 写入所有测试者的结果
     for result in &results {
@@ -537,7 +540,7 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
                     problem.data.iter().map(|case| case.score).sum::<u32>()
                 );
 
-                if check_test_case(&test, total_score) {
+                if check_test_case(test, total_score) {
                     info!("测试 {} 通过", test_name);
                 } else {
                     warn!("测试 {} 不满足所有条件", test_name);

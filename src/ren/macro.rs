@@ -7,10 +7,10 @@ use markdown_ppp::ast::{Block, Heading, Inline};
 use markdown_ppp::ast::{CodeBlock, Document};
 use markdown_ppp::ast_transform::{ExpandWith, macro_expansion::MacroTransformer};
 use std::rc::Rc;
-use std::{fs, path::PathBuf};
+use std::{fs, path::Path, path::PathBuf};
 
 /// 处理 sample_file 宏（生成文件引用片段）
-fn handle_sample_macro(call: &DotCall, problem: &ProblemConfig, base_path: &PathBuf) -> Vec<Block> {
+fn handle_sample_macro(call: &DotCall, problem: &ProblemConfig, base_path: &Path) -> Vec<Block> {
     debug!("处理 sample_file 宏: {:?}", call);
 
     // 解析样本ID
@@ -52,7 +52,7 @@ fn handle_sample_macro(call: &DotCall, problem: &ProblemConfig, base_path: &Path
     };
 
     // 检查文件是否存在
-    let input_exists = sample_item.input.as_ref().map_or(false, |input_file| {
+    let input_exists = sample_item.input.as_ref().is_some_and(|input_file| {
         let input_path = base_path.join("sample").join(input_file);
         let exists = input_path.exists();
         if !exists {
@@ -61,7 +61,7 @@ fn handle_sample_macro(call: &DotCall, problem: &ProblemConfig, base_path: &Path
         exists
     });
 
-    let output_exists = sample_item.output.as_ref().map_or(false, |output_file| {
+    let output_exists = sample_item.output.as_ref().is_some_and(|output_file| {
         let output_path = base_path.join("sample").join(output_file);
         let exists = output_path.exists();
         if !exists {
@@ -235,7 +235,7 @@ pub fn expand_macro(
             };
 
             // 2. 根据宏类型分发处理
-            match call.path.get(0).map(|s| s.as_str()) {
+            match call.path.first().map(|s| s.as_str()) {
                 Some("sample") => handle_sample_macro(&call, &problem_clone, &path_clone),
                 Some("sample_file") => handle_sample_file_macro(&call, &problem_clone),
                 _ => {
@@ -252,7 +252,7 @@ pub fn expand_macro(
     info!("开始扩展AST文档");
     let doc = ast.expand_with(&mut transformer);
 
-    match doc.get(0) {
+    match doc.first() {
         Some(first_doc) => {
             info!("宏扩展完成");
             Ok(first_doc.clone())

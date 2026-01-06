@@ -43,7 +43,7 @@ pub fn main(args: GenArgs) -> Result<(), Box<dyn std::error::Error>> {
             let scaffold_path = find_scaffold_dir("contest")?;
 
             for contest_name in &args.name {
-                copy_dir_recursive(&scaffold_path, &current_dir.join(contest_name))?;
+                copy_dir_recursive(&scaffold_path, current_dir.join(contest_name))?;
 
                 let mut contest_json: ContestConfig =
                     load_contest_config(&current_dir.join(contest_name).join(CONFIG_FILE_NAME))?;
@@ -52,7 +52,7 @@ pub fn main(args: GenArgs) -> Result<(), Box<dyn std::error::Error>> {
 
                 let updated_content = save_contest_config(&contest_json)?;
                 std::fs::write(
-                    &current_dir.join(contest_name).join(CONFIG_FILE_NAME),
+                    current_dir.join(contest_name).join(CONFIG_FILE_NAME),
                     updated_content,
                 )?;
             }
@@ -83,7 +83,7 @@ pub fn main(args: GenArgs) -> Result<(), Box<dyn std::error::Error>> {
             let scaffold_path = find_scaffold_dir("day")?;
 
             for day_name in &args.name {
-                copy_dir_recursive(&scaffold_path, &current_dir.join(day_name))?;
+                copy_dir_recursive(&scaffold_path, current_dir.join(day_name))?;
 
                 let mut day_json: ContestDayConfig =
                     load_day_config(&current_dir.join(day_name).join(CONFIG_FILE_NAME))?;
@@ -92,7 +92,7 @@ pub fn main(args: GenArgs) -> Result<(), Box<dyn std::error::Error>> {
 
                 let updated_content = save_day_config(&day_json)?;
                 std::fs::write(
-                    &current_dir.join(day_name).join(CONFIG_FILE_NAME),
+                    current_dir.join(day_name).join(CONFIG_FILE_NAME),
                     updated_content,
                 )?;
             }
@@ -137,7 +137,7 @@ pub fn main(args: GenArgs) -> Result<(), Box<dyn std::error::Error>> {
             let scaffold_path = find_scaffold_dir("problem")?;
 
             for problem_name in &args.name {
-                copy_dir_recursive(&scaffold_path, &current_dir.join(problem_name))?;
+                copy_dir_recursive(&scaffold_path, current_dir.join(problem_name))?;
 
                 let mut problem_json: ProblemConfig =
                     load_problem_config(&current_dir.join(problem_name).join(CONFIG_FILE_NAME))?;
@@ -146,7 +146,7 @@ pub fn main(args: GenArgs) -> Result<(), Box<dyn std::error::Error>> {
 
                 let updated_content = save_problem_config(&problem_json)?;
                 std::fs::write(
-                    &current_dir.join(problem_name).join(CONFIG_FILE_NAME),
+                    current_dir.join(problem_name).join(CONFIG_FILE_NAME),
                     updated_content,
                 )?;
             }

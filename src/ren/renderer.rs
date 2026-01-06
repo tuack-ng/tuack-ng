@@ -18,7 +18,7 @@ pub fn render_day(
     contest_config: &ContestConfig,
     day_config: &ContestDayConfig,
     template_dir: &PathBuf,
-    output_dir: &PathBuf,
+    output_dir: &Path,
     args: &super::cli::RenArgs,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let day_output_dir = output_dir.join(&day_config.name);

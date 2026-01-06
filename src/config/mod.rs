@@ -40,10 +40,10 @@ fn is_contest_config(path: &Path) -> Result<bool, Box<dyn std::error::Error>> {
     // 通过字段判断是否是contest配置
     if let Some(version) = json_value.get("version").and_then(|v| v.as_u64()) {
         if version >= 3 {
-            if let Some(folder) = json_value.get("folder").and_then(|v| v.as_str()) {
-                if folder == "contest" {
-                    return Ok(true);
-                }
+            if let Some(folder) = json_value.get("folder").and_then(|v| v.as_str())
+                && folder == "contest"
+            {
+                return Ok(true);
             }
         } else {
             error!(
@@ -55,12 +55,6 @@ fn is_contest_config(path: &Path) -> Result<bool, Box<dyn std::error::Error>> {
 
     Ok(false)
 }
-
-/// 将配置序列化为JSON字符串
-// pub fn serialize_config(config: &ContestConfig) -> Result<String, Box<dyn std::error::Error>> {
-//     let json = serde_json::to_string_pretty(config)?;
-//     Ok(json)
-// }
 
 pub fn load_config(path: &Path) -> Result<ContestConfig, Box<dyn std::error::Error>> {
     let config_path = find_contest_config(path)?;
@@ -84,7 +78,9 @@ pub fn load_config(path: &Path) -> Result<ContestConfig, Box<dyn std::error::Err
             .map(|p| p.to_path_buf())
             .ok_or("无法获取配置文件父目录")?;
         for problemconfig_name in &dayconfig.subdir {
-            let problemconfig_path = day_parent_dir.join(problemconfig_name).join(CONFIG_FILE_NAME);
+            let problemconfig_path = day_parent_dir
+                .join(problemconfig_name)
+                .join(CONFIG_FILE_NAME);
             let problemconfig = load_problem_config(&problemconfig_path)?;
             dayconfig.subconfig.push(problemconfig);
         }
@@ -100,17 +96,15 @@ pub fn load_contest_config(
     config_path: &Path,
 ) -> Result<ContestConfig, Box<dyn std::error::Error>> {
     // 读取并验证主配置文件
-    let main_content = fs::read_to_string(&config_path)?;
+    let main_content = fs::read_to_string(config_path)?;
     let main_json_value: serde_json::Value = serde_json::from_str(&main_content)?;
 
     // 检查版本
-    if let Some(version) = main_json_value.get("version").and_then(|v| v.as_u64()) {
-        if version < 3 {
-            error!(
-                "配置文件版本过低，可能是 tuack 的配置文件。请迁移到 tuack-ng 配置文件格式再使用。"
-            );
-            return Err("配置文件版本过低".into());
-        }
+    if let Some(version) = main_json_value.get("version").and_then(|v| v.as_u64())
+        && version < 3
+    {
+        error!("配置文件版本过低，可能是 tuack 的配置文件。请迁移到 tuack-ng 配置文件格式再使用。");
+        return Err("配置文件版本过低".into());
     }
 
     // 反序列化主配置
@@ -128,17 +122,15 @@ pub fn load_day_config(
     dayconfig_path: &Path,
 ) -> Result<ContestDayConfig, Box<dyn std::error::Error>> {
     // 读取并验证每日配置文件
-    let day_content = fs::read_to_string(&dayconfig_path)?;
+    let day_content = fs::read_to_string(dayconfig_path)?;
     let day_json_value: serde_json::Value = serde_json::from_str(&day_content)?;
 
     // 检查版本
-    if let Some(version) = day_json_value.get("version").and_then(|v| v.as_u64()) {
-        if version < 3 {
-            error!(
-                "配置文件版本过低，可能是 tuack 的配置文件。请迁移到 tuack-ng 配置文件格式再使用。"
-            );
-            return Err("配置文件版本过低".into());
-        }
+    if let Some(version) = day_json_value.get("version").and_then(|v| v.as_u64())
+        && version < 3
+    {
+        error!("配置文件版本过低，可能是 tuack 的配置文件。请迁移到 tuack-ng 配置文件格式再使用。");
+        return Err("配置文件版本过低".into());
     }
 
     let mut dayconfig: ContestDayConfig = serde_json::from_str(&day_content)?;
@@ -159,17 +151,15 @@ pub fn load_problem_config(
     problemconfig_path: &Path,
 ) -> Result<ProblemConfig, Box<dyn std::error::Error>> {
     // 读取并验证问题配置文件
-    let problem_content = fs::read_to_string(&problemconfig_path)?;
+    let problem_content = fs::read_to_string(problemconfig_path)?;
     let problem_json_value: serde_json::Value = serde_json::from_str(&problem_content)?;
 
     // 检查版本
-    if let Some(version) = problem_json_value.get("version").and_then(|v| v.as_u64()) {
-        if version < 3 {
-            error!(
-                "配置文件版本过低，可能是 tuack 的配置文件。请迁移到 tuack-ng 配置文件格式再使用。"
-            );
-            return Err("配置文件版本过低".into());
-        }
+    if let Some(version) = problem_json_value.get("version").and_then(|v| v.as_u64())
+        && version < 3
+    {
+        error!("配置文件版本过低，可能是 tuack 的配置文件。请迁移到 tuack-ng 配置文件格式再使用。");
+        return Err("配置文件版本过低".into());
     }
 
     let mut problemconfig: ProblemConfig = serde_json::from_str(&problem_content)?;
