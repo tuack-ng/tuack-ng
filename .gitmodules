@@ -1,3 +1,7 @@
 [submodule "assets/templates"]
 	path = assets/templates
 	url = https://github.com/tuack-ng/templates.git
+[submodule "vendor/testlib"]
+	path = vendor/testlib
+	url = https://github.com/MikeMirzayanov/testlib.git
+	shallow = true
