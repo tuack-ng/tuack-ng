@@ -3,6 +3,7 @@ use crate::{config::load_config, context::get_context};
 use bytesize::ByteSize;
 use clap::Args;
 use colored::Colorize;
+use csv::Writer;
 use evalexpr::{ContextWithMutableVariables, HashMapContext, Value, eval_boolean_with_context_mut};
 use indicatif::ProgressBar;
 use log::{debug, error, info, warn};
@@ -36,6 +37,25 @@ pub enum TestCaseStatus {
     AC,
     #[allow(unused)]
     UKE,
+    CE,
+}
+
+// 记录测试用例结果
+#[derive(Debug)]
+pub struct IndividualTestCaseResult {
+    pub test_case_id: u32,
+    pub status: TestCaseStatus,
+    pub score: u32,
+    pub max_score: u32,
+}
+
+// 记录题目测试结果
+#[derive(Debug)]
+pub struct ProblemTestResult {
+    pub tester_name: String,
+    pub test_case_results: Vec<IndividualTestCaseResult>,
+    pub total_score: u32,
+    pub max_possible_score: u32,
 }
 
 #[derive(Args, Debug)]
@@ -194,6 +214,44 @@ fn check_test_case(test_case: &TestCase, actual_score: u32) -> bool {
     true
 }
 
+// 将测试结果写入 CSV
+fn write_results_to_csv(
+    results: Vec<ProblemTestResult>,
+    problem_path: &Path,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let csv_path = problem_path.join("result.csv");
+
+    let mut wtr = Writer::from_path(&csv_path)?;
+
+    wtr.write_record(&["测试者", "测试点ID", "状态", "得分", "最高分"])?;
+
+    // 写入所有测试者的结果
+    for result in &results {
+        // 写入每个测试用例的结果
+        for test_case_result in &result.test_case_results {
+            wtr.write_record(&[
+                result.tester_name.clone(),
+                test_case_result.test_case_id.to_string(),
+                format!("{:?}", test_case_result.status),
+                test_case_result.score.to_string(),
+                test_case_result.max_score.to_string(),
+            ])?;
+        }
+
+        // 给这个测试者写入总分
+        wtr.write_record(&[
+            result.tester_name.clone(),
+            "".to_string(),                        // 测试点ID
+            "TOTAL".to_string(),                   // 状态
+            result.total_score.to_string(),        // 得分
+            result.max_possible_score.to_string(), // 最高分
+        ])?;
+    }
+
+    wtr.flush()?;
+    Ok(())
+}
+
 pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
     // 检查编译环境
     debug!("检查 C++ 编译环境");
@@ -276,7 +334,28 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
                     .progress_chars("=> "),
             );
 
+            // 收集所有测试者的结果
+            let mut all_test_results = Vec::new();
+
+            // 添加测试者进度条
+            let tester_pb = multi.add(ProgressBar::new(problem.tests.len() as u64));
+            tester_pb.set_style(
+                indicatif::ProgressStyle::default_bar()
+                    .template("  [{bar:40.yellow/blue}] {msg}")
+                    .unwrap()
+                    .progress_chars("=> "),
+            );
+
+            let mut tester_count = 0;
             for (test_name, test) in &problem.tests {
+                tester_count += 1;
+                tester_pb.set_message(format!(
+                    "处理第 {}/{} 个测试者: {}",
+                    tester_count,
+                    problem.tests.len(),
+                    test_name
+                ));
+
                 info!("测试 {} 的程序", test_name);
 
                 // 解析路径
@@ -312,6 +391,8 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
                     .arg("-O2")
                     .arg("-std=c++14")
                     .arg(target_path.file_name().unwrap())
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
                     .status()?;
 
                 if compile_status.success() {
@@ -333,7 +414,19 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
                     }
                     let program_path = tmp_dir.join(&problem.name);
 
+                    // 用于存储单个测试用例结果的数组
+                    let mut individual_results = Vec::new();
                     let mut case_count = 0;
+
+                    // 添加测试用例进度条
+                    let case_test_pb = multi.add(ProgressBar::new(problem.data.len() as u64));
+                    case_test_pb.set_style(
+                        indicatif::ProgressStyle::default_bar()
+                            .template("  [{bar:40.magenta/blue}] {msg}")
+                            .unwrap()
+                            .progress_chars("=> "),
+                    );
+
                     for case in &problem.data {
                         case_count += 1;
 
@@ -363,19 +456,6 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
                                 .as_u64(),
                         )?;
 
-                        info!(
-                            "{}",
-                            bytesize::ByteSize::from_str(&problem.memory_limit) // 空间限制
-                                .unwrap_or_else(|e| {
-                                    warn!(
-                                        "空间限制东西字符串转换失败: {}, 使用 512 MiB 作为默认值",
-                                        e
-                                    );
-                                    bytesize::ByteSize::mib(512)
-                                })
-                                .as_u64()
-                        );
-
                         let case_status = match run_result {
                             TestCaseStatus::Running => {
                                 // 程序正常结束，验证输出
@@ -387,9 +467,20 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
                         info!("测试点结果: {:?}", case_status);
 
                         // 计分
-                        if case_status == TestCaseStatus::AC {
-                            total_score += case.score;
-                        }
+                        let earned_score = if case_status == TestCaseStatus::AC {
+                            case.score
+                        } else {
+                            0
+                        };
+                        total_score += earned_score;
+
+                        // 记录单个测试用例结果
+                        individual_results.push(IndividualTestCaseResult {
+                            test_case_id: case.id,
+                            status: case_status,
+                            score: earned_score,
+                            max_score: case.score,
+                        });
 
                         // 更新进度条消息以显示当前测试点结果
                         let status_str = match case_status {
@@ -400,17 +491,46 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
                             TestCaseStatus::RE => "RE".bright_blue(),
                             TestCaseStatus::UKE => "UKE".bright_black(),
                             TestCaseStatus::Running => "Running".yellow(),
+                            TestCaseStatus::CE => "CE".yellow(),
                         };
-                        test_pb.set_message(format!(
+                        case_test_pb.set_message(format!(
                             "运行测试点: {}/{} | #{} {}",
                             case_count,
                             problem.data.len(),
                             case.id,
                             status_str
                         ));
-                        test_pb.inc(1);
+                        case_test_pb.inc(1);
                     }
+
+                    case_test_pb.finish_and_clear();
+
+                    // 为此题目创建测试结果
+                    let problem_result = ProblemTestResult {
+                        tester_name: test_name.to_string(),
+                        test_case_results: individual_results,
+                        total_score,
+                        max_possible_score: problem.data.iter().map(|case| case.score).sum(),
+                    };
+
+                    // 将结果添加到收集向量中
+                    all_test_results.push(problem_result);
+                } else {
+                    // 如果编译失败，创建一个空的结果
+                    let problem_result = ProblemTestResult {
+                        tester_name: test_name.to_string(),
+                        test_case_results: vec![IndividualTestCaseResult {
+                            test_case_id: 0,
+                            status: TestCaseStatus::CE,
+                            score: 0,
+                            max_score: problem.data.iter().map(|case| case.score).sum(),
+                        }],
+                        total_score: 0,
+                        max_possible_score: problem.data.iter().map(|case| case.score).sum(),
+                    };
+                    all_test_results.push(problem_result);
                 }
+
                 info!(
                     "总得分: {}/{}",
                     total_score,
@@ -423,11 +543,18 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
                     warn!("测试 {} 不满足所有条件", test_name);
                 }
 
-                test_pb.finish_and_clear();
+                tester_pb.inc(1);
 
                 // 清理临时文件
                 let _ = fs::remove_dir_all(&tmp_dir);
             }
+
+            tester_pb.finish_and_clear();
+
+            // 在所有测试完成后，将所有结果写入CSV文件
+            write_results_to_csv(all_test_results, &problem.path)?;
+
+            test_pb.finish_and_clear();
         }
         problem_pb.finish_and_clear();
     }
