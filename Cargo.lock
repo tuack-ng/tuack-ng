@@ -781,6 +781,7 @@ dependencies = [
 [[package]]
 name = "markdown-ppp"
 version = "2.8.1"
+source = "git+https://github.com/tuack-ng/markdown-ppp.git?branch=main#2c3bd1693d4cc1bd95b544009713b17dcc43b5ca"
 dependencies = [
  "entities",
  "nom",
