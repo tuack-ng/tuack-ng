@@ -87,8 +87,8 @@ fn compile_cpp_if_needed(cpp_file: &Path) {
             .arg("-O2")
             .arg(cpp_file.file_name().unwrap())
             .arg("-o")
-            .arg("-static")
             .arg(exe_name.to_string())
+            .arg("-static")
             .status();
 
         if let Ok(status) = status {
