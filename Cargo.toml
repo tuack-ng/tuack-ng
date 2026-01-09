@@ -20,7 +20,8 @@ indicatif = "0.18.3"
 indicatif-log-bridge = "0.2.3"
 log = "0.4.29"
 log4rs = "1.4.0"
-markdown-ppp = { git = "https://github.com/tuack-ng/markdown-ppp.git", branch = "main",features = ["parser", "ast-serde", "ast-transform", "typst-printer"] }
+markdown-ppp = { git = "https://github.com/tuack-ng/markdown-ppp.git", rev = "795f631",features = ["parser", "ast-serde", "ast-transform", "typst-printer"] }
+minijinja = "2.14.0"
 nom = "8.0.0"
 pretty = "0.12.5"
 serde = "1.0.228"

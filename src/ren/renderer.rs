@@ -11,7 +11,7 @@ use std::time::Duration;
 use std::{fs, path::PathBuf};
 
 use super::data_json::generate_data_json;
-use super::r#macro::expand_macro;
+use super::template::render_template;
 use super::utils::{copy_dir_recursive, process_images_with_unique_ids};
 
 pub fn render_day(
@@ -75,8 +75,24 @@ pub fn render_day(
             return Err(format!("未找到题面文件: {}", statement_path.display()).into());
         }
 
-        // 解析题面
-        let content = fs::read_to_string(&statement_path)?;
+        // 解析题面顺便展开模板
+        let content = match render_template(
+            &fs::read_to_string(&statement_path)?,
+            problem,
+            problem.path.clone(),
+        ) {
+            Ok(content) => content,
+            Err(e) => {
+                error!(
+                    "读取题面文件/展开模板 {} 失败: {:?}",
+                    statement_path.display(),
+                    e
+                );
+                problem_pb.finish_with_message("遇到错误，停止处理");
+                return Err("解析题面文件失败".into());
+            }
+        };
+
         let state = MarkdownParserState::new();
         let mut ast = match parse_markdown(state, &content) {
             Ok(ast) => ast,
@@ -140,11 +156,6 @@ pub fn render_day(
             });
         }
 
-        // Update progress bar to show macro expansion
-        problem_pb.set_message(format!("展开宏: {}", problem.name));
-        ast = expand_macro(ast, problem_dir, problem).unwrap();
-
-        // Update progress bar to show Typst rendering
         problem_pb.set_message(format!("生成Typst: {}", problem.name));
         // 生成Typst内容
         let typst_output = render_typst(&ast, Config::default().with_width(1000000));
