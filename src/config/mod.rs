@@ -10,6 +10,8 @@ pub mod data;
 pub mod models;
 pub mod problem;
 
+use crate::context::CurrentLocation;
+
 pub use self::contest::*;
 pub use self::data::*;
 pub use self::models::*;
@@ -33,6 +35,7 @@ fn find_contest_config(start_path: &Path) -> Result<PathBuf, Box<dyn std::error:
         }
     }
 }
+
 fn is_contest_config(path: &Path) -> Result<bool, Box<dyn std::error::Error>> {
     let content = fs::read_to_string(path)?;
     let json_value: serde_json::Value = serde_json::from_str(&content)?;
@@ -56,11 +59,21 @@ fn is_contest_config(path: &Path) -> Result<bool, Box<dyn std::error::Error>> {
     Ok(false)
 }
 
-pub fn load_config(path: &Path) -> Result<ContestConfig, Box<dyn std::error::Error>> {
+pub fn load_config(
+    path: &Path,
+) -> Result<(ContestConfig, CurrentLocation), Box<dyn std::error::Error>> {
     let config_path = find_contest_config(path)?;
+
+    let canonicalize_path = path.to_path_buf().canonicalize()?.to_path_buf();
 
     // 使用 load_contest_config 加载主配置
     let mut config = load_contest_config(&config_path)?;
+
+    let mut location: CurrentLocation = CurrentLocation::None;
+
+    if canonicalize_path.starts_with(&config_path.parent().unwrap()) {
+        location = CurrentLocation::Root;
+    }
 
     let parent_dir = config_path
         .parent()
@@ -72,6 +85,10 @@ pub fn load_config(path: &Path) -> Result<ContestConfig, Box<dyn std::error::Err
         let dayconfig_path = parent_dir.join(dayconfig_name).join(CONFIG_FILE_NAME);
         let mut dayconfig = load_day_config(&dayconfig_path)?;
 
+        if canonicalize_path.starts_with(&dayconfig_path.parent().unwrap()) {
+            location = CurrentLocation::Day(dayconfig_name.to_string());
+        }
+
         // 递归加载题目配置
         let day_parent_dir = dayconfig_path
             .parent()
@@ -82,13 +99,21 @@ pub fn load_config(path: &Path) -> Result<ContestConfig, Box<dyn std::error::Err
                 .join(problemconfig_name)
                 .join(CONFIG_FILE_NAME);
             let problemconfig = load_problem_config(&problemconfig_path)?;
+
+            if canonicalize_path.starts_with(&problemconfig_path.parent().unwrap()) {
+                location = CurrentLocation::Problem(
+                    dayconfig_name.to_string(),
+                    problemconfig_name.to_string(),
+                );
+            }
+
             dayconfig.subconfig.push(problemconfig);
         }
 
         config.subconfig.push(dayconfig);
     }
 
-    Ok(config)
+    Ok((config, location))
 }
 
 /// 加载比赛配置

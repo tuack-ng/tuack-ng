@@ -1,14 +1,15 @@
 use log::LevelFilter;
+use log::info;
 use log4rs::{
     Logger,
     append::console::ConsoleAppender,
     config::{Appender, Config, Root},
     encode::pattern::PatternEncoder,
 };
-use std::env;
 use std::path::PathBuf;
+use std::{env, path::Path};
 
-use crate::context;
+use crate::{config::load_config, context};
 use chrono::Local;
 use colored::Colorize;
 use indicatif::MultiProgress;
@@ -101,9 +102,18 @@ fn init_context(multi: MultiProgress) -> Result<(), Box<dyn std::error::Error>> 
         PathBuf::from("/usr/share/tuack-ng/"),
     ];
 
+    let config = match load_config(Path::new(".")) {
+        Ok(res) => {
+            info!("当前路径: {:#?}", res.1);
+            Some(res)
+        }
+        Err(_) => None,
+    };
+
     context::setup_context(context::Context {
         assets_dirs,
         multiprogress: multi,
+        config: config,
     })?;
     Ok(())
 }

@@ -6,10 +6,8 @@ use std::process::Command;
 
 use indicatif::ProgressBar;
 
-use crate::{
-    config::{ContestDayConfig, load_config},
-    context,
-};
+use crate::context::get_context;
+use crate::{config::ContestDayConfig, context};
 
 use super::renderer::render_day;
 
@@ -34,7 +32,8 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
         "当前目录: {}",
         Path::new(".").canonicalize()?.to_string_lossy()
     );
-    let config = load_config(Path::new("."))?;
+    // let config = load_config(Path::new("."))?;
+    let (config, _) = get_context().config.as_ref().unwrap();
 
     let template_dir = context::get_context().assets_dirs.iter().find(|dir| {
         let subdir = dir.join("templates").join(&args.target);

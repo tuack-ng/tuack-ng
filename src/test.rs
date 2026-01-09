@@ -1,5 +1,5 @@
 use crate::config::{ExpectedScore, TestCase};
-use crate::{config::load_config, context::get_context};
+use crate::context::get_context;
 use bytesize::ByteSize;
 use clap::Args;
 use colored::Colorize;
@@ -270,7 +270,7 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let config = load_config(Path::new("."))?;
+    let (config, _) = get_context().config.as_ref().unwrap();
 
     // 计算总任务数
     let total_days = config.subconfig.len();
