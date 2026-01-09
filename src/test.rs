@@ -1,4 +1,5 @@
 use crate::config::{ExpectedScore, TestCase};
+use crate::context::CurrentLocation;
 use crate::context::get_context;
 use bytesize::ByteSize;
 use clap::Args;
@@ -270,66 +271,111 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let (config, _) = get_context().config.as_ref().unwrap();
+    let (config, current_location) = get_context().config.as_ref().ok_or("找不到配置文件")?;
+
+    let skip_level = match current_location {
+        CurrentLocation::Problem(_, _) => 2,
+        CurrentLocation::Day(_) => 1,
+        _ => 0,
+    };
+
+    // 如果当前在Problem级别，还需要获取具体的day和problem名称
+    let (target_day_name, target_problem_name) = match current_location {
+        CurrentLocation::Problem(day_name, problem_name) => (Some(day_name), Some(problem_name)),
+        CurrentLocation::Day(day_name) => (Some(day_name), None),
+        _ => (None, None),
+    };
 
     // 计算总任务数
-    let total_days = config.subconfig.len();
-    let _total_problems: usize = config
-        .subconfig
-        .iter()
-        .map(|day| {
-            day.subconfig.len()
-                * day
-                    .subconfig
-                    .iter()
-                    .map(|problem| problem.tests.len())
-                    .sum::<usize>()
-        })
-        .sum();
-    let _total_test_cases: usize = config
-        .subconfig
-        .iter()
-        .flat_map(|day| &day.subconfig)
-        .flat_map(|problem| &problem.data)
-        .count();
+    let total_days = if skip_level >= 1 {
+        1
+    } else {
+        config.subconfig.len()
+    };
 
-    // 添加进度条
-    let multi = &get_context().multiprogress;
-    let day_pb = multi.add(ProgressBar::new(total_days as u64));
-    day_pb.set_style(
-        indicatif::ProgressStyle::default_bar()
-            .template("  [{bar:40.green/blue}] {msg}")
-            .unwrap()
-            .progress_chars("=> "),
-    );
+    let day_pb = if skip_level >= 1 {
+        // 如果跳过天级别，就不显示进度条
+        get_context().multiprogress.add(ProgressBar::new(0))
+    } else {
+        get_context()
+            .multiprogress
+            .add(ProgressBar::new(total_days as u64))
+    };
 
-    let mut day_count = 0;
-    for day in &config.subconfig {
-        day_count += 1;
-        day_pb.set_message(format!("处理第 {}/{} 天", day_count, total_days));
-        info!("处理天: {}", day.name);
-
-        // 添加问题进度条
-        let problem_pb = multi.add(ProgressBar::new(day.subconfig.len() as u64));
-        problem_pb.set_style(
+    if !(skip_level >= 1) {
+        day_pb.set_style(
             indicatif::ProgressStyle::default_bar()
-                .template("  [{bar:40.cyan/blue}] {msg}")
+                .template("  [{bar:40.green/blue}] {msg}")
                 .unwrap()
                 .progress_chars("=> "),
         );
+    }
+
+    let mut day_count = 0;
+    for day in &config.subconfig {
+        // 如果设置了跳过年份，并且这不是目标年份，则跳过
+        if skip_level >= 1
+            && target_day_name.is_some()
+            && day.name != *target_day_name.as_ref().unwrap().to_string()
+        {
+            continue;
+        }
+
+        day_count += 1;
+        if !(skip_level >= 1) {
+            day_pb.set_message(format!("处理第 {}/{} 天", day_count, total_days));
+        }
+        info!("处理天: {}", day.name);
+
+        // 添加问题进度条
+        let problem_count_in_day = if skip_level >= 2 {
+            1
+        } else {
+            day.subconfig.len()
+        };
+
+        let problem_pb = if skip_level >= 2 {
+            // 如果跳过问题级别，就不显示进度条
+            get_context().multiprogress.add(ProgressBar::new(0))
+        } else {
+            get_context()
+                .multiprogress
+                .add(ProgressBar::new(problem_count_in_day as u64))
+        };
+
+        if !(skip_level >= 2) {
+            problem_pb.set_style(
+                indicatif::ProgressStyle::default_bar()
+                    .template("  [{bar:40.cyan/blue}] {msg}")
+                    .unwrap()
+                    .progress_chars("=> "),
+            );
+        }
 
         let mut problem_count = 0;
         for problem in &day.subconfig {
+            // 如果设置了跳过问题，并且这不是目标问题，则跳过
+            if skip_level >= 2
+                && target_problem_name.is_some()
+                && problem.name != *target_problem_name.as_ref().unwrap().to_string()
+            {
+                continue;
+            }
+
             problem_count += 1;
-            problem_pb.set_message(format!(
-                "处理第 {}/{} 题",
-                problem_count,
-                day.subconfig.len()
-            ));
+            if !(skip_level >= 2) {
+                problem_pb.set_message(format!(
+                    "处理第 {}/{} 题",
+                    problem_count, problem_count_in_day
+                ));
+            }
             info!("处理题目: {}", problem.name);
 
+            // 以下是原有的测试逻辑，保持不变...
             // 添加测试进度条
-            let test_pb = multi.add(ProgressBar::new(problem.data.len() as u64));
+            let test_pb = get_context()
+                .multiprogress
+                .add(ProgressBar::new(problem.data.len() as u64));
             test_pb.set_style(
                 indicatif::ProgressStyle::default_bar()
                     .template("  [{bar:40.magenta/blue}] {msg}")
@@ -341,7 +387,9 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
             let mut all_test_results = Vec::new();
 
             // 添加测试者进度条
-            let tester_pb = multi.add(ProgressBar::new(problem.tests.len() as u64));
+            let tester_pb = get_context()
+                .multiprogress
+                .add(ProgressBar::new(problem.tests.len() as u64));
             tester_pb.set_style(
                 indicatif::ProgressStyle::default_bar()
                     .template("  [{bar:40.yellow/blue}] {msg}")
@@ -422,7 +470,9 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
                     let mut case_count = 0;
 
                     // 添加测试用例进度条
-                    let case_test_pb = multi.add(ProgressBar::new(problem.data.len() as u64));
+                    let case_test_pb = get_context()
+                        .multiprogress
+                        .add(ProgressBar::new(problem.data.len() as u64));
                     case_test_pb.set_style(
                         indicatif::ProgressStyle::default_bar()
                             .template("  [{bar:40.magenta/blue}] {msg}")
@@ -557,11 +607,39 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
             // 在所有测试完成后，将所有结果写入CSV文件
             write_results_to_csv(all_test_results, &problem.path)?;
 
-            test_pb.finish_and_clear();
+            if skip_level == 2 {
+                test_pb.finish_with_message("测试完成！");
+            } else {
+                test_pb.finish_and_clear();
+            }
+
+            // 如果是特定问题，处理完后就跳出循环
+            if skip_level >= 2 {
+                break;
+            }
         }
-        problem_pb.finish_and_clear();
+
+        // if !skip_level >= 2 {
+        //     problem_pb.finish_and_clear();
+        // }
+
+        if skip_level == 1 {
+            problem_pb.finish_with_message("测试完成！");
+        } else {
+            problem_pb.finish_and_clear();
+        }
+
+        // 如果是特定天，处理完后就跳出循环
+        if skip_level >= 1 {
+            break;
+        }
     }
-    day_pb.finish_with_message("测试完成！");
+
+    if skip_level == 0 {
+        day_pb.finish_with_message("测试完成！");
+    } else {
+        info!("测试完成！");
+    }
 
     Ok(())
 }

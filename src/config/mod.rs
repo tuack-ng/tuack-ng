@@ -1,4 +1,4 @@
-use log::{debug, error};
+use log::{debug, error, info};
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
@@ -30,7 +30,7 @@ fn find_contest_config(start_path: &Path) -> Result<PathBuf, Box<dyn std::error:
         }
 
         if !current_path.pop() {
-            error!("未找到contest配置文件");
+            info!("未找到contest配置文件");
             return Err("未找到contest配置文件".into());
         }
     }

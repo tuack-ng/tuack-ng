@@ -1,6 +1,6 @@
 use crate::fun::Philia093Args;
 use crate::generate::GenArgs;
-use crate::ren::cli::RenArgs;
+use crate::ren::RenArgs;
 use crate::test::TestArgs;
 use clap::ArgAction;
 use clap::{Parser, Subcommand};
@@ -49,7 +49,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("booting up");
 
     let result = match cli.command {
-        Commands::Ren(args) => crate::ren::cli::main(args),
+        Commands::Ren(args) => ren::main(args),
         Commands::Gen(args) => generate::main(args),
         Commands::Test(args) => test::main(args),
         Commands::Philia093(args) => fun::main(args, &cli.verbose),
