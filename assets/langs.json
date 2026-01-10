@@ -1,0 +1,26 @@
+{
+    "c": {
+        "language": "C",
+        "compiler": {
+            "executable": "gcc",
+            "version_check": "--version",
+            "object_set_arg": "-o"
+        }
+    },
+    "cpp": {
+        "language": "C++",
+        "compiler": {
+            "executable": "g++",
+            "version_check": "--version",
+            "object_set_arg": "-o"
+        }
+    },
+    "rs": {
+        "language": "Rust",
+        "compiler": {
+            "executable": "rustc",
+            "version_check": "--version",
+            "object_set_arg": "-o"
+        }
+    }
+}

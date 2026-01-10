@@ -7,6 +7,7 @@ const CONFIG_FILE_NAME: &str = "conf.json";
 
 pub mod contest;
 pub mod data;
+pub mod lang;
 pub mod models;
 pub mod problem;
 
@@ -71,7 +72,7 @@ pub fn load_config(
 
     let mut location: CurrentLocation = CurrentLocation::None;
 
-    if canonicalize_path.starts_with(&config_path.parent().unwrap()) {
+    if canonicalize_path.starts_with(config_path.parent().unwrap()) {
         location = CurrentLocation::Root;
     }
 
@@ -85,7 +86,7 @@ pub fn load_config(
         let dayconfig_path = parent_dir.join(dayconfig_name).join(CONFIG_FILE_NAME);
         let mut dayconfig = load_day_config(&dayconfig_path)?;
 
-        if canonicalize_path.starts_with(&dayconfig_path.parent().unwrap()) {
+        if canonicalize_path.starts_with(dayconfig_path.parent().unwrap()) {
             location = CurrentLocation::Day(dayconfig_name.to_string());
         }
 
@@ -100,7 +101,7 @@ pub fn load_config(
                 .join(CONFIG_FILE_NAME);
             let problemconfig = load_problem_config(&problemconfig_path)?;
 
-            if canonicalize_path.starts_with(&problemconfig_path.parent().unwrap()) {
+            if canonicalize_path.starts_with(problemconfig_path.parent().unwrap()) {
                 location = CurrentLocation::Problem(
                     dayconfig_name.to_string(),
                     problemconfig_name.to_string(),

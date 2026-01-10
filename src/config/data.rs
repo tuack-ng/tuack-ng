@@ -12,5 +12,4 @@ pub struct DataJson {
     pub file_io: bool,
     pub support_languages: Vec<SupportLanguage>,
     pub problems: Vec<Problem>,
-    pub images: Vec<serde_json::Value>,
 }

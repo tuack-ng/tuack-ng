@@ -28,6 +28,7 @@ serde = "1.0.228"
 serde_json = { version = "1.0.145", features = ["preserve_order"] }
 sha2 = "0.10.9"
 shared_child = "1.1.1"
+shellwords = "1.1.0"
 sysinfo = "0.37.2"
 
 [build-dependencies]

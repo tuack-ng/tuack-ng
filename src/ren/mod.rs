@@ -38,7 +38,7 @@ pub struct RenArgs {
 }
 
 /// 修改图片路径，将相对路径替换为唯一ID路径
-fn process_image_urls(img_src_dir: &std::path::PathBuf, ast: &mut markdown_ppp::ast::Document) {
+fn process_image_urls(img_src_dir: &Path, ast: &mut markdown_ppp::ast::Document) {
     if img_src_dir.exists() && img_src_dir.is_dir() {
         *ast = ast.clone().transform_image_urls(|url| {
             if url.starts_with("./img/") || url.starts_with("img/") {
@@ -158,14 +158,14 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
 
     let statements_dir = match current_location {
         CurrentLocation::Problem(day_name, problem_name) => {
-            let problem_dir = Path::new(&config.path).join(&day_name).join(&problem_name);
-            let statement_dir = problem_dir.join("statement");
-            statement_dir
+            let problem_dir = Path::new(&config.path).join(day_name).join(problem_name);
+
+            problem_dir.join("statement")
         }
         CurrentLocation::Day(day_name) => {
-            let day_dir = Path::new(&config.path).join(&day_name);
-            let statement_dir = day_dir.join("statement");
-            statement_dir
+            let day_dir = Path::new(&config.path).join(day_name);
+
+            day_dir.join("statement")
         }
         _ => statements_dir.clone(),
     };
@@ -207,7 +207,7 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
         // 如果设置了跳过天级别，并且这不是目标天，则跳过
         if skip_level >= 1
             && target_day_name.is_some()
-            && &day.name != &target_day_name.as_ref().unwrap().to_string()
+            && day.name != target_day_name.as_ref().unwrap().to_string()
         {
             continue;
         }
@@ -245,7 +245,7 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
             match day
                 .subconfig
                 .iter()
-                .find(|p| &p.name == &target_problem_name.as_ref().unwrap().to_string())
+                .find(|p| p.name == target_problem_name.as_ref().unwrap().to_string())
             {
                 Some(problem) => {
                     info!("渲染指定问题: {}", problem.name);
@@ -272,9 +272,9 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
             // 只保留当前题目
             modified_day.subconfig = problems_to_render.iter().map(|&p| p.clone()).collect();
 
-            generate_data_json(&config, &modified_day)?
+            generate_data_json(config, &modified_day)?
         } else {
-            generate_data_json(&config, day)?
+            generate_data_json(config, day)?
         };
 
         let data_json_str = serde_json::to_string_pretty(&data_json)?;

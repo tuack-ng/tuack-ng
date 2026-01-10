@@ -16,6 +16,32 @@ pub fn generate_data_json(
     let mut problems = Vec::new();
 
     for problem_config in &day_config.subconfig {
+        let mut submit_filenames = Vec::new();
+
+        // 遍历 day_config.compile 中的语言配置来生成对应的提交文件名
+        for lang_key in day_config.compile.keys() {
+            submit_filenames.push(format!("{}.{}", problem_config.name, lang_key));
+        }
+
+        let point_equal = if problem_config.data.is_empty() {
+            // 如果没有测试数据，默认为"是"
+            "是".to_string()
+        } else {
+            // 获取第一个测试点的分数
+            let first_score = problem_config.data[0].score;
+            // 检查所有测试点的分数是否都等于第一个测试点的分数
+            let all_equal = problem_config
+                .data
+                .iter()
+                .all(|data_item| data_item.score == first_score);
+
+            if all_equal {
+                "是".to_string()
+            } else {
+                "否".to_string()
+            }
+        };
+
         let problem = Problem {
             name: problem_config.name.clone(),
             title: problem_config.title.clone(),
@@ -39,18 +65,32 @@ pub fn generate_data_json(
             time_limit: format!("{:.1} 秒", problem_config.time_limit),
             memory_limit: problem_config.memory_limit.clone(),
             testcase: problem_config.data.len().to_string(),
-            point_equal: "是".to_string(),
-            submit_filename: vec![format!("{}.cpp", problem_config.name)], // 默认值
+            point_equal,
+            submit_filename: submit_filenames,
         };
         problems.push(problem);
     }
 
     // 构建支持的语言列表
-    // 注意：ContestConfig中没有support_languages字段，这里使用默认值
-    let support_languages = vec![SupportLanguage {
-        name: "C++".to_string(),
-        compile_options: day_config.compile.cpp.clone(),
-    }];
+    let context = crate::context::get_context();
+    let mut support_languages = Vec::new();
+
+    for (lang_key, compile_options) in &day_config.compile {
+        // 从context中查找对应的语言配置来获取语言名称
+        let language_name = if let Some(lang_config) = context.languages.get(lang_key) {
+            lang_config.language.clone()
+        } else {
+            // 如果context中没有对应的语言配置，使用键名作为语言名称
+            error!("在语言配置中未找到 {}", lang_key);
+            return Err(format!("在语言配置中未找到 {}", lang_key).into());
+        };
+
+        let language = SupportLanguage {
+            name: language_name,
+            compile_options: compile_options.clone(),
+        };
+        support_languages.push(language);
+    }
 
     // 创建日期信息
     let date = DateInfo {
@@ -100,6 +140,5 @@ pub fn generate_data_json(
         file_io,
         support_languages,
         problems,
-        images: Vec::new(),
     })
 }

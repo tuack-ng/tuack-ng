@@ -1,3 +1,4 @@
+use crate::context::get_context;
 use log::LevelFilter;
 use log::info;
 use log4rs::{
@@ -6,6 +7,7 @@ use log4rs::{
     config::{Appender, Config, Root},
     encode::pattern::PatternEncoder,
 };
+use std::fs;
 use std::path::PathBuf;
 use std::{env, path::Path};
 
@@ -110,10 +112,24 @@ fn init_context(multi: MultiProgress) -> Result<(), Box<dyn std::error::Error>> 
         Err(_) => None,
     };
 
+    let langs = assets_dirs
+        .iter()
+        .find_map(|dir| {
+            dir.join("langs.json")
+                .exists()
+                .then(|| dir.join("langs.json"))
+        })
+        .unwrap_or_else(|| get_context().assets_dirs[0].join("langs.json"));
+
+    let langs_content = fs::read_to_string(langs).unwrap();
+
+    let languages = serde_json::from_str(&langs_content)?;
+
     context::setup_context(context::Context {
         assets_dirs,
         multiprogress: multi,
-        config: config,
+        config,
+        languages,
     })?;
     Ok(())
 }

@@ -1,6 +1,6 @@
 use super::problem::ProblemConfig;
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::{collections::HashMap, path::PathBuf};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -35,7 +35,7 @@ pub struct ContestDayConfig {
     pub name: String,
     pub subdir: Vec<String>,
     pub title: String,
-    pub compile: CompileConfig,
+    pub compile: HashMap<String, String>,
     #[serde(rename = "start time")]
     pub start_time: [u32; 6],
     #[serde(rename = "end time")]
@@ -55,10 +55,10 @@ pub struct ContestDayConfig {
     pub path: PathBuf,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub struct CompileConfig {
-    pub cpp: String,
-    #[serde(default)]
-    pub c: String,
-}
+// #[derive(Debug, Clone, Serialize, Deserialize)]
+// #[serde(rename_all = "kebab-case")]
+// pub struct CompileConfig {
+//     pub cpp: String,
+//     #[serde(default)]
+//     pub c: String,
+// }

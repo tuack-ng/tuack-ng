@@ -1,3 +1,5 @@
+use crate::config::lang::Language;
+// **注意**：这**不是**用于测试这个程序的测试用例的命令
 use crate::config::{ExpectedScore, TestCase};
 use crate::context::CurrentLocation;
 use crate::context::get_context;
@@ -19,6 +21,7 @@ use std::{
     time::{Duration, Instant},
 };
 use sysinfo::{Pid, ProcessesToUpdate, System};
+
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum ProblemStatus {
     Waiting,
@@ -71,6 +74,22 @@ fn create_or_clear_dir(path: &Path) -> Result<(), std::io::Error> {
         fs::remove_dir_all(path)?;
     }
     fs::create_dir_all(path)
+}
+
+fn string_to_command(command_str: &str) -> Result<Command, Box<dyn std::error::Error>> {
+    let parts = shellwords::split(command_str)?;
+
+    if parts.is_empty() {
+        return Err("Empty command".into());
+    }
+
+    let mut cmd = Command::new(&parts[0]);
+
+    if parts.len() > 1 {
+        cmd.args(&parts[1..]);
+    }
+
+    Ok(cmd)
 }
 
 fn run_test_case(
@@ -256,21 +275,31 @@ fn write_results_to_csv(
     Ok(())
 }
 
-pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
+fn check_compiler(language: &Language) -> Result<(), Box<dyn std::error::Error>> {
     // 检查编译环境
-    debug!("检查 C++ 编译环境");
-    match Command::new("g++").arg("--version").output() {
+    let compiler = &language.compiler;
+    debug!("检查 {} 环境", language.language);
+    match Command::new(&compiler.executable)
+        .arg(&compiler.version_check)
+        .output()
+    {
         Ok(output) if output.status.success() => {
             let version_output = String::from_utf8_lossy(&output.stdout);
             let version = version_output.lines().next().unwrap_or("").trim();
-            debug!("g++ 版本: {}", version);
+            debug!("{} 版本: {}", &compiler.executable, version);
         }
         _ => {
-            error!("未找到 g++ 命令，请确保已安装并添加到PATH");
-            return Err("g++ 命令执行失败".into());
+            error!(
+                "未找到 {} 命令，请确保已安装并添加到PATH",
+                &compiler.executable
+            );
+            return Err(format!("{} 命令执行失败", &compiler.executable).into());
         }
     }
+    Ok(())
+}
 
+pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
     let (config, current_location) = get_context().config.as_ref().ok_or("找不到配置文件")?;
 
     let skip_level = match current_location {
@@ -302,7 +331,7 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
             .add(ProgressBar::new(total_days as u64))
     };
 
-    if !(skip_level >= 1) {
+    if skip_level < 1 {
         day_pb.set_style(
             indicatif::ProgressStyle::default_bar()
                 .template("  [{bar:40.green/blue}] {msg}")
@@ -322,7 +351,7 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
         }
 
         day_count += 1;
-        if !(skip_level >= 1) {
+        if skip_level < 1 {
             day_pb.set_message(format!("处理第 {}/{} 天", day_count, total_days));
         }
         info!("处理天: {}", day.name);
@@ -343,7 +372,7 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
                 .add(ProgressBar::new(problem_count_in_day as u64))
         };
 
-        if !(skip_level >= 2) {
+        if skip_level < 2 {
             problem_pb.set_style(
                 indicatif::ProgressStyle::default_bar()
                     .template("  [{bar:40.cyan/blue}] {msg}")
@@ -363,7 +392,7 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
             }
 
             problem_count += 1;
-            if !(skip_level >= 2) {
+            if skip_level < 2 {
                 problem_pb.set_message(format!(
                     "处理第 {}/{} 题",
                     problem_count, problem_count_in_day
@@ -371,7 +400,6 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
             }
             info!("处理题目: {}", problem.name);
 
-            // 以下是原有的测试逻辑，保持不变...
             // 添加测试进度条
             let test_pb = get_context()
                 .multiprogress
@@ -435,16 +463,30 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
                 }
                 info!("正在编译...");
 
-                let compile_status = Command::new("g++")
-                    .current_dir(&tmp_dir)
-                    .arg("-o")
-                    .arg(&problem.name)
-                    .arg("-O2")
-                    .arg("-std=c++14")
-                    .arg(target_path.file_name().unwrap())
-                    .stdout(Stdio::null())
-                    .stderr(Stdio::null())
-                    .status()?;
+                let ext = target_path
+                    .extension()
+                    .ok_or("文件无后缀名")?
+                    .to_string_lossy();
+
+                let file_type = get_context()
+                    .languages
+                    .get(ext.as_ref())
+                    .ok_or("未知格式文件")?;
+
+                check_compiler(file_type)?;
+
+                let compile_status = string_to_command(&format!(
+                    " {} {} {} {} {}",
+                    file_type.compiler.executable,
+                    file_type.compiler.object_set_arg,
+                    &problem.name,
+                    &day.compile.get(ext.as_ref()).ok_or("未知格式文件")?,
+                    target_path.file_name().unwrap().to_string_lossy()
+                ))?
+                .current_dir(&tmp_dir)
+                .stdout(Stdio::null())
+                .stderr(Stdio::null())
+                .status()?;
 
                 if compile_status.success() {
                     problem_status = ProblemStatus::Compiled;

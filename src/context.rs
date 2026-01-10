@@ -1,5 +1,7 @@
 use crate::config::ContestConfig;
+use crate::config::lang::Language;
 use indicatif::MultiProgress;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::OnceLock;
 
@@ -20,6 +22,7 @@ pub struct Context {
     pub multiprogress: MultiProgress,
 
     pub config: Option<(ContestConfig, CurrentLocation)>,
+    pub languages: HashMap<String, Language>,
 }
 
 static GLOBAL_CONTEXT: OnceLock<Context> = OnceLock::new();
