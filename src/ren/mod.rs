@@ -322,6 +322,8 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
             let content = match render_template(
                 &fs::read_to_string(&statement_path)?,
                 problem,
+                day,
+                config,
                 problem.path.clone(),
             ) {
                 Ok(content) => content,
