@@ -1,4 +1,6 @@
 ## Tuack-NG
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Ftuack-ng%2Ftuack-ng.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Ftuack-ng%2Ftuack-ng?ref=badge_shield)
+
 
 tuack-ng 项目是重构后的 tuack 项目，旨在提供更加高效和轻量的出题体验。
 
@@ -18,3 +20,6 @@ package() {
     find "$pkgdir/usr/share/tuack-ng/templates" -type f -exec chmod 644 {} \;
 }
 ```
+
+
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Ftuack-ng%2Ftuack-ng.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Ftuack-ng%2Ftuack-ng?ref=badge_large)
