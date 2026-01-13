@@ -6,6 +6,7 @@ use std::path::PathBuf;
 const CONFIG_FILE_NAME: &str = "conf.json";
 
 pub mod contest;
+pub mod contestday;
 pub mod data;
 pub mod lang;
 pub mod models;
@@ -14,6 +15,7 @@ pub mod problem;
 use crate::context::CurrentLocation;
 
 pub use self::contest::*;
+pub use self::contestday::*;
 pub use self::data::*;
 pub use self::models::*;
 pub use self::problem::*;
@@ -120,89 +122,6 @@ pub fn load_config(
     Ok(Some((config, location)))
 }
 
-/// 加载比赛配置
-pub fn load_contest_config(
-    config_path: &Path,
-) -> Result<ContestConfig, Box<dyn std::error::Error>> {
-    // 读取并验证主配置文件
-    let main_content = fs::read_to_string(config_path)?;
-    let main_json_value: serde_json::Value = serde_json::from_str(&main_content)?;
-
-    // 检查版本
-    if let Some(version) = main_json_value.get("version").and_then(|v| v.as_u64())
-        && version < 3
-    {
-        error!("配置文件版本过低，可能是 tuack 的配置文件。请迁移到 tuack-ng 配置文件格式再使用。");
-        return Err("配置文件版本过低".into());
-    }
-
-    // 反序列化主配置
-    let mut config: ContestConfig = serde_json::from_str(&main_content)?;
-
-    config.path = config_path.parent().unwrap().to_path_buf();
-
-    config.subconfig = Vec::new();
-
-    Ok(config)
-}
-
-/// 加载比赛日配置
-pub fn load_day_config(
-    dayconfig_path: &Path,
-) -> Result<ContestDayConfig, Box<dyn std::error::Error>> {
-    // 读取并验证每日配置文件
-    let day_content = fs::read_to_string(dayconfig_path)?;
-    let day_json_value: serde_json::Value = serde_json::from_str(&day_content)?;
-
-    // 检查版本
-    if let Some(version) = day_json_value.get("version").and_then(|v| v.as_u64())
-        && version < 3
-    {
-        error!("配置文件版本过低，可能是 tuack 的配置文件。请迁移到 tuack-ng 配置文件格式再使用。");
-        return Err("配置文件版本过低".into());
-    }
-
-    let mut dayconfig: ContestDayConfig = serde_json::from_str(&day_content)?;
-
-    dayconfig.path = dayconfig_path
-        .parent()
-        .map(|p| p.to_path_buf())
-        .ok_or("无法获取配置文件父目录")?;
-
-    // 不处理子目录，只加载当前配置
-    dayconfig.subconfig = Vec::new();
-
-    Ok(dayconfig)
-}
-
-/// 加载题目配置
-pub fn load_problem_config(
-    problemconfig_path: &Path,
-) -> Result<ProblemConfig, Box<dyn std::error::Error>> {
-    // 读取并验证问题配置文件
-    let problem_content = fs::read_to_string(problemconfig_path)?;
-    let problem_json_value: serde_json::Value = serde_json::from_str(&problem_content)?;
-
-    // 检查版本
-    if let Some(version) = problem_json_value.get("version").and_then(|v| v.as_u64())
-        && version < 3
-    {
-        error!("配置文件版本过低，可能是 tuack 的配置文件。请迁移到 tuack-ng 配置文件格式再使用。");
-        return Err("配置文件版本过低".into());
-    }
-
-    let mut problemconfig: ProblemConfig = serde_json::from_str(&problem_content)?;
-
-    problemconfig.path = problemconfig_path
-        .parent()
-        .map(|p| p.to_path_buf())
-        .ok_or("无法获取配置文件父目录")?;
-
-    problemconfig = problemconfig.finalize();
-
-    Ok(problemconfig)
-}
-
 #[allow(unused)]
 /// 将整个配置序列化并保存到文件系统中
 pub fn save_config(
@@ -260,52 +179,4 @@ pub fn save_config(
     }
 
     Ok(())
-}
-
-/// 将比赛配置序列化为JSON字符串，排除null字段
-pub fn save_contest_config(config: &ContestConfig) -> Result<String, Box<dyn std::error::Error>> {
-    let json_value = serde_json::to_value(config)?;
-    let filtered_obj = json_value
-        .as_object()
-        .map(|obj| {
-            obj.iter()
-                .filter(|(_, v)| !v.is_null())
-                .map(|(k, v)| (k.clone(), v.clone()))
-                .collect::<serde_json::Map<_, _>>()
-        })
-        .ok_or("Failed to convert contest config to object")?;
-    let json = serde_json::to_string_pretty(&filtered_obj)?;
-    Ok(json)
-}
-
-/// 将比赛日配置序列化为JSON字符串，排除null字段
-pub fn save_day_config(config: &ContestDayConfig) -> Result<String, Box<dyn std::error::Error>> {
-    let json_value = serde_json::to_value(config)?;
-    let filtered_obj = json_value
-        .as_object()
-        .map(|obj| {
-            obj.iter()
-                .filter(|(_, v)| !v.is_null())
-                .map(|(k, v)| (k.clone(), v.clone()))
-                .collect::<serde_json::Map<_, _>>()
-        })
-        .ok_or("Failed to convert day config to object")?;
-    let json = serde_json::to_string_pretty(&filtered_obj)?;
-    Ok(json)
-}
-
-/// 将题目配置序列化为JSON字符串，排除null字段
-pub fn save_problem_config(config: &ProblemConfig) -> Result<String, Box<dyn std::error::Error>> {
-    let json_value = serde_json::to_value(config)?;
-    let filtered_obj = json_value
-        .as_object()
-        .map(|obj| {
-            obj.iter()
-                .filter(|(_, v)| !v.is_null())
-                .map(|(k, v)| (k.clone(), v.clone()))
-                .collect::<serde_json::Map<_, _>>()
-        })
-        .ok_or("Failed to convert problem config to object")?;
-    let json = serde_json::to_string_pretty(&filtered_obj)?;
-    Ok(json)
 }

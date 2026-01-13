@@ -1,6 +1,5 @@
-use crate::config::lang::Language;
-// **注意**：这**不是**用于测试这个程序的测试用例的命令
 use crate::config::ScorePolicy;
+use crate::config::lang::Language;
 use crate::config::{ExpectedScore, TestCase};
 use crate::context::CurrentLocation;
 use crate::context::get_context;
@@ -24,6 +23,7 @@ use std::{
 };
 use sysinfo::{Pid, ProcessesToUpdate, System};
 
+// **注意**：这**不是**用于测试这个程序的测试用例的命令
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum ProblemStatus {
     Waiting,
@@ -687,10 +687,6 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
                 break;
             }
         }
-
-        // if !skip_level >= 2 {
-        //     problem_pb.finish_and_clear();
-        // }
 
         if skip_level == 1 {
             problem_pb.finish_with_message("测试完成！");

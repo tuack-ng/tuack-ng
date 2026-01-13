@@ -14,7 +14,7 @@ fn output_file(problem: &ProblemConfig) -> Result<String, minijinja::Error> {
     Ok(format!("输出到文件 _{}.out_ 中。", problem.name))
 }
 
-/// 处理 sample 函数 - 直接返回Markdown文本
+/// 处理 sample 函数
 fn handle_sample(
     sample_id: u32,
     problem: &ProblemConfig,
@@ -92,15 +92,14 @@ fn handle_sample(
     Ok(md)
 }
 
-/// 处理 sample_file 函数 - 生成文件引用文本
+/// 处理 sample_file 函数
 fn handle_sample_file(sample_id: u32, problem: &ProblemConfig) -> Result<String, minijinja::Error> {
     debug!("处理 sample_file 函数: {}", sample_id);
 
     // 检查样本是否存在
-    // if !problem.samples.iter().any(|s| s.id == sample_id) {
-    //     warn!("未找到样本ID: {}", sample_id);
-    //     return Ok(format!("**错误：未找到样本 {}**", sample_id));
-    // }
+    if !problem.samples.iter().any(|s| s.id == sample_id) {
+        warn!("未找到样本ID: {}", sample_id);
+    }
 
     // 直接生成Markdown文本
     let text = format!(
@@ -338,8 +337,6 @@ pub fn render_template(
         (
             "hn",
             Value::from_function({
-                // let problem = problem.clone();
-                // let base_path = base_path.clone();
                 move |num: f64, style: Option<&str>| -> Result<String, minijinja::Error> {
                     hn(num, style)
                 }
@@ -348,16 +345,12 @@ pub fn render_template(
         (
             "comma",
             Value::from_function({
-                // let problem = problem.clone();
-                // let base_path = base_path.clone();
                 move |num: i64| -> Result<String, minijinja::Error> { comma(num) }
             }),
         ),
         (
             "cases",
             Value::from_function({
-                // let problem = problem.clone();
-                // let base_path = base_path.clone();
                 move |cases_vec: Vec<i32>| -> Result<String, minijinja::Error> { cases(cases_vec) }
             }),
         ),
