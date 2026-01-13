@@ -62,8 +62,11 @@ fn is_contest_config(path: &Path) -> Result<bool, Box<dyn std::error::Error>> {
 
 pub fn load_config(
     path: &Path,
-) -> Result<(ContestConfig, CurrentLocation), Box<dyn std::error::Error>> {
-    let config_path = find_contest_config(path)?;
+) -> Result<Option<(ContestConfig, CurrentLocation)>, Box<dyn std::error::Error>> {
+    let config_path = match find_contest_config(path) {
+        Ok(path) => path,
+        Err(_) => return Ok(None),
+    };
 
     let canonicalize_path = path.to_path_buf().canonicalize()?.to_path_buf();
 
@@ -114,7 +117,7 @@ pub fn load_config(
         config.subconfig.push(dayconfig);
     }
 
-    Ok((config, location))
+    Ok(Some((config, location)))
 }
 
 /// 加载比赛配置

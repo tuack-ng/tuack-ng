@@ -1,6 +1,7 @@
 use crate::context::get_context;
 use log::LevelFilter;
 use log::info;
+use log::warn;
 use log4rs::{
     Logger,
     append::console::ConsoleAppender,
@@ -106,10 +107,15 @@ fn init_context(multi: MultiProgress) -> Result<(), Box<dyn std::error::Error>> 
 
     let config = match load_config(Path::new(".")) {
         Ok(res) => {
-            info!("当前路径: {:#?}", res.1);
-            Some(res)
+            if res.as_ref().is_some() {
+                info!("当前路径: {:#?}", res.as_ref().unwrap().1);
+            }
+            res
         }
-        Err(_) => None,
+        Err(e) => {
+            warn!("配置文件解析失败，可能导致问题: {}", e);
+            None
+        }
     };
 
     let langs = assets_dirs

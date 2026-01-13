@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -22,6 +23,8 @@ pub struct ProblemConfig {
     pub samples: Vec<SampleItem>,
     // pub args: HashMap<String, serde_json::Value>,
     pub data: Vec<DataItem>,
+    #[serde(default)]
+    pub subtests: BTreeMap<u32, ScorePolicy>,
     // pub pretest: Vec<PreItem>,
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub tests: HashMap<String, TestCase>,
@@ -77,8 +80,10 @@ pub struct DataItem {
     pub id: u32,
     pub score: u32,
     #[serde(default)]
+    pub subtest: u32,
+    #[serde(skip)]
     pub input: Option<String>,
-    #[serde(default)]
+    #[serde(skip)]
     pub output: Option<String>,
 }
 
@@ -88,8 +93,20 @@ impl DataItem {
         DataItem {
             id: self.id,
             score: self.score,
+            subtest: self.subtest,
             input: Some(format!("{}.in", self.id)),
             output: Some(format!("{}.ans", self.id)),
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ScorePolicy {
+    /// 求和（默认）
+    Sum,
+    /// 求最大值
+    Max,
+    /// 求最小值
+    Min,
 }

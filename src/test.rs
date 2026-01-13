@@ -1,5 +1,6 @@
 use crate::config::lang::Language;
 // **注意**：这**不是**用于测试这个程序的测试用例的命令
+use crate::config::ScorePolicy;
 use crate::config::{ExpectedScore, TestCase};
 use crate::context::CurrentLocation;
 use crate::context::get_context;
@@ -11,6 +12,7 @@ use evalexpr::{ContextWithMutableVariables, HashMapContext, Value, eval_boolean_
 use indicatif::ProgressBar;
 use log::{debug, error, info, warn};
 use shared_child::SharedChild;
+use std::collections::HashMap;
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -496,8 +498,15 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
                     info!("编译错误");
                 }
 
+                let mut total_score: u32 = 0;
+
                 fs::remove_file(&target_path)?;
-                let mut total_score = 0;
+
+                let mut subtask_scores: HashMap<u32, Vec<u32>> = problem
+                    .subtests
+                    .iter()
+                    .map(|(id, _)| (*id, Vec::new()))
+                    .collect();
 
                 // 运行测试用例
                 if problem_status == ProblemStatus::Compiled {
@@ -567,7 +576,11 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
                         } else {
                             0
                         };
-                        total_score += earned_score;
+                        // total_score += earned_score;
+                        subtask_scores
+                            .get_mut(&case.subtest)
+                            .ok_or("不存在指定的 Subtask")?
+                            .push(earned_score);
 
                         // 记录单个测试用例结果
                         individual_results.push(IndividualTestCaseResult {
@@ -599,6 +612,20 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
                     }
 
                     case_test_pb.finish_and_clear();
+
+                    for (id, policy) in &problem.subtests {
+                        let scores = &subtask_scores[&id];
+
+                        let subtest_score = match policy {
+                            ScorePolicy::Sum => scores.iter().sum(),
+                            ScorePolicy::Max => *scores.iter().max().unwrap_or(&0),
+                            ScorePolicy::Min => *scores.iter().min().unwrap_or(&0),
+                        };
+
+                        info!("Subtask #{} 得分 {}", id, subtest_score);
+
+                        total_score += subtest_score;
+                    }
 
                     // 为此题目创建测试结果
                     let problem_result = ProblemTestResult {
