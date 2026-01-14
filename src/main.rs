@@ -43,7 +43,6 @@ enum Commands {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse_i18n_or_exit();
-    // let cli = Cli::parse();
 
     init::init(&(cli.verbose >= 1))?;
 

@@ -60,6 +60,7 @@ fn custom_panic_handler(panic_info: &PanicHookInfo, verbose: bool) {
     } else {
         panic_log!("无法获取 Panic 信息");
     }
+    panic_log!("详见: https://docs.tuack-ng.ink/contributing/panic.html");
 }
 
 fn init_log(verbose: &bool) -> Result<MultiProgress, Box<dyn std::error::Error>> {
