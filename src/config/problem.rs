@@ -1,3 +1,4 @@
+use crate::utils::optional::Optional;
 use log::error;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -84,22 +85,25 @@ pub struct DataItem {
     pub score: u32,
     #[serde(default)]
     pub subtest: u32,
-    #[serde(skip)]
-    pub input: Option<String>,
-    #[serde(skip)]
-    pub output: Option<String>,
+    // #[serde(skip)]
+    #[serde(
+        skip_serializing_if = "Optional::should_skip",
+        default = "Optional::uninitialized"
+    )]
+    pub input: Optional<String>,
+    #[serde(
+        skip_serializing_if = "Optional::should_skip",
+        default = "Optional::uninitialized"
+    )]
+    pub output: Optional<String>,
 }
 
 impl DataItem {
-    pub fn finalize(self) -> Self {
+    pub fn finalize(mut self) -> Self {
         // 总是使用默认的 id+.in/.ans 格式，忽略配置文件中的设置
-        DataItem {
-            id: self.id,
-            score: self.score,
-            subtest: self.subtest,
-            input: Some(format!("{}.in", self.id)),
-            output: Some(format!("{}.ans", self.id)),
-        }
+        self.input.set_default(format!("{}.in", self.id));
+        self.output.set_default(format!("{}.ans", self.id));
+        self
     }
 }
 

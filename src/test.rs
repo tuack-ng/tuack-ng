@@ -534,12 +534,9 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
                     for case in &problem.data {
                         case_count += 1;
 
-                        let input_path =
-                            problem.path.join("data").join(case.input.as_ref().unwrap());
-                        let answer_path = problem
-                            .path
-                            .join("data")
-                            .join(case.output.as_ref().unwrap());
+                        let input_path = problem.path.join("data").join(case.input.get().unwrap());
+                        let answer_path =
+                            problem.path.join("data").join(case.output.get().unwrap());
 
                         info!("运行测试点: {}", case.id);
 

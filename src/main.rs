@@ -14,6 +14,7 @@ mod generate;
 mod init;
 mod ren;
 mod test;
+mod utils;
 
 #[derive(Debug, Parser)]
 #[clap_i18n]
