@@ -100,20 +100,37 @@ fn run_test_case(
     input_path: &Path,
     time_limit_ms: u128,
     memory_limit_bytes: u64,
+    file_io: bool,
 ) -> Result<TestCaseStatus, Box<dyn std::error::Error>> {
     // 复制输入文件
     let program_dir = program_path.parent().unwrap();
-    let test_input_path = program_dir.join(format!("{}.in", problem_name));
+    let test_input_path = if file_io {
+        program_dir.join(format!("{}.in", problem_name))
+    } else {
+        program_dir.join(format!("{}.stdin", problem_name))
+    };
     fs::copy(input_path, &test_input_path)?;
 
     // 启动程序
-    let child = SharedChild::spawn(
-        Command::new(program_path)
-            .current_dir(program_dir)
-            .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped()),
-    )?;
+    let child = if file_io {
+        SharedChild::spawn(
+            Command::new(program_path)
+                .current_dir(program_dir)
+                .stdin(Stdio::null())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped()),
+        )?
+    } else {
+        let stdin_file = fs::File::open(&test_input_path)?;
+        let stdout_file = fs::File::create(program_dir.join(format!("{}.stdout", problem_name)))?;
+        SharedChild::spawn(
+            Command::new(program_path)
+                .current_dir(program_dir)
+                .stdin(Stdio::from(stdin_file))
+                .stdout(Stdio::from(stdout_file))
+                .stderr(Stdio::piped()),
+        )?
+    };
 
     let child = Arc::new(child);
     let child_clone = child.clone();
@@ -174,9 +191,18 @@ fn validate_output(
     program_dir: &Path,
     problem_name: &str,
     answer_path: &Path,
+    file_io: bool,
 ) -> Result<TestCaseStatus, Box<dyn std::error::Error>> {
-    let output_path = program_dir.join(format!("{}.out", problem_name));
-    let input_path = program_dir.join(format!("{}.in", problem_name));
+    let output_path = if file_io {
+        program_dir.join(format!("{}.out", problem_name))
+    } else {
+        program_dir.join(format!("{}.stdout", problem_name))
+    };
+    let input_path = if file_io {
+        program_dir.join(format!("{}.in", problem_name))
+    } else {
+        program_dir.join(format!("{}.stdin", problem_name))
+    };
 
     // 检查输出文件是否存在
     if !output_path.exists() {
@@ -555,12 +581,18 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
                                     ByteSize::mib(512)
                                 })
                                 .as_u64(),
+                            problem.file_io.or(Some(true)).unwrap(),
                         )?;
 
                         let case_status = match run_result {
                             TestCaseStatus::Running => {
                                 // 程序正常结束，验证输出
-                                validate_output(&tmp_dir, &problem.name, &answer_path)?
+                                validate_output(
+                                    &tmp_dir,
+                                    &problem.name,
+                                    &answer_path,
+                                    problem.file_io.or(Some(true)).unwrap(),
+                                )?
                             }
                             status => status,
                         };
