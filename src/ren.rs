@@ -1,19 +1,16 @@
-pub mod data_json;
+pub mod renderers;
 pub mod template;
 pub mod utils;
-
 use crate::config::ProblemConfig;
+use crate::ren::renderers::typst::{TypstChecher, TypstCompiler};
 use clap::Args;
 use log::{debug, error, info, warn};
+use markdown_ppp::ast::Document;
 use markdown_ppp::parser::*;
-use markdown_ppp::typst_printer::config::Config;
-use markdown_ppp::typst_printer::render_typst;
 use std::fs;
 use std::path::Path;
-use std::process::Command;
 use std::time::Duration;
 
-use data_json::generate_data_json;
 use template::render_template;
 use utils::{copy_dir_recursive, process_image_urls, process_images_with_unique_ids};
 
@@ -32,6 +29,11 @@ pub struct RenArgs {
     /// 保留临时目录用于调试
     #[arg(long)]
     pub keep_tmp: bool,
+}
+
+pub enum RenderQueue {
+    Problem(Document),
+    Precaution(Document),
 }
 
 pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
@@ -75,32 +77,11 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    debug!("检查Typst编译环境");
-    let typst_check = Command::new("typst").arg("--version").output();
+    let checker = TypstChecher {
+        template_dir: template_dir.to_path_buf(),
+    };
 
-    match typst_check {
-        Ok(output) => {
-            if output.status.success() {
-                let version = String::from_utf8_lossy(&output.stdout);
-                debug!("Typst 版本: {}", version.trim());
-            } else {
-                error!("Typst 命令执行失败，请检查是否已安装");
-                return Err("Typst 命令执行失败，请检查是否已安装".into());
-            }
-        }
-        Err(_) => {
-            return Err("未找到 typst 命令，请确保已安装并添加到PATH".into());
-        }
-    }
-
-    let template_required_files = ["main.typ", "utils.typ"];
-    for file in template_required_files {
-        if !template_dir.join(file).exists() {
-            error!("模板缺少必要文件: {}", file);
-            return Err(format!("模板缺少必要文件: {}", file).into());
-        }
-        info!("文件存在: {}", file);
-    }
+    checker.check_compiler()?;
 
     let statements_dir = config.path.join("statements/");
 
@@ -171,8 +152,6 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
             info!("创建输出目录: {}", statements_dir.display());
         }
 
-        let output_filename = format!("{}.pdf", day.name);
-
         // 创建临时目录
         let tmp_dir = statements_dir.join("tmp");
         if tmp_dir.exists() {
@@ -212,23 +191,6 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
             day.subconfig.iter().collect()
         };
 
-        // 生成并写入 data.json
-        let data_json = if skip_level >= 2 && target_problem_name.is_some() {
-            // 创建一个只包含当前天和当前题目的简化配置
-            let mut modified_day = day.clone();
-
-            // 只保留当前题目
-            modified_day.subconfig = problems_to_render.iter().map(|&p| p.clone()).collect();
-
-            generate_data_json(config, &modified_day)?
-        } else {
-            generate_data_json(config, day)?
-        };
-
-        let data_json_str = serde_json::to_string_pretty(&data_json)?;
-        fs::write(tmp_dir.join("data.json"), data_json_str)?;
-        info!("生成 data.json");
-
         // 添加问题级别进度条
         let problem_pb = get_context()
             .multiprogress
@@ -240,6 +202,8 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
                 .unwrap()
                 .progress_chars("=> "),
         );
+
+        let mut renderqueue = Vec::<RenderQueue>::new();
 
         for (idx, problem) in problems_to_render.iter().enumerate() {
             // 题目级别时固定索引为0，其他情况使用原始索引
@@ -300,13 +264,7 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
 
             process_image_urls(&img_src_dir, &mut ast);
 
-            info!("生成Typst: {}", problem.name);
-            let typst_output = render_typst(&ast, Config::default().with_width(1000000));
-            let typst_output = format!("#import \"utils.typ\": *\n{}", typst_output);
-
-            let typst_filename = format!("problem-{}.typ", typst_index);
-            fs::write(tmp_dir.join(&typst_filename), typst_output)?;
-            info!("生成: {}", typst_filename);
+            renderqueue.push(RenderQueue::Problem(ast));
 
             if img_src_dir.exists() && img_src_dir.is_dir() {
                 let img_dst_dir = tmp_dir.join("img");
@@ -334,11 +292,7 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
             let state = MarkdownParserState::new();
             match parse_markdown(state, &content) {
                 Ok(ast) => {
-                    info!("生成注意事项Typst...");
-                    let typst_output = render_typst(&ast, Config::default().with_width(1000000));
-                    let typst_output = format!("#import \"utils.typ\": *\n{}", typst_output);
-                    fs::write(tmp_dir.join("precaution.typ"), typst_output)?;
-                    info!("生成: precaution.typ");
+                    renderqueue.push(RenderQueue::Precaution(ast));
                 }
                 Err(e) => {
                     warn!("解析注意事项文件失败: {:?}", e);
@@ -349,18 +303,18 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
         }
 
         // 编译PDF
-        info!("开始编译PDF: {}", output_filename);
+        info!("开始编译: {}", day.name);
         let compile_pb = get_context().multiprogress.add(ProgressBar::new_spinner());
         compile_pb.enable_steady_tick(Duration::from_millis(100));
-        compile_pb.set_message(format!("编译PDF: {}", output_filename));
+        compile_pb.set_message(format!("编译: {}", day.name));
 
-        let compile_result = Command::new("typst")
-            .arg("compile")
-            .arg("--font-path=fonts")
-            .arg("main.typ")
-            .arg(&output_filename)
-            .current_dir(&tmp_dir)
-            .output()?;
+        let compile_result = TypstCompiler {
+            contest_config: config.clone(),
+            day_config: day.clone(),
+            tmp_dir: tmp_dir.clone(),
+            renderqueue: renderqueue,
+        }
+        .compile();
 
         compile_pb.finish_and_clear();
 
@@ -370,13 +324,18 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
             problem_pb.finish_with_message("渲染完成！");
         }
 
-        if compile_result.status.success() {
+        if compile_result.is_ok() {
             info!("编译成功！");
 
-            let pdf_source = tmp_dir.join(&output_filename);
-            let pdf_target = statements_dir.join(&output_filename);
-            fs::copy(&pdf_source, &pdf_target)?;
-            info!("PDF已保存到: {}", pdf_target.display());
+            let output_filename = compile_result.unwrap();
+            let source = tmp_dir.join(&output_filename);
+            let target = statements_dir.join(output_filename.file_name().unwrap());
+            if output_filename.is_file() {
+                fs::copy(&source, &target)?;
+            } else {
+                copy_dir_recursive(&source, &target)?;
+            }
+            info!("PDF已保存到: {}", target.display());
 
             if args.keep_tmp {
                 info!("保留临时目录: {}", tmp_dir.display());
@@ -385,7 +344,7 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
                 info!("清理临时目录");
             }
         } else {
-            let error_output = String::from_utf8_lossy(&compile_result.stderr);
+            let error_output = &compile_result.err().unwrap().to_string();
             error!("编译失败:\n{}", error_output);
 
             warn!("保留临时目录以供调试: {}", tmp_dir.display());
