@@ -1,6 +1,8 @@
 use crate::config::ProblemConfig;
 use crate::context;
 use crate::ren::RenderQueue;
+use crate::ren::renderers::base::Checker;
+use crate::ren::renderers::base::Compiler;
 use log::debug;
 use log::error;
 use log::info;
@@ -20,8 +22,12 @@ pub struct TypstChecher {
     pub template_dir: PathBuf,
 }
 
-impl TypstChecher {
-    pub fn check_compiler(&self) -> Result<(), Box<dyn std::error::Error>> {
+impl Checker for TypstChecher {
+    fn new(template_dir: PathBuf) -> Self {
+        TypstChecher { template_dir }
+    }
+
+    fn check_compiler(&self) -> Result<(), Box<dyn std::error::Error>> {
         debug!("检查Typst编译环境");
         let typst_check = Command::new("typst").arg("--version").output();
 
@@ -59,8 +65,21 @@ pub struct TypstCompiler {
     pub renderqueue: Vec<RenderQueue>,
 }
 
-impl TypstCompiler {
-    pub fn compile(&self) -> Result<PathBuf, Box<dyn std::error::Error>> {
+impl Compiler for TypstCompiler {
+    fn new(
+        contest_config: ContestConfig,
+        day_config: ContestDayConfig,
+        tmp_dir: PathBuf,
+        renderqueue: Vec<RenderQueue>,
+    ) -> Self {
+        TypstCompiler {
+            contest_config,
+            day_config,
+            tmp_dir,
+            renderqueue,
+        }
+    }
+    fn compile(&self) -> Result<PathBuf, Box<dyn std::error::Error>> {
         self.generate_conf(&self.day_config, &self.tmp_dir)?;
         let mut render_idx: usize = 0;
         for item in &self.renderqueue {
@@ -97,6 +116,8 @@ impl TypstCompiler {
             Err("Typst 编译失败".into())
         }
     }
+}
+impl TypstCompiler {
     fn generate_conf(
         &self,
         day_config: &ContestDayConfig,

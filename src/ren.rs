@@ -2,6 +2,8 @@ pub mod renderers;
 pub mod template;
 pub mod utils;
 use crate::config::ProblemConfig;
+use crate::ren::renderers::base::Checker;
+use crate::ren::renderers::base::Compiler;
 use crate::ren::renderers::typst::{TypstChecher, TypstCompiler};
 use clap::Args;
 use log::{debug, error, info, warn};
@@ -77,11 +79,7 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    let checker = TypstChecher {
-        template_dir: template_dir.to_path_buf(),
-    };
-
-    checker.check_compiler()?;
+    TypstChecher::new(template_dir.to_path_buf()).check_compiler()?;
 
     let statements_dir = config.path.join("statements/");
 
@@ -308,13 +306,8 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
         compile_pb.enable_steady_tick(Duration::from_millis(100));
         compile_pb.set_message(format!("编译: {}", day.name));
 
-        let compile_result = TypstCompiler {
-            contest_config: config.clone(),
-            day_config: day.clone(),
-            tmp_dir: tmp_dir.clone(),
-            renderqueue: renderqueue,
-        }
-        .compile();
+        let compile_result =
+            TypstCompiler::new(config.clone(), day.clone(), tmp_dir.clone(), renderqueue).compile();
 
         compile_pb.finish_and_clear();
 
