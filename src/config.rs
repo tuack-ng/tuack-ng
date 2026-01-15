@@ -104,7 +104,11 @@ pub fn load_config(
             let problemconfig_path = day_parent_dir
                 .join(problemconfig_name)
                 .join(CONFIG_FILE_NAME);
-            let problemconfig = load_problem_config(&problemconfig_path)?;
+            let mut problemconfig = load_problem_config(&problemconfig_path)?;
+
+            problemconfig.use_pretest = dayconfig.use_pretest.or(config.use_pretest);
+            problemconfig.noi_style = dayconfig.noi_style.or(config.noi_style);
+            problemconfig.file_io = dayconfig.file_io.or(config.file_io);
 
             if canonicalize_path.starts_with(problemconfig_path.parent().unwrap()) {
                 location = CurrentLocation::Problem(

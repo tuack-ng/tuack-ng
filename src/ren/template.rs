@@ -1,4 +1,6 @@
+use crate::config::TemplateManifest;
 use crate::config::{ContestConfig, ContestDayConfig, ProblemConfig};
+use crate::context;
 use log::{debug, error, info, warn};
 use minijinja::Value;
 use minijinja::{Environment, context};
@@ -6,12 +8,20 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-fn input_file(problem: &ProblemConfig) -> Result<String, minijinja::Error> {
-    Ok(format!("从文件 _{}.in_ 中读入数据。", problem.name))
+fn input_file(problem: &ProblemConfig, file_io: bool) -> Result<String, minijinja::Error> {
+    Ok(if file_io {
+        format!("从文件 _{}.in_ 中读入数据。", problem.name)
+    } else {
+        "从标准输入读入数据。".to_string()
+    })
 }
 
-fn output_file(problem: &ProblemConfig) -> Result<String, minijinja::Error> {
-    Ok(format!("输出到文件 _{}.out_ 中。", problem.name))
+fn output_file(problem: &ProblemConfig, file_io: bool) -> Result<String, minijinja::Error> {
+    Ok(if file_io {
+        format!("输出到文件 _{}.out_ 中。", problem.name)
+    } else {
+        "输出到标准输出。".to_string()
+    })
 }
 
 /// 处理 sample 函数
@@ -308,6 +318,24 @@ pub fn render_template(
     contest: &ContestConfig,
     base_path: PathBuf,
 ) -> Result<String, Box<dyn std::error::Error>> {
+    // 读取模板目录中的清单文件以获取默认值
+    let manifest_path = context::get_context().assets_dirs.iter().find_map(|dir| {
+        let manifest_file = dir.join("templates").join("noi").join("manifest.json");
+        if manifest_file.exists() {
+            Some(manifest_file)
+        } else {
+            None
+        }
+    });
+
+    let manifest = if let Some(path) = manifest_path {
+        let manifest_content = fs::read_to_string(&path)?;
+        serde_json::from_str::<TemplateManifest>(&manifest_content)?
+    } else {
+        error!("找不到清单文件");
+        return Err("致命错误: 找不到清单文件".into());
+    };
+
     // 创建环境
     let env = Environment::new();
 
@@ -361,14 +389,24 @@ pub fn render_template(
             "input_file",
             Value::from_function({
                 let problem = problem.clone();
-                move || -> Result<String, minijinja::Error> { input_file(&problem) }
+                move || -> Result<String, minijinja::Error> {
+                    input_file(
+                        &problem,
+                        problem.file_io.or(Some(manifest.file_io)).unwrap(),
+                    )
+                }
             }),
         ),
         (
             "output_file",
             Value::from_function({
                 let problem = problem.clone();
-                move || -> Result<String, minijinja::Error> { output_file(&problem) }
+                move || -> Result<String, minijinja::Error> {
+                    output_file(
+                        &problem,
+                        problem.file_io.or(Some(manifest.file_io)).unwrap(),
+                    )
+                }
             }),
         ),
     ]);

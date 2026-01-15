@@ -32,6 +32,13 @@ pub struct ProblemConfig {
     // pub pretest: Vec<PreItem>,
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub tests: HashMap<String, TestCase>,
+
+    #[serde(default, skip, rename = "use-pretest")]
+    pub use_pretest: Option<bool>,
+    #[serde(default, skip, rename = "noi-style")]
+    pub noi_style: Option<bool>,
+    #[serde(default, skip, rename = "file-io")]
+    pub file_io: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

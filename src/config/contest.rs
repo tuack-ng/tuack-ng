@@ -30,14 +30,6 @@ pub struct ContestConfig {
     pub path: PathBuf,
 }
 
-// #[derive(Debug, Clone, Serialize, Deserialize)]
-// #[serde(rename_all = "kebab-case")]
-// pub struct CompileConfig {
-//     pub cpp: String,
-//     #[serde(default)]
-//     pub c: String,
-// }
-
 /// 加载比赛配置
 pub fn load_contest_config(
     config_path: &Path,
