@@ -110,7 +110,7 @@ Tuack-NG（`Tuack New Generation`）是一套完整的用于辅助 OI/ACM 竞赛
 [![All Contributors](https://img.shields.io/badge/all_contributors-2-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
-感谢以下同学为本项目为本项目的开发提供支持（[✨](https://allcontributors.org/docs/zh-cn/emoji-key)）：
+感谢以下同学为本项目的开发提供支持（[✨](https://allcontributors.org/docs/zh-cn/emoji-key)）：
 
 <!-- autocorrect-disable -->
 <!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
