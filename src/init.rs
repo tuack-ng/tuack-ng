@@ -1,6 +1,5 @@
 use crate::context::get_context;
 use log::LevelFilter;
-use log::debug;
 use log::info;
 use log::warn;
 use log4rs::{
@@ -109,7 +108,6 @@ fn init_context(multi: MultiProgress) -> Result<(), Box<dyn std::error::Error>> 
 
     let config = match load_config(Path::new(".")) {
         Ok(res) => {
-            debug!("{:#?}", res.as_ref().unwrap().0);
             if res.as_ref().is_some() {
                 info!("当前路径: {:#?}", res.as_ref().unwrap().1);
             }

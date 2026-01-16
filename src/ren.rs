@@ -2,9 +2,13 @@ pub mod renderers;
 pub mod template;
 pub mod utils;
 use crate::config::ProblemConfig;
+use crate::config::TargetType;
+use crate::config::TemplateManifest;
 use crate::ren::renderers::base::Checker;
 use crate::ren::renderers::base::Compiler;
-use crate::ren::renderers::typst::{TypstChecher, TypstCompiler};
+use crate::ren::renderers::markdown::MarkdownChecker;
+use crate::ren::renderers::markdown::MarkdownCompiler;
+use crate::ren::renderers::typst::{TypstChecker, TypstCompiler};
 use clap::Args;
 use log::{debug, error, info, warn};
 use markdown_ppp::ast::Document;
@@ -34,7 +38,7 @@ pub struct RenArgs {
 }
 
 pub enum RenderQueue {
-    Problem(Document),
+    Problem(Document, Box<ProblemConfig>),
     Precaution(Document),
 }
 
@@ -79,27 +83,45 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    TypstChecher::new(template_dir.to_path_buf()).check_compiler()?;
+    let manifest = {
+        let manifest_file = template_dir.join("manifest.json");
+        if manifest_file.exists() {
+            let manifest_content = fs::read_to_string(&manifest_file)?;
+            serde_json::from_str::<TemplateManifest>(&manifest_content)?
+        } else {
+            error!("找不到清单文件: {}", manifest_file.display());
+            return Err("致命错误: 找不到清单文件".into());
+        }
+    };
 
-    let statements_dir = config.path.join("statements/");
+    let checker: Box<dyn Checker> = match manifest.target {
+        TargetType::Typst => Box::new(TypstChecker::new(template_dir.to_path_buf())),
+        TargetType::Markdown => Box::new(MarkdownChecker::new(template_dir.to_path_buf())),
+    };
+    checker.check_compiler()?;
 
     let statements_dir = match current_location {
-        CurrentLocation::Problem(day_name, problem_name) => {
-            let problem_dir = Path::new(&config.path).join(day_name).join(problem_name);
-
-            problem_dir.join("statement")
-        }
-        CurrentLocation::Day(day_name) => {
-            let day_dir = Path::new(&config.path).join(day_name);
-
-            day_dir.join("statement")
-        }
-        _ => statements_dir.clone(),
+        CurrentLocation::Problem(day_name, problem_name) => Path::new(&config.path)
+            .join(day_name)
+            .join(problem_name)
+            .join("statements"),
+        CurrentLocation::Day(day_name) => Path::new(&config.path).join(day_name).join("statements"),
+        _ => config.path.join("statements"),
     };
 
     info!("{}", &statements_dir.to_string_lossy());
     if !statements_dir.exists() {
         info!("创建题面输出目录: {}", statements_dir.display());
+        fs::create_dir(&statements_dir)?;
+    }
+
+    let statements_dir = statements_dir.join(&args.target);
+    if !statements_dir.exists() {
+        info!(
+            "创建 {} 目标输出目录: {}",
+            args.target,
+            statements_dir.display()
+        );
         fs::create_dir(&statements_dir)?;
     }
 
@@ -164,23 +186,21 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
 
         // 计算要渲染的总问题数
         let problems_to_render: Vec<&ProblemConfig> = if skip_level >= 2
-            && target_problem_name.is_some()
+            && let Some(target_problem_name) = target_problem_name
         {
             // 只渲染特定问题
             match day
                 .subconfig
                 .iter()
-                .find(|p| p.name == target_problem_name.as_ref().unwrap().to_string())
+                .find(|p| p.name == *target_problem_name)
             {
                 Some(problem) => {
                     info!("渲染指定问题: {}", problem.name);
                     vec![problem]
                 }
                 None => {
-                    error!("未找到问题: {}", target_problem_name.as_ref().unwrap());
-                    return Err(
-                        format!("未找到问题: {}", target_problem_name.as_ref().unwrap()).into(),
-                    );
+                    error!("未找到问题: {}", target_problem_name);
+                    return Err(format!("未找到问题: {}", target_problem_name).into());
                 }
             }
         } else {
@@ -262,7 +282,7 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
 
             process_image_urls(&img_src_dir, &mut ast);
 
-            renderqueue.push(RenderQueue::Problem(ast));
+            renderqueue.push(RenderQueue::Problem(ast, Box::new((*problem).clone())));
 
             if img_src_dir.exists() && img_src_dir.is_dir() {
                 let img_dst_dir = tmp_dir.join("img");
@@ -306,8 +326,22 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
         compile_pb.enable_steady_tick(Duration::from_millis(100));
         compile_pb.set_message(format!("编译: {}", day.name));
 
-        let compile_result =
-            TypstCompiler::new(config.clone(), day.clone(), tmp_dir.clone(), renderqueue).compile();
+        let compiler: Box<dyn Compiler> = match manifest.target {
+            TargetType::Typst => Box::new(TypstCompiler::new(
+                config.clone(),
+                day.clone(),
+                tmp_dir.clone(),
+                renderqueue,
+            )),
+            TargetType::Markdown => Box::new(MarkdownCompiler::new(
+                config.clone(),
+                day.clone(),
+                tmp_dir.clone(),
+                renderqueue,
+            )),
+        };
+
+        let compile_result = compiler.compile();
 
         compile_pb.finish_and_clear();
 
@@ -317,12 +351,15 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
             problem_pb.finish_with_message("渲染完成！");
         }
 
-        if compile_result.is_ok() {
+        if let Ok(output_filename) = compile_result {
             info!("编译成功！");
 
-            let output_filename = compile_result.unwrap();
             let source = tmp_dir.join(&output_filename);
-            let target = statements_dir.join(output_filename.file_name().unwrap());
+            let target = if output_filename.is_file() {
+                statements_dir.join(output_filename.file_name().unwrap())
+            } else {
+                statements_dir.clone()
+            };
             if output_filename.is_file() {
                 fs::copy(&source, &target)?;
             } else {

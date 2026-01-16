@@ -529,9 +529,7 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
                 fs::remove_file(&target_path)?;
 
                 let mut subtask_scores: HashMap<u32, Vec<u32>> = problem
-                    .subtests
-                    .iter()
-                    .map(|(id, _)| (*id, Vec::new()))
+                    .subtests.keys().map(|id| (*id, Vec::new()))
                     .collect();
 
                 // 运行测试用例
@@ -581,7 +579,7 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
                                     ByteSize::mib(512)
                                 })
                                 .as_u64(),
-                            problem.file_io.or(Some(true)).unwrap(),
+                            problem.file_io.unwrap_or(true),
                         )?;
 
                         let case_status = match run_result {
@@ -591,7 +589,7 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
                                     &tmp_dir,
                                     &problem.name,
                                     &answer_path,
-                                    problem.file_io.or(Some(true)).unwrap(),
+                                    problem.file_io.unwrap_or(true),
                                 )?
                             }
                             status => status,
@@ -643,7 +641,7 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
                     case_test_pb.finish_and_clear();
 
                     for (id, policy) in &problem.subtests {
-                        let scores = &subtask_scores[&id];
+                        let scores = &subtask_scores[id];
 
                         let subtest_score = match policy {
                             ScorePolicy::Sum => scores.iter().sum(),

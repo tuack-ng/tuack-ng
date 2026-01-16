@@ -176,14 +176,12 @@ pub fn comma(num: i64) -> Result<String, minijinja::Error> {
     }
 
     let mut result = String::new();
-    let mut count = 0;
 
-    for ch in num_str.chars().rev() {
+    for (count, ch) in num_str.chars().rev().enumerate() {
         if count > 0 && count % 3 == 0 {
             result.push(',');
         }
         result.push(ch);
-        count += 1;
     }
 
     Ok(result.chars().rev().collect())
@@ -236,17 +234,15 @@ pub fn hn(num: f64, style: Option<&str>) -> Result<String, minijinja::Error> {
 
                 if comma_len <= scientific_len {
                     Ok(format!("{}{}", neg, comma_str))
+                } else if int_num == 10_i64.pow(n as u32) {
+                    Ok(format!("{}10^{{{}}}", neg, n))
                 } else {
-                    if int_num == 10_i64.pow(n as u32) {
-                        Ok(format!("{}10^{{{}}}", neg, n))
-                    } else {
-                        Ok(format!(
-                            "{}{} \\times 10^{{{}}}",
-                            neg,
-                            int_num / 10_i64.pow(n as u32),
-                            n
-                        ))
-                    }
+                    Ok(format!(
+                        "{}{} \\times 10^{{{}}}",
+                        neg,
+                        int_num / 10_i64.pow(n as u32),
+                        n
+                    ))
                 }
             }
         };
@@ -390,10 +386,7 @@ pub fn render_template(
             Value::from_function({
                 let problem = problem.clone();
                 move || -> Result<String, minijinja::Error> {
-                    input_file(
-                        &problem,
-                        problem.file_io.or(Some(manifest.file_io)).unwrap(),
-                    )
+                    input_file(&problem, problem.file_io.unwrap_or(manifest.file_io))
                 }
             }),
         ),
@@ -402,10 +395,7 @@ pub fn render_template(
             Value::from_function({
                 let problem = problem.clone();
                 move || -> Result<String, minijinja::Error> {
-                    output_file(
-                        &problem,
-                        problem.file_io.or(Some(manifest.file_io)).unwrap(),
-                    )
+                    output_file(&problem, problem.file_io.unwrap_or(manifest.file_io))
                 }
             }),
         ),

@@ -30,6 +30,13 @@ pub struct DateInfo {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TargetType {
+    Typst,
+    Markdown,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct TemplateManifest {
     #[serde(default = "default_use_pretest")]
     pub use_pretest: bool,
@@ -37,6 +44,7 @@ pub struct TemplateManifest {
     pub noi_style: bool,
     #[serde(default = "default_file_io")]
     pub file_io: bool,
+    pub target: TargetType,
 }
 
 fn default_use_pretest() -> bool {

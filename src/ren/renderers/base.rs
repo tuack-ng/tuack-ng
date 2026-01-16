@@ -5,7 +5,9 @@ use std::path::PathBuf;
 
 pub trait Checker {
     fn check_compiler(&self) -> Result<(), Box<dyn std::error::Error>>;
-    fn new(template_dir: PathBuf) -> Self;
+    fn new(template_dir: PathBuf) -> Self
+    where
+        Self: Sized;
 }
 
 pub trait Compiler {
@@ -15,5 +17,7 @@ pub trait Compiler {
         day_config: ContestDayConfig,
         tmp_dir: PathBuf,
         renderqueue: Vec<RenderQueue>,
-    ) -> Self;
+    ) -> Self
+    where
+        Self: Sized;
 }

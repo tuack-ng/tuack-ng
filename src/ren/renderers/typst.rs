@@ -12,19 +12,20 @@ use markdown_ppp::typst_printer::config::Config;
 use markdown_ppp::typst_printer::render_typst;
 use serde_json;
 use std::fs;
+use std::path::Path;
 use std::path::PathBuf;
 use std::process::Command;
 
 use crate::config::{
     ContestConfig, ContestDayConfig, DataJson, DateInfo, Problem, SupportLanguage, TemplateManifest,
 };
-pub struct TypstChecher {
+pub struct TypstChecker {
     pub template_dir: PathBuf,
 }
 
-impl Checker for TypstChecher {
+impl Checker for TypstChecker {
     fn new(template_dir: PathBuf) -> Self {
-        TypstChecher { template_dir }
+        TypstChecker { template_dir }
     }
 
     fn check_compiler(&self) -> Result<(), Box<dyn std::error::Error>> {
@@ -84,21 +85,21 @@ impl Compiler for TypstCompiler {
         let mut render_idx: usize = 0;
         for item in &self.renderqueue {
             match item {
-                RenderQueue::Problem(ast) => {
+                RenderQueue::Problem(ast, _) => {
                     self.convert_ast(
                         &self.day_config.subconfig[render_idx],
                         &self.tmp_dir,
-                        &ast,
+                        ast,
                         render_idx,
                     )?;
                     render_idx += 1;
                 }
                 RenderQueue::Precaution(ast) => {
-                    self.convert_ast_precaution(&self.tmp_dir, &ast)?;
+                    self.convert_ast_precaution(&self.tmp_dir, ast)?;
                 }
             }
         }
-        fs::create_dir(&self.tmp_dir.join("output"))?;
+        fs::create_dir(self.tmp_dir.join("output"))?;
         let output_filename = format!("output/{}.pdf", self.day_config.name);
         let output = Command::new("typst")
             .arg("compile")
@@ -121,7 +122,7 @@ impl TypstCompiler {
     fn generate_conf(
         &self,
         day_config: &ContestDayConfig,
-        tmp_dir: &PathBuf,
+        tmp_dir: &Path,
     ) -> Result<(), Box<dyn std::error::Error>> {
         // 构建问题列表
         let mut problems = Vec::new();
@@ -262,12 +263,12 @@ impl TypstCompiler {
     pub fn convert_ast(
         &self,
         problem: &ProblemConfig,
-        tmp_dir: &PathBuf,
+        tmp_dir: &Path,
         ast: &Document,
         index: usize,
     ) -> Result<(), Box<dyn std::error::Error>> {
         info!("生成Typst: {}", problem.name);
-        let typst_output = render_typst(&ast, Config::default().with_width(1000000));
+        let typst_output = render_typst(ast, Config::default().with_width(1000000));
         let typst_output = format!("#import \"utils.typ\": *\n{}", typst_output);
 
         let typst_filename = format!("problem-{}.typ", index);
@@ -277,11 +278,11 @@ impl TypstCompiler {
     }
     pub fn convert_ast_precaution(
         &self,
-        tmp_dir: &PathBuf,
+        tmp_dir: &Path,
         ast: &Document,
     ) -> Result<(), Box<dyn std::error::Error>> {
         info!("生成注意事项Typst...");
-        let typst_output = render_typst(&ast, Config::default().with_width(1000000));
+        let typst_output = render_typst(ast, Config::default().with_width(1000000));
         let typst_output = format!("#import \"utils.typ\": *\n{}", typst_output);
         fs::write(tmp_dir.join("precaution.typ"), typst_output)?;
         info!("生成: precaution.typ");
