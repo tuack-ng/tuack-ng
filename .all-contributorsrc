@@ -18,6 +18,19 @@
       "contributions": [
         "design"
       ]
+    },
+    {
+      "login": "Pulsar33550336",
+      "name": "Pulsar",
+      "avatar_url": "https://avatars.githubusercontent.com/u/226428598?v=4",
+      "profile": "https://github.com/Pulsar33550336",
+      "contributions": [
+        "code",
+        "ideas",
+        "doc",
+        "design",
+        "maintenance"
+      ]
     }
   ],
   "contributorsPerLine": 7,
