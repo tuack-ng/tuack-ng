@@ -1,0 +1,15 @@
+{
+  "projectName": "tuack-ng",
+  "projectOwner": "Pulsar33550336",
+  "repoType": "github",
+  "repoHost": "https://github.com/tuack-ng/tuack-ng/",
+  "files": [
+    "README.md"
+  ],
+  "imageSize": 100,
+  "commit": true,
+  "commitConvention": "angular",
+  "contributors": [],
+  "contributorsPerLine": 7,
+  "linkToUsage": true
+}
