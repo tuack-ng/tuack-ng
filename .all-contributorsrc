@@ -11,6 +11,15 @@
   "commitConvention": "angular",
   "contributors": [
     {
+      "login": "Cwhirly",
+      "name": "Cwhirly",
+      "avatar_url": "https://avatars.githubusercontent.com/u/247487531?v=4",
+      "profile": "https://github.com/Cwhirly",
+      "contributions": [
+        "design"
+      ]
+    },
+    {
       "login": "Pulsar33550336",
       "name": "Pulsar",
       "avatar_url": "https://avatars.githubusercontent.com/u/226428598?v=4",
