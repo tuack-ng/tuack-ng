@@ -1,6 +1,6 @@
 {
   "projectName": "tuack-ng",
-  "projectOwner": "Pulsar33550336",
+  "projectOwner": "tuack-ng",
   "repoType": "github",
   "repoHost": "https://github.com/tuack-ng/tuack-ng/",
   "files": [
@@ -9,7 +9,22 @@
   "imageSize": 100,
   "commit": true,
   "commitConvention": "angular",
-  "contributors": [],
+  "contributors": [
+    {
+      "login": "Pulsar33550336",
+      "name": "Pulsar",
+      "avatar_url": "https://avatars.githubusercontent.com/u/226428598?v=4",
+      "profile": "https://github.com/Pulsar33550336",
+      "contributions": [
+        "code",
+        "ideas",
+        "doc",
+        "design",
+        "maintenance"
+      ]
+    }
+  ],
   "contributorsPerLine": 7,
-  "linkToUsage": true
+  "linkToUsage": true,
+  "commitType": "docs"
 }
