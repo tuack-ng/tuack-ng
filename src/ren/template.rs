@@ -1,6 +1,5 @@
 use crate::config::TemplateManifest;
 use crate::config::{ContestConfig, ContestDayConfig, ProblemConfig};
-use crate::context;
 use log::{debug, error, info, warn};
 use minijinja::Value;
 use minijinja::{Environment, context};
@@ -313,25 +312,8 @@ pub fn render_template(
     day: &ContestDayConfig,
     contest: &ContestConfig,
     base_path: PathBuf,
+    manifest: TemplateManifest,
 ) -> Result<String, Box<dyn std::error::Error>> {
-    // 读取模板目录中的清单文件以获取默认值
-    let manifest_path = context::get_context().assets_dirs.iter().find_map(|dir| {
-        let manifest_file = dir.join("templates").join("noi").join("manifest.json");
-        if manifest_file.exists() {
-            Some(manifest_file)
-        } else {
-            None
-        }
-    });
-
-    let manifest = if let Some(path) = manifest_path {
-        let manifest_content = fs::read_to_string(&path)?;
-        serde_json::from_str::<TemplateManifest>(&manifest_content)?
-    } else {
-        error!("找不到清单文件");
-        return Err("致命错误: 找不到清单文件".into());
-    };
-
     // 创建环境
     let env = Environment::new();
 

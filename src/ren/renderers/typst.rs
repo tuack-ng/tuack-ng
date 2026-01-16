@@ -1,5 +1,4 @@
 use crate::config::ProblemConfig;
-use crate::context;
 use crate::ren::RenderQueue;
 use crate::ren::renderers::base::Checker;
 use crate::ren::renderers::base::Compiler;
@@ -64,6 +63,7 @@ pub struct TypstCompiler {
     pub day_config: ContestDayConfig,
     pub tmp_dir: PathBuf,
     pub renderqueue: Vec<RenderQueue>,
+    pub manifest: TemplateManifest,
 }
 
 impl Compiler for TypstCompiler {
@@ -72,12 +72,14 @@ impl Compiler for TypstCompiler {
         day_config: ContestDayConfig,
         tmp_dir: PathBuf,
         renderqueue: Vec<RenderQueue>,
+        manifest: TemplateManifest,
     ) -> Self {
         TypstCompiler {
             contest_config,
             day_config,
             tmp_dir,
             renderqueue,
+            manifest,
         }
     }
     fn compile(&self) -> Result<PathBuf, Box<dyn std::error::Error>> {
@@ -210,38 +212,19 @@ impl TypstCompiler {
             end: day_config.end_time,
         };
 
-        // 读取模板目录中的清单文件以获取默认值
-        let manifest_path = context::get_context().assets_dirs.iter().find_map(|dir| {
-            let manifest_file = dir.join("templates").join("noi").join("manifest.json");
-            if manifest_file.exists() {
-                Some(manifest_file)
-            } else {
-                None
-            }
-        });
-
-        let manifest = if let Some(path) = manifest_path {
-            let manifest_content = fs::read_to_string(&path)?;
-            serde_json::from_str::<TemplateManifest>(&manifest_content)?
-        } else {
-            error!("找不到清单文件");
-            return Err("致命错误: 找不到清单文件".into());
-        };
-
         // 从ContestConfig和ContestDayConfig中获取覆盖值
         let use_pretest = day_config
             .use_pretest
             .or(self.contest_config.use_pretest)
-            .unwrap_or(manifest.use_pretest);
+            .unwrap_or(self.manifest.use_pretest);
         let noi_style = day_config
             .noi_style
             .or(self.contest_config.noi_style)
-            .unwrap_or(manifest.noi_style);
+            .unwrap_or(self.manifest.noi_style);
         let file_io = day_config
             .file_io
             .or(self.contest_config.file_io)
-            .unwrap_or(manifest.file_io);
-
+            .unwrap_or(self.manifest.file_io);
         let data_json = DataJson {
             title: self.contest_config.title.clone(),
             subtitle: self.contest_config.short_title.clone(),

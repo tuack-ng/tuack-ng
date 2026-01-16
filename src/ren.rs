@@ -1,6 +1,7 @@
 pub mod renderers;
 pub mod template;
 pub mod utils;
+use crate::config::ContestDayConfig;
 use crate::config::ProblemConfig;
 use crate::config::TargetType;
 use crate::config::TemplateManifest;
@@ -223,6 +224,15 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
 
         let mut renderqueue = Vec::<RenderQueue>::new();
 
+        let day_to_render = if skip_level >= 2 {
+            ContestDayConfig {
+                subconfig: problems_to_render.iter().map(|p| (*p).clone()).collect(),
+                ..day.clone()
+            }
+        } else {
+            day.clone()
+        };
+
         for (idx, problem) in problems_to_render.iter().enumerate() {
             // 题目级别时固定索引为0，其他情况使用原始索引
             let typst_index = if skip_level >= 2 {
@@ -252,9 +262,10 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
             let content = match render_template(
                 &fs::read_to_string(&statement_path)?,
                 problem,
-                day,
+                &day_to_render,
                 config,
                 problem.path.clone(),
+                manifest.clone(),
             ) {
                 Ok(content) => content,
                 Err(e) => {
@@ -329,15 +340,17 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
         let compiler: Box<dyn Compiler> = match manifest.target {
             TargetType::Typst => Box::new(TypstCompiler::new(
                 config.clone(),
-                day.clone(),
+                day_to_render,
                 tmp_dir.clone(),
                 renderqueue,
+                manifest.clone(),
             )),
             TargetType::Markdown => Box::new(MarkdownCompiler::new(
                 config.clone(),
-                day.clone(),
+                day_to_render,
                 tmp_dir.clone(),
                 renderqueue,
+                manifest.clone(),
             )),
         };
 

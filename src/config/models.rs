@@ -29,14 +29,14 @@ pub struct DateInfo {
     pub end: [u32; 6],
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "kebab-case")]
 pub enum TargetType {
     Typst,
     Markdown,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TemplateManifest {
     #[serde(default = "default_use_pretest")]
     pub use_pretest: bool,

@@ -1,5 +1,6 @@
 use crate::config::ContestConfig;
 use crate::config::ContestDayConfig;
+use crate::config::TemplateManifest;
 use crate::ren::Compiler;
 use crate::ren::RenderQueue;
 use crate::ren::copy_dir_recursive;
@@ -33,6 +34,7 @@ impl Compiler for MarkdownCompiler {
         _: ContestDayConfig,
         tmp_dir: PathBuf,
         renderqueue: Vec<RenderQueue>,
+        _manifest: TemplateManifest,
     ) -> Self {
         MarkdownCompiler {
             tmp_dir,
