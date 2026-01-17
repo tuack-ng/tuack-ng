@@ -1,5 +1,4 @@
 use clap::Args;
-use clap::ValueEnum;
 use std::path::Path;
 use std::{fs, path::PathBuf};
 
@@ -12,21 +11,43 @@ use crate::config::load_problem_config;
 use crate::config::save_contest_config;
 use crate::config::save_day_config;
 use crate::config::save_problem_config;
+use clap::Subcommand;
 
 const CONFIG_FILE_NAME: &str = "conf.json";
 
-#[derive(Debug, Clone, ValueEnum)]
+#[derive(Debug, Clone, Subcommand)]
+#[command(version)]
+#[command(infer_subcommands = false)]
 enum Targets {
+    /// 生成竞赛文件夹
+    #[command(version)] // 艹，天晓得为什么要加这个才能运行，不然 panic
     Contest,
+    /// 生成竞赛日文件夹
+    #[command(version)]
     Day,
+    /// 生成题目文件夹
+    #[command(version)]
     Problem,
+
+    /// 自动检测数据
+    #[command(version)]
+    Data,
+    /// 自动检测样例
+    #[command(version)]
+    Samples,
+    /// 自动检测题解
+    #[command(version)]
+    Code,
+    /// 自动检测所有
+    #[command(version)]
+    All,
 }
 
 #[derive(Args, Debug)]
 #[command(version)]
 pub struct GenArgs {
     /// 生成的对象
-    #[arg(required = true, value_enum)]
+    #[command(subcommand)]
     target: Targets,
 
     /// 对象名称
@@ -162,6 +183,7 @@ pub fn main(args: GenArgs) -> Result<(), Box<dyn std::error::Error>> {
             let updated_content = serde_json::to_string_pretty(&day_config)?;
             std::fs::write(&config_path, updated_content)?;
         }
+        Targets::Data | Targets::Samples | Targets::Code | Targets::All => todo!(),
     }
 
     Ok(())
