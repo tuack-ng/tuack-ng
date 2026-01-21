@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::OnceLock;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum CurrentLocation {
     /// 不属于任何配置文件
     None,

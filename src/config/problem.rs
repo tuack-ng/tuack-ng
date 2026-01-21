@@ -69,20 +69,23 @@ impl ProblemConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SampleItem {
     pub id: u32,
-    #[serde(default)]
-    pub input: Option<String>,
-    #[serde(default)]
-    pub output: Option<String>,
+    #[serde(
+        skip_serializing_if = "Optional::should_skip",
+        default = "Optional::uninitialized"
+    )]
+    pub input: Optional<String>,
+    #[serde(
+        skip_serializing_if = "Optional::should_skip",
+        default = "Optional::uninitialized"
+    )]
+    pub output: Optional<String>,
 }
 
 impl SampleItem {
-    pub fn finalize(self) -> Self {
-        // 总是使用默认的 id+.in/.ans 格式，忽略配置文件中的设置
-        SampleItem {
-            id: self.id,
-            input: Some(format!("{}.in", self.id)),
-            output: Some(format!("{}.ans", self.id)),
-        }
+    pub fn finalize(mut self) -> Self {
+        self.input.set_default(format!("{}.in", self.id));
+        self.output.set_default(format!("{}.ans", self.id));
+        self
     }
 }
 
@@ -107,7 +110,6 @@ pub struct DataItem {
 
 impl DataItem {
     pub fn finalize(mut self) -> Self {
-        // 总是使用默认的 id+.in/.ans 格式，忽略配置文件中的设置
         self.input.set_default(format!("{}.in", self.id));
         self.output.set_default(format!("{}.ans", self.id));
         self

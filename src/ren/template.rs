@@ -46,7 +46,7 @@ fn handle_sample(
     // 输入部分
     md.push_str(&format!("## 样例 {} 输入\n\n", sample_id));
 
-    if let Some(input_file) = &sample_item.input {
+    if let Some(input_file) = &sample_item.input.get() {
         let input_path = base_path.join("sample").join(input_file);
         if input_path.exists() {
             match fs::read_to_string(&input_path) {
@@ -73,7 +73,7 @@ fn handle_sample(
     // 输出部分
     md.push_str(&format!("## 样例 {} 输出\n\n", sample_id));
 
-    if let Some(output_file) = &sample_item.output {
+    if let Some(output_file) = &sample_item.output.get() {
         let output_path = base_path.join("sample").join(output_file);
         if output_path.exists() {
             match fs::read_to_string(&output_path) {
