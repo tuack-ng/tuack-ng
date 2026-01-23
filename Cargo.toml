@@ -1,6 +1,6 @@
 [package]
 name = "tuack-ng"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2024"
 authors = ["Pulsar <Pulsar33550336@163.com>"]
 description = "重构后的 tuack 项目，旨在提供更加高效和轻量的出题体验。"
