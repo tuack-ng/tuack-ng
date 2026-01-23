@@ -32,6 +32,8 @@ pub struct ProblemConfig {
     // pub pretest: Vec<PreItem>,
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub tests: HashMap<String, TestCase>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub use_chk: Option<bool>,
 
     #[serde(default, skip, rename = "use-pretest")]
     pub use_pretest: Option<bool>,

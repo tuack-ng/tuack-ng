@@ -3,11 +3,12 @@ use crate::config::lang::Language;
 use crate::config::{ExpectedScore, TestCase};
 use crate::context::CurrentLocation;
 use crate::context::get_context;
+use crate::test::checker::parse_result;
 use bytesize::ByteSize;
 use clap::Args;
 use colored::Colorize;
 use csv::Writer;
-use evalexpr::{ContextWithMutableVariables, HashMapContext, Value, eval_boolean_with_context_mut};
+use evalexpr::eval_boolean;
 use indicatif::ProgressBar;
 use log::{debug, error, info, warn};
 use shared_child::SharedChild;
@@ -23,6 +24,8 @@ use std::{
 };
 use sysinfo::{Pid, ProcessesToUpdate, System};
 
+pub mod checker;
+
 // **注意**：这**不是**用于测试这个程序的测试用例的命令
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum ProblemStatus {
@@ -34,19 +37,18 @@ pub enum ProblemStatus {
 }
 
 #[derive(Debug, PartialEq, Copy, Clone)]
+#[allow(unused)]
+#[allow(clippy::upper_case_acronyms)]
 pub enum TestCaseStatus {
     Running,
     RE,
-    #[allow(clippy::upper_case_acronyms)]
     TLE,
-    #[allow(clippy::upper_case_acronyms)]
     MLE,
     WA,
     AC,
-    #[allow(unused)]
-    #[allow(clippy::upper_case_acronyms)]
     UKE,
     CE,
+    PC(f64),
 }
 
 // 记录测试用例结果
@@ -192,6 +194,7 @@ fn validate_output(
     problem_name: &str,
     answer_path: &Path,
     file_io: bool,
+    spj: Option<PathBuf>,
 ) -> Result<TestCaseStatus, Box<dyn std::error::Error>> {
     let output_path = if file_io {
         program_dir.join(format!("{}.out", problem_name))
@@ -213,31 +216,55 @@ fn validate_output(
     let ans_path = program_dir.join(format!("{}.ans", problem_name));
     fs::copy(answer_path, &ans_path)?;
 
-    // 查找第一个存在的 checker 文件
-    let checker_path = get_context()
-        .assets_dirs
-        .iter()
-        .find_map(|dir| {
-            dir.join("checkers")
-                .join("normal")
-                .exists()
-                .then(|| dir.join("checkers").join("normal"))
-        })
-        .unwrap_or_else(|| get_context().assets_dirs[0].join("checkers").join("normal"));
+    let checker_path = match spj {
+        Some(spj_path) => spj_path,
+        // 查找第一个存在的 checker 文件
+        None => get_context()
+            .assets_dirs
+            .iter()
+            .find_map(|dir| {
+                dir.join("checkers")
+                    .join("normal")
+                    .exists()
+                    .then(|| dir.join("checkers").join("normal"))
+            })
+            .unwrap_or_else(|| get_context().assets_dirs[0].join("checkers").join("normal")),
+    };
+
+    let res_path = program_dir.join(format!("{}.res", problem_name));
 
     // 使用校验器验证
-    let validate_code = Command::new(&checker_path)
+    let _validate = Command::new(&checker_path)
         .arg(&input_path)
         .arg(&output_path)
         .arg(&ans_path)
+        .arg(&res_path)
+        .arg("-appes")
         .stderr(Stdio::null())
         .stdout(Stdio::null())
-        .status()?
-        .code();
+        .status()?;
 
-    match validate_code {
-        Some(0) => Ok(TestCaseStatus::AC),
-        _ => Ok(TestCaseStatus::WA),
+    let res_content = match fs::read_to_string(res_path) {
+        Ok(content) => content,
+        Err(e) => {
+            warn!("无法读取校验器结果文件: {}", e);
+            return Ok(TestCaseStatus::UKE);
+        }
+    };
+
+    let res = parse_result(&res_content)?;
+
+    info!("测试点信息: {}", res.1.trim());
+
+    match res.0 {
+        checker::JudgeResult::Accepted => Ok(TestCaseStatus::AC),
+        checker::JudgeResult::WrongAnswer => Ok(TestCaseStatus::WA),
+        checker::JudgeResult::PresentationError => Ok(TestCaseStatus::WA),
+        checker::JudgeResult::Fail => {
+            warn!("SPJ 执行失败，请检查 SPJ、标程和输入输出");
+            Ok(TestCaseStatus::UKE)
+        }
+        checker::JudgeResult::Score(score) => Ok(TestCaseStatus::PC(score)),
     }
 }
 
@@ -247,17 +274,12 @@ fn check_test_case(test_case: &TestCase, actual_score: u32) -> bool {
         ExpectedScore::Multiple(conds) => conds.clone(),
     };
 
-    let mut context: HashMapContext = HashMapContext::new();
-    context
-        .set_value("score".into(), Value::Int(actual_score as i64))
-        .unwrap();
-
     for condition in &conditions {
-        let expr = format!("score {}", condition);
+        let expr = format!("{} {}", actual_score, condition);
 
         debug!("条件：{}", expr);
 
-        if !eval_boolean_with_context_mut(&expr, &mut context).unwrap_or(false) {
+        if !eval_boolean(&expr).unwrap_or(false) {
             return false;
         }
     }
@@ -426,7 +448,45 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
                     problem_count, problem_count_in_day
                 ));
             }
+
+            // 开始处理问题
+
             info!("处理题目: {}", problem.name);
+
+            if let Some(use_chk) = problem.use_chk
+                && use_chk
+            {
+                info!("使用自定义 chk 设置: {}", use_chk);
+
+                let compile_pb = get_context().multiprogress.add(ProgressBar::new_spinner());
+                compile_pb.enable_steady_tick(Duration::from_millis(100));
+                compile_pb.set_message(format!("编译 {} 题目的 spj", problem.name));
+
+                let chk_path = problem.path.join("data").join("chk").join("chk.cpp");
+                if !chk_path.exists() {
+                    warn!("chk 文件不存在，跳过测试此题目");
+                    continue;
+                }
+
+                // 使用 g++ 编译到同名无后缀同目录文件
+                let compile_output = Command::new("g++")
+                    .arg("-o")
+                    .arg(problem.path.join("data").join("chk").join("chk"))
+                    .arg(&chk_path)
+                    .arg("-O2")
+                    .arg("-std=c++23")
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::piped())
+                    .output()?;
+                if !compile_output.status.success() {
+                    warn!(
+                        "chk 编译失败，跳过测试此题目: \n{}",
+                        String::from_utf8_lossy(&compile_output.stderr)
+                    );
+                    continue;
+                }
+                compile_pb.finish_and_clear();
+            }
 
             // 添加测试进度条
             let test_pb = get_context()
@@ -529,7 +589,9 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
                 fs::remove_file(&target_path)?;
 
                 let mut subtask_scores: HashMap<u32, Vec<u32>> = problem
-                    .subtests.keys().map(|id| (*id, Vec::new()))
+                    .subtests
+                    .keys()
+                    .map(|id| (*id, Vec::new()))
                     .collect();
 
                 // 运行测试用例
@@ -590,6 +652,11 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
                                     &problem.name,
                                     &answer_path,
                                     problem.file_io.unwrap_or(true),
+                                    if problem.use_chk.unwrap_or(false) {
+                                        Some(problem.path.join("data").join("chk").join("chk"))
+                                    } else {
+                                        None
+                                    },
                                 )?
                             }
                             status => status,
@@ -598,12 +665,13 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
                         info!("测试点结果: {:?}", case_status);
 
                         // 计分
-                        let earned_score = if case_status == TestCaseStatus::AC {
-                            case.score
-                        } else {
-                            0
+                        let earned_score = match case_status {
+                            TestCaseStatus::AC => case.score,
+                            TestCaseStatus::PC(partial) => {
+                                ((partial / 100.0) * (case.score as f64)).round() as u32
+                            }
+                            _ => 0,
                         };
-                        // total_score += earned_score;
                         subtask_scores
                             .get_mut(&case.subtest)
                             .ok_or("不存在指定的 Subtask")?
@@ -627,6 +695,7 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
                             TestCaseStatus::UKE => "UKE".bright_black(),
                             TestCaseStatus::Running => "Running".yellow(),
                             TestCaseStatus::CE => "CE".yellow(),
+                            TestCaseStatus::PC(score) => format!("PC {:.2} / 100", score).yellow(),
                         };
                         case_test_pb.set_message(format!(
                             "运行测试点: {}/{} | #{} {}",

@@ -26,6 +26,7 @@ minijinja = "2.14.0"
 natord = "1.0.9"
 nom = "8.0.0"
 pretty = "0.12.5"
+quick-xml = { version = "0.39.0", features = ["serialize"] }
 regex = "1.12.2"
 serde = "1.0.228"
 serde_json = { version = "1.0.145", features = ["preserve_order"] }
