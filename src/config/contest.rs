@@ -2,7 +2,6 @@ use crate::config::ContestDayConfig;
 use indexmap::IndexMap;
 use log::error;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;

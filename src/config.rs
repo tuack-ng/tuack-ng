@@ -3,7 +3,7 @@ use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 
-const CONFIG_FILE_NAME: &str = "conf.json";
+pub const CONFIG_FILE_NAME: &str = "conf.json";
 
 pub mod contest;
 pub mod contestday;
