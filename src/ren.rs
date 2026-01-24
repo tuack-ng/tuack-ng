@@ -80,6 +80,25 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
+    let fonts_dir = context::get_context().assets_dirs.iter().find(|dir| {
+        let subdir = dir.join("templates").join("fonts");
+        subdir.exists() && subdir.is_dir()
+    });
+
+    let fonts_dir = match fonts_dir {
+        Some(dir) => {
+            info!(
+                "找到字体目录: {}",
+                dir.join("templates").join("fonts").to_string_lossy()
+            );
+            dir.join("templates").join("fonts")
+        }
+        None => {
+            error!("没有找到字体目录");
+            return Err(format!("致命错误: 没有找到模板 {}", args.target).into());
+        }
+    };
+
     let manifest = {
         let manifest_file = template_dir.join("manifest.json");
         if manifest_file.exists() {
@@ -183,6 +202,14 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
 
         info!("复制模板文件到临时目录");
         copy_dir_recursive(&template_dir, &tmp_dir)?;
+
+        let tmp_font_dir = tmp_dir.join("fonts");
+        if tmp_font_dir.exists() {
+            fs::remove_dir_all(&tmp_font_dir)?;
+        }
+
+        info!("复制字体文件到临时目录");
+        copy_dir_recursive(&fonts_dir, &tmp_font_dir)?;
 
         // 获取要渲染的问题
         let problems_to_render: HashMap<String, &ProblemConfig> =
