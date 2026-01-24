@@ -1,6 +1,8 @@
+use crate::config::ContestDayConfig;
 use crate::config::{CONFIG_FILE_NAME, save_day_config};
 use std::fs;
 
+use crate::config::ProblemConfig;
 use chrono::Datelike;
 use chrono::Timelike;
 use chrono::{Duration, NaiveDateTime};
@@ -50,7 +52,7 @@ enum Targets {
     #[command(version)]
     Length(ConfValuesArgs),
     #[command(version)]
-    Conf(ConfValuesArgs),
+    Conf(ConfCustomArgs),
 }
 
 #[derive(Args, Debug)]
@@ -61,6 +63,15 @@ pub struct ConfArgs {
     target: Targets,
 }
 
+#[derive(Args, Debug, Clone)]
+#[command(version)]
+pub struct ConfCustomArgs {
+    /// 键
+    key: String,
+    /// 值
+    #[arg(required = true)]
+    value: Vec<String>,
+}
 fn conf_title(args: &ConfValuesArgs) -> Result<(), Box<dyn std::error::Error>> {
     match get_context().config.as_ref().ok_or("没有找到有效的工程")?.1 {
         CurrentLocation::Problem(_, _) => Err("本命令不支持设置单个题目标题".into()),
@@ -160,9 +171,63 @@ fn conf_length(args: &ConfValuesArgs) -> Result<(), Box<dyn std::error::Error>> 
     }
 }
 
-pub fn main(args: ConfArgs) -> Result<(), Box<dyn std::error::Error>> {
-    // Add your configuration logic here
+fn conf_custom(args: &ConfCustomArgs) -> Result<(), Box<dyn std::error::Error>> {
+    match get_context().config.as_ref().ok_or("没有找到有效的工程")?.1 {
+        CurrentLocation::Problem(_, _) => Err("本命令不支持设置单个题目标题".into()),
+        CurrentLocation::Day(ref day) => {
+            let mut day_config = get_context()
+                .config
+                .as_ref()
+                .ok_or("没有找到有效的工程")?
+                .0
+                .subconfig
+                .get(day)
+                .unwrap()
+                .clone();
+            if args.value.len() != day_config.subconfig.len() {
+                return Err("提供的标题数量与题目数量不匹配".into());
+            }
+            for (i, (_prob_name, prob_config)) in day_config.subconfig.iter_mut().enumerate() {
+                let mut json = serde_json::to_value(&prob_config).unwrap();
+                let value = serde_json::from_str::<serde_json::Value>(&args.value[i])
+                    .map_err(|e| format!("值解析失败：{e}"))?;
+                json.as_object_mut()
+                    .unwrap()
+                    .insert(args.key.clone(), value);
+                let updated_config = serde_json::from_value::<ProblemConfig>(json)
+                    .map_err(|e| format!("json 序列化失败，可能是因为提供了无效的值：{e}"))?;
+                let conf_str = save_problem_config(&updated_config)?;
+                fs::write(prob_config.path.join(CONFIG_FILE_NAME), conf_str)?;
+            }
+            Ok(())
+        }
+        CurrentLocation::Root => {
+            let mut config = get_context()
+                .config
+                .as_ref()
+                .ok_or("没有找到有效的工程")?
+                .0
+                .clone();
+            if args.value.len() != config.subconfig.len() {
+                return Err("提供的标题数量与题目数量不匹配".into());
+            }
+            for (i, (_day_name, day_config)) in config.subconfig.iter_mut().enumerate() {
+                let mut json = serde_json::to_value(&day_config)?;
+                let value = serde_json::from_str::<serde_json::Value>(&args.value[i])?;
+                json.as_object_mut()
+                    .unwrap()
+                    .insert(args.key.clone(), value);
+                let updated_config = serde_json::from_value::<ContestDayConfig>(json)?;
+                let conf_str = save_day_config(&updated_config)?;
+                fs::write(day_config.path.join(CONFIG_FILE_NAME), conf_str)?;
+            }
+            Ok(())
+        }
+        CurrentLocation::None => Err("没有找到有效的配置文件".into()),
+    }
+}
 
+pub fn main(args: ConfArgs) -> Result<(), Box<dyn std::error::Error>> {
     match args.target {
         Targets::Title(conf_args) => {
             conf_title(&conf_args)?;
@@ -173,9 +238,8 @@ pub fn main(args: ConfArgs) -> Result<(), Box<dyn std::error::Error>> {
         Targets::Time(conf_args) => {
             conf_time(&conf_args)?;
         }
-        Targets::Conf(_) => {
-            // 暂时没有很好的方法实现这个功能
-            unimplemented!();
+        Targets::Conf(conf_args) => {
+            conf_custom(&conf_args)?;
         }
     }
 
