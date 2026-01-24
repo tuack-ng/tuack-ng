@@ -352,95 +352,96 @@ fn check_compiler(language: &Language) -> Result<(), Box<dyn std::error::Error>>
 pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
     let (config, current_location) = get_context().config.as_ref().ok_or("找不到配置文件")?;
 
-    let skip_level = match current_location {
-        CurrentLocation::Problem(_, _) => 2,
-        CurrentLocation::Day(_) => 1,
-        _ => 0,
+    let (skip_level, target_day_key, target_problem_key) = match current_location {
+        CurrentLocation::Problem(day_name, problem_name) => {
+            (2, Some(day_name.as_str()), Some(problem_name.as_str()))
+        }
+        CurrentLocation::Day(day_name) => (1, Some(day_name.as_str()), None),
+        _ => (0, None, None),
     };
 
-    // 如果当前在Problem级别，还需要获取具体的day和problem名称
-    let (target_day_name, target_problem_name) = match current_location {
-        CurrentLocation::Problem(day_name, problem_name) => (Some(day_name), Some(problem_name)),
-        CurrentLocation::Day(day_name) => (Some(day_name), None),
-        _ => (None, None),
-    };
+    // 获取要处理的天配置
+    let days_vec;
+    let days_to_process: Vec<(&String, &crate::config::ContestDayConfig)> =
+        if let Some(day_key) = target_day_key {
+            let day_config = config
+                .subconfig
+                .get(day_key)
+                .ok_or_else(|| format!("未找到天配置: {}", day_key))?;
+            let actual_key = config
+                .subconfig
+                .keys()
+                .find(|k| k.as_str() == day_key)
+                .ok_or_else(|| format!("未找到天配置键: {}", day_key))?;
+            days_vec = vec![(actual_key, day_config)];
+            days_vec.iter().map(|(k, v)| (*k, *v)).collect()
+        } else {
+            config.subconfig.iter().collect()
+        };
 
-    // 计算总任务数
-    let total_days = if skip_level >= 1 {
-        1
-    } else {
-        config.subconfig.len()
-    };
+    let total_days = days_to_process.len();
 
     let day_pb = if skip_level >= 1 {
-        // 如果跳过天级别，就不显示进度条
         get_context().multiprogress.add(ProgressBar::new(0))
     } else {
-        get_context()
+        let pb = get_context()
             .multiprogress
-            .add(ProgressBar::new(total_days as u64))
-    };
-
-    if skip_level < 1 {
-        day_pb.set_style(
+            .add(ProgressBar::new(total_days as u64));
+        pb.set_style(
             indicatif::ProgressStyle::default_bar()
                 .template("  [{bar:40.green/blue}] {msg}")
                 .unwrap()
                 .progress_chars("=> "),
         );
-    }
+        pb
+    };
 
     let mut day_count = 0;
-    for day in &config.subconfig {
-        // 如果设置了跳过年份，并且这不是目标年份，则跳过
-        if skip_level >= 1
-            && target_day_name.is_some()
-            && day.name != *target_day_name.as_ref().unwrap().to_string()
-        {
-            continue;
-        }
-
+    for (_day_key, day_config) in days_to_process {
         day_count += 1;
         if skip_level < 1 {
             day_pb.set_message(format!("处理第 {}/{} 天", day_count, total_days));
         }
-        info!("处理天: {}", day.name);
+        info!("处理天: {}", day_config.name);
 
-        // 添加问题进度条
-        let problem_count_in_day = if skip_level >= 2 {
-            1
-        } else {
-            day.subconfig.len()
-        };
+        // 获取要处理的问题
+        let problems_vec;
+        let problems_to_process: Vec<(&String, &crate::config::ProblemConfig)> =
+            if let Some(problem_key) = target_problem_key {
+                let problem_config = day_config
+                    .subconfig
+                    .get(problem_key)
+                    .ok_or_else(|| format!("未找到问题: {}", problem_key))?;
+                let actual_key = day_config
+                    .subconfig
+                    .keys()
+                    .find(|k| k.as_str() == problem_key)
+                    .ok_or_else(|| format!("未找到问题键: {}", problem_key))?;
+                problems_vec = vec![(actual_key, problem_config)];
+                problems_vec.iter().map(|(k, v)| (*k, *v)).collect()
+            } else {
+                day_config.subconfig.iter().collect()
+            };
+
+        let problem_count_in_day = problems_to_process.len();
 
         let problem_pb = if skip_level >= 2 {
-            // 如果跳过问题级别，就不显示进度条
             get_context().multiprogress.add(ProgressBar::new(0))
         } else {
-            get_context()
+            let pb = get_context()
                 .multiprogress
-                .add(ProgressBar::new(problem_count_in_day as u64))
-        };
-
-        if skip_level < 2 {
-            problem_pb.set_style(
+                .add(ProgressBar::new(problem_count_in_day as u64));
+            pb.set_style(
                 indicatif::ProgressStyle::default_bar()
                     .template("  [{bar:40.cyan/blue}] {msg}")
                     .unwrap()
                     .progress_chars("=> "),
             );
-        }
+            pb
+        };
 
         let mut problem_count = 0;
-        for problem in &day.subconfig {
-            // 如果设置了跳过问题，并且这不是目标问题，则跳过
-            if skip_level >= 2
-                && target_problem_name.is_some()
-                && problem.name != *target_problem_name.as_ref().unwrap().to_string()
-            {
-                continue;
-            }
-
+        for (_problem_key, problem_config) in problems_to_process {
             problem_count += 1;
             if skip_level < 2 {
                 problem_pb.set_message(format!(
@@ -449,29 +450,26 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
                 ));
             }
 
-            // 开始处理问题
+            info!("处理题目: {}", problem_config.name);
 
-            info!("处理题目: {}", problem.name);
-
-            if let Some(use_chk) = problem.use_chk
+            if let Some(use_chk) = problem_config.use_chk
                 && use_chk
             {
                 info!("使用自定义 chk 设置: {}", use_chk);
 
                 let compile_pb = get_context().multiprogress.add(ProgressBar::new_spinner());
                 compile_pb.enable_steady_tick(Duration::from_millis(100));
-                compile_pb.set_message(format!("编译 {} 题目的 spj", problem.name));
+                compile_pb.set_message(format!("编译 {} 题目的 spj", problem_config.name));
 
-                let chk_path = problem.path.join("data").join("chk").join("chk.cpp");
+                let chk_path = problem_config.path.join("data").join("chk").join("chk.cpp");
                 if !chk_path.exists() {
                     warn!("chk 文件不存在，跳过测试此题目");
                     continue;
                 }
 
-                // 使用 g++ 编译到同名无后缀同目录文件
                 let compile_output = Command::new("g++")
                     .arg("-o")
-                    .arg(problem.path.join("data").join("chk").join("chk"))
+                    .arg(problem_config.path.join("data").join("chk").join("chk"))
                     .arg(&chk_path)
                     .arg("-O2")
                     .arg("-std=c++23")
@@ -488,10 +486,9 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
                 compile_pb.finish_and_clear();
             }
 
-            // 添加测试进度条
             let test_pb = get_context()
                 .multiprogress
-                .add(ProgressBar::new(problem.data.len() as u64));
+                .add(ProgressBar::new(problem_config.data.len() as u64));
             test_pb.set_style(
                 indicatif::ProgressStyle::default_bar()
                     .template("  [{bar:40.magenta/blue}] {msg}")
@@ -499,13 +496,11 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
                     .progress_chars("=> "),
             );
 
-            // 收集所有测试者的结果
             let mut all_test_results = Vec::new();
 
-            // 添加测试者进度条
             let tester_pb = get_context()
                 .multiprogress
-                .add(ProgressBar::new(problem.tests.len() as u64));
+                .add(ProgressBar::new(problem_config.tests.len() as u64));
             tester_pb.set_style(
                 indicatif::ProgressStyle::default_bar()
                     .template("  [{bar:40.yellow/blue}] {msg}")
@@ -514,22 +509,21 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
             );
 
             let mut tester_count = 0;
-            for (test_name, test) in &problem.tests {
+            for (test_name, test) in &problem_config.tests {
                 tester_count += 1;
                 tester_pb.set_message(format!(
                     "处理第 {}/{} 个测试者: {}",
                     tester_count,
-                    problem.tests.len(),
+                    problem_config.tests.len(),
                     test_name
                 ));
 
                 info!("测试 {} 的程序", test_name);
 
-                // 解析路径
                 let path = if PathBuf::from_str(&test.path)?.is_absolute() {
                     PathBuf::from_str(&test.path)?
                 } else {
-                    problem.path.join(&test.path).canonicalize()?
+                    problem_config.path.join(&test.path).canonicalize()?
                 };
 
                 info!("文件路径：{}", path.display());
@@ -537,14 +531,12 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
                 #[allow(unused_assignments)]
                 let mut problem_status = ProblemStatus::Waiting;
 
-                // 创建临时目录
                 let tmp_dir = path.parent().unwrap().join("tmp");
                 create_or_clear_dir(&tmp_dir)?;
 
                 let target_path = tmp_dir.join(path.file_name().unwrap());
                 fs::copy(&path, &target_path)?;
 
-                // 编译
                 #[allow(unused_assignments)]
                 {
                     problem_status = ProblemStatus::Compiling;
@@ -567,8 +559,8 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
                     " {} {} {} {} {}",
                     file_type.compiler.executable,
                     file_type.compiler.object_set_arg,
-                    &problem.name,
-                    &day.compile.get(ext.as_ref()).ok_or("未知格式文件")?,
+                    &problem_config.name,
+                    &day_config.compile.get(ext.as_ref()).ok_or("未知格式文件")?,
                     target_path.file_name().unwrap().to_string_lossy()
                 ))?
                 .current_dir(&tmp_dir)
@@ -588,28 +580,25 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
 
                 fs::remove_file(&target_path)?;
 
-                let mut subtask_scores: HashMap<u32, Vec<u32>> = problem
+                let mut subtask_scores: HashMap<u32, Vec<u32>> = problem_config
                     .subtests
                     .keys()
                     .map(|id| (*id, Vec::new()))
                     .collect();
 
-                // 运行测试用例
                 if problem_status == ProblemStatus::Compiled {
                     #[allow(unused_assignments)]
                     {
                         problem_status = ProblemStatus::Running;
                     }
-                    let program_path = tmp_dir.join(&problem.name);
+                    let program_path = tmp_dir.join(&problem_config.name);
 
-                    // 用于存储单个测试用例结果的数组
                     let mut individual_results = Vec::new();
                     let mut case_count = 0;
 
-                    // 添加测试用例进度条
                     let case_test_pb = get_context()
                         .multiprogress
-                        .add(ProgressBar::new(problem.data.len() as u64));
+                        .add(ProgressBar::new(problem_config.data.len() as u64));
                     case_test_pb.set_style(
                         indicatif::ProgressStyle::default_bar()
                             .template("  [{bar:40.magenta/blue}] {msg}")
@@ -617,22 +606,26 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
                             .progress_chars("=> "),
                     );
 
-                    for case in &problem.data {
+                    for case in &problem_config.data {
                         case_count += 1;
 
-                        let input_path = problem.path.join("data").join(case.input.get().unwrap());
-                        let answer_path =
-                            problem.path.join("data").join(case.output.get().unwrap());
+                        let input_path = problem_config
+                            .path
+                            .join("data")
+                            .join(case.input.get().unwrap());
+                        let answer_path = problem_config
+                            .path
+                            .join("data")
+                            .join(case.output.get().unwrap());
 
                         info!("运行测试点: {}", case.id);
 
-                        // 运行程序
                         let run_result = run_test_case(
                             &program_path,
-                            &problem.name,
+                            &problem_config.name,
                             &input_path,
-                            (problem.time_limit * 1000.0) as u128, // 时间限制
-                            ByteSize::from_str(&problem.memory_limit) // 空间限制
+                            (problem_config.time_limit * 1000.0) as u128,
+                            ByteSize::from_str(&problem_config.memory_limit)
                                 .unwrap_or_else(|e| {
                                     warn!(
                                         "空间限制东西字符串转换失败: {}, 使用 512 MiB 作为默认值",
@@ -641,30 +634,26 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
                                     ByteSize::mib(512)
                                 })
                                 .as_u64(),
-                            problem.file_io.unwrap_or(true),
+                            problem_config.file_io.unwrap_or(true),
                         )?;
 
                         let case_status = match run_result {
-                            TestCaseStatus::Running => {
-                                // 程序正常结束，验证输出
-                                validate_output(
-                                    &tmp_dir,
-                                    &problem.name,
-                                    &answer_path,
-                                    problem.file_io.unwrap_or(true),
-                                    if problem.use_chk.unwrap_or(false) {
-                                        Some(problem.path.join("data").join("chk").join("chk"))
-                                    } else {
-                                        None
-                                    },
-                                )?
-                            }
+                            TestCaseStatus::Running => validate_output(
+                                &tmp_dir,
+                                &problem_config.name,
+                                &answer_path,
+                                problem_config.file_io.unwrap_or(true),
+                                if problem_config.use_chk.unwrap_or(false) {
+                                    Some(problem_config.path.join("data").join("chk").join("chk"))
+                                } else {
+                                    None
+                                },
+                            )?,
                             status => status,
                         };
 
                         info!("测试点结果: {:?}", case_status);
 
-                        // 计分
                         let earned_score = match case_status {
                             TestCaseStatus::AC => case.score,
                             TestCaseStatus::PC(partial) => {
@@ -677,7 +666,6 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
                             .ok_or("不存在指定的 Subtask")?
                             .push(earned_score);
 
-                        // 记录单个测试用例结果
                         individual_results.push(IndividualTestCaseResult {
                             test_case_id: case.id,
                             status: case_status,
@@ -685,7 +673,6 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
                             max_score: case.score,
                         });
 
-                        // 更新进度条消息以显示当前测试点结果
                         let status_str = match case_status {
                             TestCaseStatus::AC => "AC".green(),
                             TestCaseStatus::WA => "WA".red(),
@@ -700,7 +687,7 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
                         case_test_pb.set_message(format!(
                             "运行测试点: {}/{} | #{} {}",
                             case_count,
-                            problem.data.len(),
+                            problem_config.data.len(),
                             case.id,
                             status_str
                         ));
@@ -709,7 +696,7 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
 
                     case_test_pb.finish_and_clear();
 
-                    for (id, policy) in &problem.subtests {
+                    for (id, policy) in &problem_config.subtests {
                         let scores = &subtask_scores[id];
 
                         let subtest_score = match policy {
@@ -723,28 +710,25 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
                         total_score += subtest_score;
                     }
 
-                    // 为此题目创建测试结果
                     let problem_result = ProblemTestResult {
                         tester_name: test_name.to_string(),
                         test_case_results: individual_results,
                         total_score,
-                        max_possible_score: problem.data.iter().map(|case| case.score).sum(),
+                        max_possible_score: problem_config.data.iter().map(|case| case.score).sum(),
                     };
 
-                    // 将结果添加到收集向量中
                     all_test_results.push(problem_result);
                 } else {
-                    // 如果编译失败，创建一个空的结果
                     let problem_result = ProblemTestResult {
                         tester_name: test_name.to_string(),
                         test_case_results: vec![IndividualTestCaseResult {
                             test_case_id: 0,
                             status: TestCaseStatus::CE,
                             score: 0,
-                            max_score: problem.data.iter().map(|case| case.score).sum(),
+                            max_score: problem_config.data.iter().map(|case| case.score).sum(),
                         }],
                         total_score: 0,
-                        max_possible_score: problem.data.iter().map(|case| case.score).sum(),
+                        max_possible_score: problem_config.data.iter().map(|case| case.score).sum(),
                     };
                     all_test_results.push(problem_result);
                 }
@@ -752,7 +736,11 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
                 info!(
                     "总得分: {}/{}",
                     total_score,
-                    problem.data.iter().map(|case| case.score).sum::<u32>()
+                    problem_config
+                        .data
+                        .iter()
+                        .map(|case| case.score)
+                        .sum::<u32>()
                 );
 
                 if check_test_case(test, total_score) {
@@ -763,14 +751,12 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
 
                 tester_pb.inc(1);
 
-                // 清理临时文件
                 let _ = fs::remove_dir_all(&tmp_dir);
             }
 
             tester_pb.finish_and_clear();
 
-            // 在所有测试完成后，将所有结果写入CSV文件
-            write_results_to_csv(all_test_results, &problem.path)?;
+            write_results_to_csv(all_test_results, &problem_config.path)?;
 
             if skip_level == 2 {
                 test_pb.finish_with_message("测试完成！");
@@ -778,7 +764,6 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
                 test_pb.finish_and_clear();
             }
 
-            // 如果是特定问题，处理完后就跳出循环
             if skip_level >= 2 {
                 break;
             }
@@ -790,7 +775,6 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
             problem_pb.finish_and_clear();
         }
 
-        // 如果是特定天，处理完后就跳出循环
         if skip_level >= 1 {
             break;
         }

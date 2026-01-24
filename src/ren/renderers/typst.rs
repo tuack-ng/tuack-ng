@@ -87,13 +87,8 @@ impl Compiler for TypstCompiler {
         let mut render_idx: usize = 0;
         for item in &self.renderqueue {
             match item {
-                RenderQueue::Problem(ast, _) => {
-                    self.convert_ast(
-                        &self.day_config.subconfig[render_idx],
-                        &self.tmp_dir,
-                        ast,
-                        render_idx,
-                    )?;
+                RenderQueue::Problem(ast, config) => {
+                    self.convert_ast(config, &self.tmp_dir, ast, render_idx)?;
                     render_idx += 1;
                 }
                 RenderQueue::Precaution(ast) => {
@@ -129,7 +124,7 @@ impl TypstCompiler {
         // 构建问题列表
         let mut problems = Vec::new();
 
-        for problem_config in &day_config.subconfig {
+        for (_name, problem_config) in &day_config.subconfig {
             let mut submit_filenames = Vec::new();
 
             // 遍历 day_config.compile 中的语言配置来生成对应的提交文件名

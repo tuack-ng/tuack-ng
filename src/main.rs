@@ -1,3 +1,4 @@
+use crate::conf::ConfArgs;
 use crate::fun::Philia093Args;
 use crate::generate::GenArgs;
 use crate::ren::RenArgs;
@@ -7,6 +8,7 @@ use clap::{Parser, Subcommand};
 use clap_i18n_richformatter::clap_i18n;
 use log::info;
 
+mod conf;
 mod config;
 mod context;
 mod fun;
@@ -36,6 +38,8 @@ enum Commands {
     Gen(GenArgs),
     /// 使用题解代码测试
     Test(TestArgs),
+    /// 使用题解代码测试
+    Conf(ConfArgs),
     /// see you *tomorrow*
     #[command(hide = true, name = "PhiLia093")]
     Philia093(Philia093Args),
@@ -53,6 +57,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Gen(args) => generate::main(args),
         Commands::Test(args) => test::main(args),
         Commands::Philia093(args) => fun::main(args, &cli.verbose),
+        Commands::Conf(args) => conf::main(args),
     };
 
     if let Err(e) = result {

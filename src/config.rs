@@ -117,10 +117,14 @@ pub fn load_config(
                 );
             }
 
-            dayconfig.subconfig.push(problemconfig);
+            dayconfig
+                .subconfig
+                .insert(problemconfig_name.to_string(), problemconfig);
         }
 
-        config.subconfig.push(dayconfig);
+        config
+            .subconfig
+            .insert(dayconfig_name.to_string(), dayconfig);
     }
 
     Ok(Some((config, location)))
@@ -143,7 +147,7 @@ pub fn save_config(
     fs::write(&main_config_path, main_config_json)?;
 
     // 保存每个比赛日的配置
-    for (day_index, day_config) in config.subconfig.iter().enumerate() {
+    for (day_index, (day_name, day_config)) in config.subconfig.iter().enumerate() {
         if config.subdir.len() <= day_index {
             return Err(format!("子目录名称不足，无法保存第{}个比赛日配置", day_index).into());
         }
@@ -177,7 +181,7 @@ pub fn save_config(
             }
 
             let problem_config_path = problem_path.join(CONFIG_FILE_NAME);
-            let problem_config_json = save_problem_config(problem_config)?;
+            let problem_config_json = save_problem_config(problem_config.1)?;
             fs::write(&problem_config_path, problem_config_json)?;
         }
     }

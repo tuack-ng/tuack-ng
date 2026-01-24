@@ -236,21 +236,21 @@ fn gen_data(args: GenConfirmArgs) -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let config = get_context().config.clone().ok_or("没有有效的配置")?;
-    for day in config.0.subconfig {
+    for (now_day_name, day) in config.0.subconfig {
         let day_name: Option<String> = match config.1 {
             CurrentLocation::Day(ref name) => Some(name.clone()),
             CurrentLocation::Problem(ref day_name, _) => Some(day_name.clone()),
             _ => None,
         };
-        if day_name.is_some() && day.name != day_name.unwrap() {
+        if day_name.is_some() && now_day_name != day_name.unwrap() {
             continue;
         }
-        for problem in day.subconfig {
+        for (now_problem_name, problem) in day.subconfig {
             let problem_name: Option<String> = match config.1 {
                 CurrentLocation::Problem(_, ref name) => Some(name.clone()),
                 _ => None,
             };
-            if problem_name.is_some() && problem.name != problem_name.unwrap() {
+            if problem_name.is_some() && now_problem_name != problem_name.unwrap() {
                 continue;
             }
 
@@ -311,21 +311,21 @@ fn gen_sample(args: GenConfirmArgs) -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let config = get_context().config.clone().ok_or("没有有效的配置")?;
-    for day in config.0.subconfig {
+    for (now_day_name, day) in config.0.subconfig {
         let day_name: Option<String> = match config.1 {
             CurrentLocation::Day(ref name) => Some(name.clone()),
             CurrentLocation::Problem(ref day_name, _) => Some(day_name.clone()),
             _ => None,
         };
-        if day_name.is_some() && day.name != day_name.unwrap() {
+        if day_name.is_some() && now_day_name != day_name.unwrap() {
             continue;
         }
-        for problem in day.subconfig {
+        for (now_problem_name, problem) in day.subconfig {
             let problem_name: Option<String> = match config.1 {
                 CurrentLocation::Problem(_, ref name) => Some(name.clone()),
                 _ => None,
             };
-            if problem_name.is_some() && problem.name != problem_name.unwrap() {
+            if problem_name.is_some() && now_problem_name != problem_name.unwrap() {
                 continue;
             }
 
@@ -411,21 +411,21 @@ fn gen_code(args: GenConfirmArgs) -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let config = get_context().config.clone().ok_or("没有有效的配置")?;
-    for day in config.0.subconfig {
+    for (now_day_name, day) in config.0.subconfig {
         let day_name: Option<String> = match config.1 {
             CurrentLocation::Day(ref name) => Some(name.clone()),
             CurrentLocation::Problem(ref day_name, _) => Some(day_name.clone()),
             _ => None,
         };
-        if day_name.is_some() && day.name != day_name.unwrap() {
+        if day_name.is_some() && now_day_name != day_name.unwrap() {
             continue;
         }
-        for problem in day.subconfig {
+        for (now_problem_name, problem) in day.subconfig {
             let problem_name: Option<String> = match config.1 {
                 CurrentLocation::Problem(_, ref name) => Some(name.clone()),
                 _ => None,
             };
-            if problem_name.is_some() && problem.name != problem_name.unwrap() {
+            if problem_name.is_some() && now_problem_name != problem_name.unwrap() {
                 continue;
             }
 
@@ -435,7 +435,12 @@ fn gen_code(args: GenConfirmArgs) -> Result<(), Box<dyn std::error::Error>> {
                 continue;
             }
 
-            codes.sort_by(|a, b| compare(a.1.to_string().as_ref(), b.1.to_string().as_ref()));
+            codes.sort_by(|a, b| {
+                compare(
+                    a.0.to_string_lossy().as_ref(),
+                    b.0.to_string_lossy().as_ref(),
+                )
+            });
 
             let mut tests = HashMap::<String, TestCase>::new();
 

@@ -1,4 +1,5 @@
 use super::problem::ProblemConfig;
+use indexmap::IndexMap;
 use log::error;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -28,7 +29,8 @@ pub struct ContestDayConfig {
     #[serde(default)]
     pub file_io: Option<bool>,
     #[serde(skip)]
-    pub subconfig: Vec<ProblemConfig>,
+    // pub subconfig: Vec<ProblemConfig>,
+    pub subconfig: IndexMap<String, ProblemConfig>,
     #[serde(skip)]
     pub path: PathBuf,
 }
@@ -57,7 +59,7 @@ pub fn load_day_config(
         .ok_or("无法获取配置文件父目录")?;
 
     // 不处理子目录，只加载当前配置
-    dayconfig.subconfig = Vec::new();
+    dayconfig.subconfig = IndexMap::new();
 
     Ok(dayconfig)
 }

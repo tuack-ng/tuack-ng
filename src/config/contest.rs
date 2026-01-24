@@ -1,6 +1,8 @@
 use crate::config::ContestDayConfig;
+use indexmap::IndexMap;
 use log::error;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
@@ -25,7 +27,8 @@ pub struct ContestConfig {
     #[serde(default)]
     pub file_io: Option<bool>,
     #[serde(skip)]
-    pub subconfig: Vec<ContestDayConfig>,
+    // pub subconfig: Vec<ContestDayConfig>,
+    pub subconfig: IndexMap<String, ContestDayConfig>,
     #[serde(skip)]
     pub path: PathBuf,
 }
@@ -51,7 +54,7 @@ pub fn load_contest_config(
 
     config.path = config_path.parent().unwrap().to_path_buf();
 
-    config.subconfig = Vec::new();
+    config.subconfig = IndexMap::new();
 
     Ok(config)
 }
