@@ -11,10 +11,10 @@ use crate::ren::renderers::markdown::MarkdownChecker;
 use crate::ren::renderers::markdown::MarkdownCompiler;
 use crate::ren::renderers::typst::{TypstChecker, TypstCompiler};
 use clap::Args;
+use indexmap::IndexMap;
 use log::{debug, error, info, warn};
 use markdown_ppp::ast::Document;
 use markdown_ppp::parser::*;
-use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use std::time::Duration;
@@ -212,7 +212,7 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
         copy_dir_recursive(&fonts_dir, &tmp_font_dir)?;
 
         // 获取要渲染的问题
-        let problems_to_render: HashMap<String, &ProblemConfig> =
+        let problems_to_render: IndexMap<String, &ProblemConfig> =
             if let Some(problem_key) = target_problem_key {
                 // 特定问题：直接通过键获取
                 day_config
@@ -220,7 +220,7 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
                     .get(problem_key)
                     .map(|problem_config| {
                         info!("渲染指定问题: {}", problem_config.name);
-                        let mut map = HashMap::new();
+                        let mut map = IndexMap::new();
                         map.insert(problem_key.to_string(), problem_config);
                         map
                     })
