@@ -284,7 +284,7 @@ fn gen_data(args: GenConfirmArgs) -> Result<(), Box<dyn std::error::Error>> {
                 .into_iter()
                 .enumerate()
                 .map(|(id, name)| DataItem {
-                    id: id.clone() as u32,
+                    id: id as u32 + 1,
                     input: Optional::initialized(format!("{}.in", name)),
                     output: Optional::initialized(format!("{}.ans", name)),
                     score: 100 / count,
@@ -358,7 +358,7 @@ fn gen_sample(args: GenConfirmArgs) -> Result<(), Box<dyn std::error::Error>> {
                 .into_iter()
                 .enumerate()
                 .map(|(id, name)| SampleItem {
-                    id: id.clone() as u32,
+                    id: id as u32 + 1,
                     input: Optional::initialized(format!("{}.in", name)),
                     output: Optional::initialized(format!("{}.ans", name)),
                 })
