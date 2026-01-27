@@ -9,7 +9,7 @@ pub fn process_images_with_unique_ids(
     src_dir: &Path,
     dst_dir: &Path,
     _problem_idx: usize,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<()> {
     if !dst_dir.exists() {
         fs::create_dir_all(dst_dir)?;
     }
@@ -50,10 +50,7 @@ pub fn process_images_with_unique_ids(
 }
 
 // 递归复制目录的辅助函数
-pub fn copy_dir_recursive<P: AsRef<Path>, Q: AsRef<Path>>(
-    src: P,
-    dst: Q,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub fn copy_dir_recursive<P: AsRef<Path>, Q: AsRef<Path>>(src: P, dst: Q) -> Result<()> {
     let src = src.as_ref();
     let dst = dst.as_ref();
 

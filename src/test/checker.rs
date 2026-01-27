@@ -1,3 +1,5 @@
+use anyhow::Result;
+use anyhow::bail;
 use log::warn;
 use quick_xml::de::from_str;
 use serde::Deserialize;
@@ -25,7 +27,7 @@ struct XmlResult {
     text: Option<String>,
 }
 
-pub fn parse_result(xml_str: &str) -> Result<(JudgeResult, String), Box<dyn std::error::Error>> {
+pub fn parse_result(xml_str: &str) -> Result<(JudgeResult, String)> {
     let xml_str = xml_str.trim();
     let xml_result: XmlResult = from_str(xml_str)?;
 
@@ -44,13 +46,13 @@ pub fn parse_result(xml_str: &str) -> Result<(JudgeResult, String), Box<dyn std:
             let score = parse_score_value(&xml_result.points)?;
             JudgeResult::Score(score)
         }
-        other => return Err(format!("Unknown outcome type: {}", other).into()),
+        other => bail!("Unknown outcome type: {}", other),
     };
 
     Ok((result, message))
 }
 
-fn parse_score_value(attr_value: &Option<String>) -> Result<f64, Box<dyn std::error::Error>> {
+fn parse_score_value(attr_value: &Option<String>) -> Result<f64> {
     //从属性获取
     if let Some(value_str) = attr_value {
         return value_str.parse().map(normalize_score).map_err(|e| e.into());

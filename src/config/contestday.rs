@@ -1,4 +1,7 @@
 use super::problem::ProblemConfig;
+use anyhow::Context;
+use anyhow::Result;
+use anyhow::bail;
 use indexmap::IndexMap;
 use log::error;
 use serde::{Deserialize, Serialize};
@@ -36,9 +39,7 @@ pub struct ContestDayConfig {
 }
 
 /// 加载比赛日配置
-pub fn load_day_config(
-    dayconfig_path: &Path,
-) -> Result<ContestDayConfig, Box<dyn std::error::Error>> {
+pub fn load_day_config(dayconfig_path: &Path) -> Result<ContestDayConfig> {
     // 读取并验证每日配置文件
     let day_content = fs::read_to_string(dayconfig_path)?;
     let day_json_value: serde_json::Value = serde_json::from_str(&day_content)?;
@@ -48,7 +49,7 @@ pub fn load_day_config(
         && version < 3
     {
         error!("配置文件版本过低，可能是 tuack 的配置文件。请迁移到 tuack-ng 配置文件格式再使用。");
-        return Err("配置文件版本过低".into());
+        bail!("配置文件版本过低");
     }
 
     let mut dayconfig: ContestDayConfig = serde_json::from_str(&day_content)?;
@@ -56,7 +57,7 @@ pub fn load_day_config(
     dayconfig.path = dayconfig_path
         .parent()
         .map(|p| p.to_path_buf())
-        .ok_or("无法获取配置文件父目录")?;
+        .context("无法获取配置文件父目录")?;
 
     // 不处理子目录，只加载当前配置
     dayconfig.subconfig = IndexMap::new();
@@ -65,7 +66,7 @@ pub fn load_day_config(
 }
 
 /// 将比赛日配置序列化为JSON字符串，排除null字段
-pub fn save_day_config(config: &ContestDayConfig) -> Result<String, Box<dyn std::error::Error>> {
+pub fn save_day_config(config: &ContestDayConfig) -> Result<String> {
     let json_value = serde_json::to_value(config)?;
     let filtered_obj = json_value
         .as_object()
@@ -75,7 +76,7 @@ pub fn save_day_config(config: &ContestDayConfig) -> Result<String, Box<dyn std:
                 .map(|(k, v)| (k.clone(), v.clone()))
                 .collect::<serde_json::Map<_, _>>()
         })
-        .ok_or("Failed to convert day config to object")?;
+        .context("Failed to convert day config to object")?;
     let json = serde_json::to_string_pretty(&filtered_obj)?;
     Ok(json)
 }

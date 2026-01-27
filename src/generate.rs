@@ -13,11 +13,16 @@ use crate::config::save_problem_config;
 use crate::config::{ContestConfig, DataItem};
 use crate::context::{CurrentLocation, get_context};
 use crate::utils::optional::Optional;
+use anyhow::Context;
+use anyhow::Result;
+use anyhow::anyhow;
+use anyhow::bail;
 use clap::Args;
 use clap::Subcommand;
 use clap_complete::Shell;
 use dialoguer::Select;
 use dialoguer::theme::ColorfulTheme;
+use log::error;
 use log::warn;
 use natord::compare;
 use regex::Regex;
@@ -93,7 +98,7 @@ pub struct GenArgs {
     target: Targets,
 }
 
-fn gen_contest(args: GenStatementArgs) -> Result<(), Box<dyn std::error::Error>> {
+fn gen_contest(args: GenStatementArgs) -> Result<()> {
     let current_dir = std::env::current_dir()?;
 
     // 查找scaffold/contest目录（在程序上下文中的列表中第一个存在的）
@@ -116,14 +121,14 @@ fn gen_contest(args: GenStatementArgs) -> Result<(), Box<dyn std::error::Error>>
     Ok(())
 }
 
-fn gen_day(args: GenStatementArgs) -> Result<(), Box<dyn std::error::Error>> {
+fn gen_day(args: GenStatementArgs) -> Result<()> {
     // 检查是否在contest目录下执行
     let current_dir = std::env::current_dir()?;
     let config_path = current_dir.join(CONFIG_FILE_NAME);
 
     // 检查当前目录是否存在contest配置文件
     if !config_path.exists() {
-        return Err("day命令必须在contest目录下执行".into());
+        bail!("day命令必须在contest目录下执行");
     }
 
     // 检查配置文件是否为contest类型
@@ -132,10 +137,10 @@ fn gen_day(args: GenStatementArgs) -> Result<(), Box<dyn std::error::Error>> {
 
     if let Some(folder) = json_value.get("folder").and_then(|v| v.as_str()) {
         if folder != "contest" {
-            return Err("day命令必须在contest目录下执行".into());
+            bail!("day命令必须在contest目录下执行");
         }
     } else {
-        return Err("无效的配置文件".into());
+        bail!("无效的配置文件");
     }
 
     // 查找scaffold/day目录（在程序上下文中的列表中第一个存在的）
@@ -172,14 +177,14 @@ fn gen_day(args: GenStatementArgs) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn gen_problem(args: GenStatementArgs) -> Result<(), Box<dyn std::error::Error>> {
+fn gen_problem(args: GenStatementArgs) -> Result<()> {
     // 检查是否在day目录下执行
     let current_dir = std::env::current_dir()?;
     let config_path = current_dir.join(CONFIG_FILE_NAME);
 
     // 检查当前目录是否存在day配置文件
     if !config_path.exists() {
-        return Err("problem命令必须在day目录下执行".into());
+        bail!("problem命令必须在day目录下执行");
     }
 
     // 检查配置文件是否为day类型
@@ -188,10 +193,10 @@ fn gen_problem(args: GenStatementArgs) -> Result<(), Box<dyn std::error::Error>>
 
     if let Some(folder) = json_value.get("folder").and_then(|v| v.as_str()) {
         if folder != "day" {
-            return Err("problem命令必须在day目录下执行".into());
+            bail!("problem命令必须在day目录下执行");
         }
     } else {
-        return Err("无效的配置文件".into());
+        bail!("无效的配置文件");
     }
 
     // 查找scaffold/problem目录（在程序上下文中的列表中第一个存在的）
@@ -244,12 +249,12 @@ fn confirm_overwrite() -> bool {
     selection == 1
 }
 
-fn gen_data(args: GenConfirmArgs) -> Result<(), Box<dyn std::error::Error>> {
+fn gen_data(args: GenConfirmArgs) -> Result<()> {
     if !args.confirm && !confirm_overwrite() {
         return Ok(());
     }
 
-    let config = get_context().config.clone().ok_or("没有有效的配置")?;
+    let config = get_context().config.clone().context("没有有效的配置")?;
     for (now_day_name, day) in config.0.subconfig {
         let day_name: Option<String> = match config.1 {
             CurrentLocation::Day(ref name) => Some(name.clone()),
@@ -319,12 +324,12 @@ fn gen_data(args: GenConfirmArgs) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn gen_sample(args: GenConfirmArgs) -> Result<(), Box<dyn std::error::Error>> {
+fn gen_sample(args: GenConfirmArgs) -> Result<()> {
     if !args.confirm && !confirm_overwrite() {
         return Ok(());
     }
 
-    let config = get_context().config.clone().ok_or("没有有效的配置")?;
+    let config = get_context().config.clone().context("没有有效的配置")?;
     for (now_day_name, day) in config.0.subconfig {
         let day_name: Option<String> = match config.1 {
             CurrentLocation::Day(ref name) => Some(name.clone()),
@@ -389,12 +394,9 @@ fn gen_sample(args: GenConfirmArgs) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn gen_code(args: GenConfirmArgs) -> Result<(), Box<dyn std::error::Error>> {
+fn gen_code(args: GenConfirmArgs) -> Result<()> {
     let user_skip = Regex::new(r"^(data|down|pre|val|.*validate.*|gen|chk|checker|report|check.*|make_data|data_maker|data_make|make|dmk|generate|generator|makedata|spj|judge|tables|tmp|cp|copy|mv|move|rm|remove|.*\.tmp|.*\.temp|temp|.*\.test|.*\.dir)(\..*)?$").unwrap();
-    fn find_code(
-        path: &PathBuf,
-        user_skip: &Regex,
-    ) -> Result<Vec<(PathBuf, bool)>, Box<dyn std::error::Error>> {
+    fn find_code(path: &PathBuf, user_skip: &Regex) -> Result<Vec<(PathBuf, bool)>> {
         if user_skip.is_match(&path.to_string_lossy()) {
             return Ok(vec![]);
         }
@@ -424,7 +426,7 @@ fn gen_code(args: GenConfirmArgs) -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
 
-    let config = get_context().config.clone().ok_or("没有有效的配置")?;
+    let config = get_context().config.clone().context("没有有效的配置")?;
     for (now_day_name, day) in config.0.subconfig {
         let day_name: Option<String> = match config.1 {
             CurrentLocation::Day(ref name) => Some(name.clone()),
@@ -497,7 +499,7 @@ fn gen_code(args: GenConfirmArgs) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn gen_all(args: GenConfirmArgs) -> Result<(), Box<dyn std::error::Error>> {
+fn gen_all(args: GenConfirmArgs) -> Result<()> {
     if !args.confirm && !confirm_overwrite() {
         return Ok(());
     }
@@ -508,14 +510,14 @@ fn gen_all(args: GenConfirmArgs) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn gen_complete(args: GenCompleteArgs) -> Result<(), Box<dyn std::error::Error>> {
+fn gen_complete(args: GenCompleteArgs) -> Result<()> {
     let shell = match args.name.to_lowercase().as_str() {
         "bash" => Shell::Bash,
         "zsh" => Shell::Zsh,
         "fish" => Shell::Fish,
         _ => {
-            eprintln!("不支持的shell类型: {}", args.name);
-            Err("不支持的shell类型")?
+            error!("不支持的shell类型: {}", args.name);
+            bail!("不支持的shell类型")
         }
     };
     let mut cmd = crate::Cli::command_i18n();
@@ -524,7 +526,7 @@ fn gen_complete(args: GenCompleteArgs) -> Result<(), Box<dyn std::error::Error>>
     Ok(())
 }
 
-pub fn main(args: GenArgs) -> Result<(), Box<dyn std::error::Error>> {
+pub fn main(args: GenArgs) -> Result<()> {
     match args.target {
         Targets::Contest(args) => gen_contest(args)?,
         Targets::Day(args) => gen_day(args)?,
@@ -540,7 +542,7 @@ pub fn main(args: GenArgs) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 // 查找scaffold目录（在程序上下文中的列表中第一个存在的）
-fn find_scaffold_dir(dir_name: &str) -> Result<PathBuf, Box<dyn std::error::Error>> {
+fn find_scaffold_dir(dir_name: &str) -> Result<PathBuf> {
     let context = crate::context::get_context();
 
     for assets_dir in &context.assets_dirs {
@@ -550,14 +552,11 @@ fn find_scaffold_dir(dir_name: &str) -> Result<PathBuf, Box<dyn std::error::Erro
         }
     }
 
-    Err(format!("找不到scaffold/{}目录", dir_name).into())
+    Err(anyhow!("找不到scaffold/{}目录", dir_name))
 }
 
 // 递归复制目录的辅助函数
-fn copy_dir_recursive<P: AsRef<Path>, Q: AsRef<Path>>(
-    src: P,
-    dst: Q,
-) -> Result<(), Box<dyn std::error::Error>> {
+fn copy_dir_recursive<P: AsRef<Path>, Q: AsRef<Path>>(src: P, dst: Q) -> Result<()> {
     let src = src.as_ref();
     let dst = dst.as_ref();
 

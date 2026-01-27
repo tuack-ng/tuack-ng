@@ -8,6 +8,7 @@ repository = "https://github.com/tuack-ng/tuack-ng"
 license = "AGPL-3.0-or-later"
 
 [dependencies]
+anyhow = "1.0.100"
 bytes = "1.11.0"
 bytesize = "2.3.1"
 chrono = "0.4.42"

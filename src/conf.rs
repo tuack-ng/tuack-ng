@@ -1,11 +1,13 @@
 use crate::config::ContestDayConfig;
-use crate::config::{CONFIG_FILE_NAME, save_day_config};
-use std::fs;
-
 use crate::config::ProblemConfig;
+use crate::config::{CONFIG_FILE_NAME, save_day_config};
+use anyhow::Context;
+use anyhow::Result;
+use anyhow::bail;
 use chrono::Datelike;
 use chrono::Timelike;
 use chrono::{Duration, NaiveDateTime};
+use std::fs;
 
 fn add_minutes(time: [u32; 6], minutes: i64) -> [u32; 6] {
     let dt = NaiveDateTime::new(
@@ -74,21 +76,26 @@ pub struct ConfCustomArgs {
     #[arg(required = true)]
     value: Vec<String>,
 }
-fn conf_title(args: &ConfValuesArgs) -> Result<(), Box<dyn std::error::Error>> {
-    match get_context().config.as_ref().ok_or("没有找到有效的工程")?.1 {
-        CurrentLocation::Problem(_, _) => Err("本命令不支持设置单个题目标题".into()),
+fn conf_title(args: &ConfValuesArgs) -> Result<()> {
+    match get_context()
+        .config
+        .as_ref()
+        .context("没有找到有效的工程")?
+        .1
+    {
+        CurrentLocation::Problem(_, _) => bail!("本命令不支持设置单个题目标题"),
         CurrentLocation::Day(ref day) => {
             let mut day_config = get_context()
                 .config
                 .as_ref()
-                .ok_or("没有找到有效的工程")?
+                .context("没有找到有效的工程")?
                 .0
                 .subconfig
                 .get(day)
                 .unwrap()
                 .clone();
             if args.value.len() != day_config.subconfig.len() {
-                return Err("提供的标题数量与题目数量不匹配".into());
+                bail!("提供的标题数量与题目数量不匹配");
             }
             for (i, (_prob_name, prob_config)) in day_config.subconfig.iter_mut().enumerate() {
                 prob_config.title = args.value[i].clone();
@@ -101,11 +108,11 @@ fn conf_title(args: &ConfValuesArgs) -> Result<(), Box<dyn std::error::Error>> {
             let mut config = get_context()
                 .config
                 .as_ref()
-                .ok_or("没有找到有效的工程")?
+                .context("没有找到有效的工程")?
                 .0
                 .clone();
             if args.value.len() != config.subconfig.len() {
-                return Err("提供的标题数量与题目数量不匹配".into());
+                bail!("提供的标题数量与题目数量不匹配");
             }
             for (i, (_day_name, day_config)) in config.subconfig.iter_mut().enumerate() {
                 day_config.title = args.value[i].clone();
@@ -114,25 +121,30 @@ fn conf_title(args: &ConfValuesArgs) -> Result<(), Box<dyn std::error::Error>> {
             }
             Ok(())
         }
-        CurrentLocation::None => Err("没有找到有效的配置文件".into()),
+        CurrentLocation::None => bail!("没有找到有效的配置文件"),
     }
 }
 
-fn conf_time(args: &ConfValuesArgs) -> Result<(), Box<dyn std::error::Error>> {
-    match get_context().config.as_ref().ok_or("没有找到有效的工程")?.1 {
-        CurrentLocation::Problem(_, _) => Err("本命令不支持设置单个题目时间限制".into()),
+fn conf_time(args: &ConfValuesArgs) -> Result<()> {
+    match get_context()
+        .config
+        .as_ref()
+        .context("没有找到有效的工程")?
+        .1
+    {
+        CurrentLocation::Problem(_, _) => bail!("本命令不支持设置单个题目时间限制"),
         CurrentLocation::Day(ref day) => {
             let mut day_config = get_context()
                 .config
                 .as_ref()
-                .ok_or("没有找到有效的工程")?
+                .context("没有找到有效的工程")?
                 .0
                 .subconfig
                 .get(day)
                 .unwrap()
                 .clone();
             if args.value.len() != day_config.subconfig.len() {
-                return Err("提供的时间限制数量与题目数量不匹配".into());
+                bail!("提供的时间限制数量与题目数量不匹配");
             }
             for (i, (_prob_name, prob_config)) in day_config.subconfig.iter_mut().enumerate() {
                 prob_config.time_limit = args.value[i].clone().parse()?;
@@ -141,23 +153,28 @@ fn conf_time(args: &ConfValuesArgs) -> Result<(), Box<dyn std::error::Error>> {
             }
             Ok(())
         }
-        CurrentLocation::Root => Err("本命令不能为比赛日设置时间限制".into()),
-        CurrentLocation::None => Err("没有找到有效的配置文件".into()),
+        CurrentLocation::Root => bail!("本命令不能为比赛日设置时间限制"),
+        CurrentLocation::None => bail!("没有找到有效的配置文件"),
     }
 }
 
-fn conf_length(args: &ConfValuesArgs) -> Result<(), Box<dyn std::error::Error>> {
-    match get_context().config.as_ref().ok_or("没有找到有效的工程")?.1 {
-        CurrentLocation::Problem(_, _) => Err("本命令不支持设置单个题目时间限制".into()),
+fn conf_length(args: &ConfValuesArgs) -> Result<()> {
+    match get_context()
+        .config
+        .as_ref()
+        .context("没有找到有效的工程")?
+        .1
+    {
+        CurrentLocation::Problem(_, _) => bail!("本命令不支持设置单个题目时间限制"),
         CurrentLocation::Root => {
             let mut config = get_context()
                 .config
                 .as_ref()
-                .ok_or("没有找到有效的工程")?
+                .context("没有找到有效的工程")?
                 .0
                 .clone();
             if args.value.len() != config.subconfig.len() {
-                return Err("提供的时间限制数量与题目数量不匹配".into());
+                bail!("提供的时间限制数量与题目数量不匹配");
             }
             for (i, (_day_name, day_config)) in config.subconfig.iter_mut().enumerate() {
                 let minutes: f64 = args.value[i].clone().parse()?;
@@ -168,36 +185,41 @@ fn conf_length(args: &ConfValuesArgs) -> Result<(), Box<dyn std::error::Error>> 
             }
             Ok(())
         }
-        CurrentLocation::Day(_) => Err("本命令不能为比赛日设置时间限制".into()),
-        CurrentLocation::None => Err("没有找到有效的配置文件".into()),
+        CurrentLocation::Day(_) => bail!("本命令不能为比赛日设置时间限制"),
+        CurrentLocation::None => bail!("没有找到有效的配置文件"),
     }
 }
 
-fn conf_custom(args: &ConfCustomArgs) -> Result<(), Box<dyn std::error::Error>> {
-    match get_context().config.as_ref().ok_or("没有找到有效的工程")?.1 {
-        CurrentLocation::Problem(_, _) => Err("本命令不支持设置单个题目标题".into()),
+fn conf_custom(args: &ConfCustomArgs) -> Result<()> {
+    match get_context()
+        .config
+        .as_ref()
+        .context("没有找到有效的工程")?
+        .1
+    {
+        CurrentLocation::Problem(_, _) => bail!("本命令不支持设置单个题目标题"),
         CurrentLocation::Day(ref day) => {
             let mut day_config = get_context()
                 .config
                 .as_ref()
-                .ok_or("没有找到有效的工程")?
+                .context("没有找到有效的工程")?
                 .0
                 .subconfig
                 .get(day)
                 .unwrap()
                 .clone();
             if args.value.len() != day_config.subconfig.len() {
-                return Err("提供的标题数量与题目数量不匹配".into());
+                bail!("提供的标题数量与题目数量不匹配");
             }
             for (i, (_prob_name, prob_config)) in day_config.subconfig.iter_mut().enumerate() {
                 let mut json = serde_json::to_value(&prob_config).unwrap();
                 let value = serde_json::from_str::<serde_json::Value>(&args.value[i])
-                    .map_err(|e| format!("值解析失败：{e}"))?;
+                    .context("值解析失败")?;
                 json.as_object_mut()
                     .unwrap()
                     .insert(args.key.clone(), value);
                 let updated_config = serde_json::from_value::<ProblemConfig>(json)
-                    .map_err(|e| format!("json 序列化失败，可能是因为提供了无效的值：{e}"))?;
+                    .context("json 序列化失败，可能是因为提供了无效的值")?;
                 let conf_str = save_problem_config(&updated_config)?;
                 fs::write(prob_config.path.join(CONFIG_FILE_NAME), conf_str)?;
             }
@@ -207,29 +229,31 @@ fn conf_custom(args: &ConfCustomArgs) -> Result<(), Box<dyn std::error::Error>> 
             let mut config = get_context()
                 .config
                 .as_ref()
-                .ok_or("没有找到有效的工程")?
+                .context("没有找到有效的工程")?
                 .0
                 .clone();
             if args.value.len() != config.subconfig.len() {
-                return Err("提供的标题数量与题目数量不匹配".into());
+                bail!("提供的标题数量与题目数量不匹配");
             }
             for (i, (_day_name, day_config)) in config.subconfig.iter_mut().enumerate() {
                 let mut json = serde_json::to_value(&day_config)?;
-                let value = serde_json::from_str::<serde_json::Value>(&args.value[i])?;
+                let value = serde_json::from_str::<serde_json::Value>(&args.value[i])
+                    .context("值解析失败")?;
                 json.as_object_mut()
                     .unwrap()
                     .insert(args.key.clone(), value);
-                let updated_config = serde_json::from_value::<ContestDayConfig>(json)?;
+                let updated_config = serde_json::from_value::<ContestDayConfig>(json)
+                    .context("json 序列化失败，可能是因为提供了无效的值")?;
                 let conf_str = save_day_config(&updated_config)?;
                 fs::write(day_config.path.join(CONFIG_FILE_NAME), conf_str)?;
             }
             Ok(())
         }
-        CurrentLocation::None => Err("没有找到有效的配置文件".into()),
+        CurrentLocation::None => bail!("没有找到有效的配置文件"),
     }
 }
 
-pub fn main(args: ConfArgs) -> Result<(), Box<dyn std::error::Error>> {
+pub fn main(args: ConfArgs) -> Result<()> {
     match args.target {
         Targets::Title(conf_args) => {
             conf_title(&conf_args)?;

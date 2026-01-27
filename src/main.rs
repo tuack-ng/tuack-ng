@@ -2,6 +2,7 @@ use crate::conf::ConfArgs;
 use crate::generate::GenArgs;
 use crate::ren::RenArgs;
 use crate::test::TestArgs;
+use anyhow::Result;
 use clap::ArgAction;
 use clap::{Parser, Subcommand};
 use clap_i18n_richformatter::clap_i18n;
@@ -40,7 +41,7 @@ enum Commands {
     Conf(ConfArgs),
 }
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<()> {
     let cli = Cli::parse_i18n_or_exit();
 
     init::init(&(cli.verbose >= 1))?;
@@ -55,7 +56,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
 
     if let Err(e) = result {
-        log::error!("程序执行出错: {}", e);
+        log::error!("程序执行出错: {:#}", e);
         std::process::exit(1);
     }
 

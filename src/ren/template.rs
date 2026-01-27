@@ -1,5 +1,6 @@
 use crate::config::TemplateManifest;
 use crate::config::{ContestConfig, ContestDayConfig, ProblemConfig};
+use anyhow::Result;
 use log::{debug, error, info, warn};
 use minijinja::Value;
 use minijinja::{Environment, context};
@@ -313,7 +314,7 @@ pub fn render_template(
     contest: &ContestConfig,
     base_path: PathBuf,
     manifest: TemplateManifest,
-) -> Result<String, Box<dyn std::error::Error>> {
+) -> Result<String> {
     // 创建环境
     let env = Environment::new();
 

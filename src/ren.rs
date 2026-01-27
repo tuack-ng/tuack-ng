@@ -10,6 +10,10 @@ use crate::ren::renderers::base::Compiler;
 use crate::ren::renderers::markdown::MarkdownChecker;
 use crate::ren::renderers::markdown::MarkdownCompiler;
 use crate::ren::renderers::typst::{TypstChecker, TypstCompiler};
+use anyhow::Context;
+use anyhow::Result;
+use anyhow::anyhow;
+use anyhow::bail;
 use clap::Args;
 use indexmap::IndexMap;
 use log::{debug, error, info, warn};
@@ -44,13 +48,16 @@ pub enum RenderQueue {
     Precaution(Document),
 }
 
-pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
+pub fn main(args: RenArgs) -> Result<()> {
     debug!(
         "当前目录: {}",
         Path::new(".").canonicalize()?.to_string_lossy()
     );
 
-    let (config, current_location) = get_context().config.as_ref().ok_or("找不到配置文件")?;
+    let (config, current_location) = get_context()
+        .config
+        .as_ref()
+        .ok_or(anyhow!("找不到配置文件"))?;
 
     // 根据当前位置确定skip_level和目标配置的键
     let (skip_level, target_day_key, target_problem_key) = match current_location {
@@ -76,7 +83,7 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
         }
         None => {
             error!("没有找到模板 {}", args.target);
-            return Err(format!("致命错误: 没有找到模板 {}", args.target).into());
+            return Err(anyhow!("致命错误: 没有找到模板 {}", args.target));
         }
     };
 
@@ -95,7 +102,7 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
         }
         None => {
             error!("没有找到字体目录");
-            return Err(format!("致命错误: 没有找到模板 {}", args.target).into());
+            return Err(anyhow!("致命错误: 没有找到模板 {}", args.target));
         }
     };
 
@@ -106,7 +113,7 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
             serde_json::from_str::<TemplateManifest>(&manifest_content)?
         } else {
             error!("找不到清单文件: {}", manifest_file.display());
-            return Err("致命错误: 找不到清单文件".into());
+            bail!("致命错误: 找不到清单文件");
         }
     };
 
@@ -147,12 +154,12 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
         let day_config = config
             .subconfig
             .get(day_key)
-            .ok_or_else(|| format!("未找到天配置: {}", day_key))?;
+            .context(format!("未找到天配置: {}", day_key))?;
         let actual_key = config
             .subconfig
             .keys()
             .find(|k| k.as_str() == day_key)
-            .ok_or_else(|| format!("未找到天配置键: {}", day_key))?;
+            .context(format!("未找到天配置键: {}", day_key))?;
         days_vec = vec![(actual_key, day_config)];
         days_vec.iter().map(|(k, v)| (*k, *v)).collect()
     } else {
@@ -226,7 +233,7 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
                     })
                     .ok_or_else(|| {
                         error!("未找到问题: {}", problem_key);
-                        format!("未找到问题: {}", problem_key)
+                        anyhow!("未找到问题: {}", problem_key)
                     })?
             } else {
                 // 所有问题
@@ -286,7 +293,7 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
             if !statement_path.exists() {
                 error!("未找到题面文件: {}", statement_path.display());
                 problem_pb.finish_with_message("遇到错误，停止处理");
-                return Err(format!("未找到题面文件: {}", statement_path.display()).into());
+                return Err(anyhow!("未找到题面文件: {}", statement_path.display()));
             }
 
             // 解析题面顺便展开模板
@@ -306,7 +313,7 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
                         e
                     );
                     problem_pb.finish_with_message("遇到错误，停止处理");
-                    return Err("解析题面文件失败".into());
+                    bail!("解析题面文件失败");
                 }
             };
 
@@ -316,7 +323,7 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
                 Err(e) => {
                     error!("解析题面文件 {} 失败: {:?}", statement_path.display(), e);
                     problem_pb.finish_with_message("遇到错误，停止处理");
-                    return Err("解析题面文件失败".into());
+                    bail!("解析题面文件失败");
                 }
             };
 
@@ -425,7 +432,7 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
             error!("编译失败:\n{}", error_output);
 
             warn!("保留临时目录以供调试: {}", tmp_dir.display());
-            return Err("编译过程出错".into());
+            bail!("编译过程出错");
         }
 
         // 如果是特定天，处理完后就跳出循环

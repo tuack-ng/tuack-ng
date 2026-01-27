@@ -4,6 +4,9 @@ use crate::config::{ExpectedScore, TestCase};
 use crate::context::CurrentLocation;
 use crate::context::get_context;
 use crate::test::checker::parse_result;
+use anyhow::Context;
+use anyhow::Result;
+use anyhow::bail;
 use bytesize::ByteSize;
 use clap::Args;
 use colored::Colorize;
@@ -80,11 +83,11 @@ fn create_or_clear_dir(path: &Path) -> Result<(), std::io::Error> {
     fs::create_dir_all(path)
 }
 
-fn string_to_command(command_str: &str) -> Result<Command, Box<dyn std::error::Error>> {
+fn string_to_command(command_str: &str) -> Result<Command> {
     let parts = shellwords::split(command_str)?;
 
     if parts.is_empty() {
-        return Err("Empty command".into());
+        bail!("Empty command");
     }
 
     let mut cmd = Command::new(&parts[0]);
@@ -103,7 +106,7 @@ fn run_test_case(
     time_limit_ms: u128,
     memory_limit_bytes: u64,
     file_io: bool,
-) -> Result<TestCaseStatus, Box<dyn std::error::Error>> {
+) -> Result<TestCaseStatus> {
     // 复制输入文件
     let program_dir = program_path.parent().unwrap();
     let test_input_path = if file_io {
@@ -195,7 +198,7 @@ fn validate_output(
     answer_path: &Path,
     file_io: bool,
     spj: Option<PathBuf>,
-) -> Result<TestCaseStatus, Box<dyn std::error::Error>> {
+) -> Result<TestCaseStatus> {
     let output_path = if file_io {
         program_dir.join(format!("{}.out", problem_name))
     } else {
@@ -288,10 +291,7 @@ fn check_test_case(test_case: &TestCase, actual_score: u32) -> bool {
 }
 
 // 将测试结果写入 CSV
-fn write_results_to_csv(
-    results: Vec<ProblemTestResult>,
-    problem_path: &Path,
-) -> Result<(), Box<dyn std::error::Error>> {
+fn write_results_to_csv(results: Vec<ProblemTestResult>, problem_path: &Path) -> Result<()> {
     let csv_path = problem_path.join("result.csv");
 
     let mut wtr = Writer::from_path(&csv_path)?;
@@ -325,7 +325,7 @@ fn write_results_to_csv(
     Ok(())
 }
 
-fn check_compiler(language: &Language) -> Result<(), Box<dyn std::error::Error>> {
+fn check_compiler(language: &Language) -> Result<()> {
     // 检查编译环境
     let compiler = &language.compiler;
     debug!("检查 {} 环境", language.language);
@@ -343,14 +343,14 @@ fn check_compiler(language: &Language) -> Result<(), Box<dyn std::error::Error>>
                 "未找到 {} 命令，请确保已安装并添加到PATH",
                 &compiler.executable
             );
-            return Err(format!("{} 命令执行失败", &compiler.executable).into());
+            bail!("{} 命令执行失败", &compiler.executable);
         }
     }
     Ok(())
 }
 
-pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
-    let (config, current_location) = get_context().config.as_ref().ok_or("找不到配置文件")?;
+pub fn main(_: TestArgs) -> Result<()> {
+    let (config, current_location) = get_context().config.as_ref().context("找不到配置文件")?;
 
     let (skip_level, target_day_key, target_problem_key) = match current_location {
         CurrentLocation::Problem(day_name, problem_name) => {
@@ -367,12 +367,12 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
             let day_config = config
                 .subconfig
                 .get(day_key)
-                .ok_or_else(|| format!("未找到天配置: {}", day_key))?;
+                .with_context(|| format!("未找到天配置: {}", day_key))?;
             let actual_key = config
                 .subconfig
                 .keys()
                 .find(|k| k.as_str() == day_key)
-                .ok_or_else(|| format!("未找到天配置键: {}", day_key))?;
+                .with_context(|| format!("未找到天配置键: {}", day_key))?;
             days_vec = vec![(actual_key, day_config)];
             days_vec.iter().map(|(k, v)| (*k, *v)).collect()
         } else {
@@ -411,12 +411,12 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
                 let problem_config = day_config
                     .subconfig
                     .get(problem_key)
-                    .ok_or_else(|| format!("未找到问题: {}", problem_key))?;
+                    .with_context(|| format!("未找到问题: {}", problem_key))?;
                 let actual_key = day_config
                     .subconfig
                     .keys()
                     .find(|k| k.as_str() == problem_key)
-                    .ok_or_else(|| format!("未找到问题键: {}", problem_key))?;
+                    .with_context(|| format!("未找到问题键: {}", problem_key))?;
                 problems_vec = vec![(actual_key, problem_config)];
                 problems_vec.iter().map(|(k, v)| (*k, *v)).collect()
             } else {
@@ -545,13 +545,13 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
 
                 let ext = target_path
                     .extension()
-                    .ok_or("文件无后缀名")?
+                    .context("文件无后缀名")?
                     .to_string_lossy();
 
                 let file_type = get_context()
                     .languages
                     .get(ext.as_ref())
-                    .ok_or("未知格式文件")?;
+                    .context("未知格式文件")?;
 
                 check_compiler(file_type)?;
 
@@ -560,7 +560,10 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
                     file_type.compiler.executable,
                     file_type.compiler.object_set_arg,
                     &problem_config.name,
-                    &day_config.compile.get(ext.as_ref()).ok_or("未知格式文件")?,
+                    &day_config
+                        .compile
+                        .get(ext.as_ref())
+                        .context("未知格式文件")?,
                     target_path.file_name().unwrap().to_string_lossy()
                 ))?
                 .current_dir(&tmp_dir)
@@ -663,7 +666,7 @@ pub fn main(_: TestArgs) -> Result<(), Box<dyn std::error::Error>> {
                         };
                         subtask_scores
                             .get_mut(&case.subtest)
-                            .ok_or("不存在指定的 Subtask")?
+                            .context("不存在指定的 Subtask")?
                             .push(earned_score);
 
                         individual_results.push(IndividualTestCaseResult {

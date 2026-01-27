@@ -1,4 +1,6 @@
 use crate::context::get_context;
+use anyhow::Context;
+use anyhow::Result;
 use log::LevelFilter;
 use log::info;
 use log::warn;
@@ -64,7 +66,7 @@ fn custom_panic_handler(panic_info: &PanicHookInfo, verbose: bool) {
     panic_log!("详见: https://docs.tuack-ng.ink/contributing/panic.html");
 }
 
-fn init_log(verbose: &bool) -> Result<MultiProgress, Box<dyn std::error::Error>> {
+fn init_log(verbose: &bool) -> Result<MultiProgress> {
     let format = if DEBUG || *verbose {
         "{d(%Y-%m-%d %H:%M:%S)} | {h({l})} | {t} | {m}{n}"
     } else {
@@ -95,11 +97,10 @@ fn init_log(verbose: &bool) -> Result<MultiProgress, Box<dyn std::error::Error>>
     Ok(multi)
 }
 
-fn init_context(multi: MultiProgress) -> Result<(), Box<dyn std::error::Error>> {
-    let home_dir = env::var("HOME").map_err(|e| {
-        log::error!("无法获取 HOME 环境变量: {}", e);
-        e
-    })?;
+fn init_context(multi: MultiProgress) -> Result<()> {
+    let home_dir = env::var("HOME")
+        .inspect_err(|e| log::error!("无法获取 HOME 环境变量: {}", e))
+        .context("无法获取 HOME 环境变量")?;
 
     let assets_dirs = vec![
         #[cfg(debug_assertions)]
@@ -143,7 +144,7 @@ fn init_context(multi: MultiProgress) -> Result<(), Box<dyn std::error::Error>> 
     Ok(())
 }
 
-pub fn init(verbose: &bool) -> Result<(), Box<dyn std::error::Error>> {
+pub fn init(verbose: &bool) -> Result<()> {
     let multi = init_log(verbose)?;
     init_context(multi)?;
     if !DEBUG {

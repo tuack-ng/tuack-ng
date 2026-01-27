@@ -2,6 +2,9 @@ use crate::config::ProblemConfig;
 use crate::ren::RenderQueue;
 use crate::ren::renderers::base::Checker;
 use crate::ren::renderers::base::Compiler;
+use anyhow::Result;
+use anyhow::anyhow;
+use anyhow::bail;
 use log::debug;
 use log::error;
 use log::info;
@@ -27,7 +30,7 @@ impl Checker for TypstChecker {
         TypstChecker { template_dir }
     }
 
-    fn check_compiler(&self) -> Result<(), Box<dyn std::error::Error>> {
+    fn check_compiler(&self) -> Result<()> {
         debug!("检查Typst编译环境");
         let typst_check = Command::new("typst").arg("--version").output();
 
@@ -38,11 +41,11 @@ impl Checker for TypstChecker {
                     debug!("Typst 版本: {}", version.trim());
                 } else {
                     error!("Typst 命令执行失败，请检查是否已安装");
-                    return Err("Typst 命令执行失败，请检查是否已安装".into());
+                    bail!("Typst 命令执行失败，请检查是否已安装");
                 }
             }
             Err(_) => {
-                return Err("未找到 typst 命令，请确保已安装并添加到PATH".into());
+                bail!("未找到 typst 命令，请确保已安装并添加到PATH");
             }
         }
 
@@ -50,7 +53,7 @@ impl Checker for TypstChecker {
         for file in template_required_files {
             if !self.template_dir.join(file).exists() {
                 error!("模板缺少必要文件: {}", file);
-                return Err(format!("模板缺少必要文件: {}", file).into());
+                return Err(anyhow!("模板缺少必要文件: {}", file));
             }
             info!("文件存在: {}", file);
         }
@@ -82,7 +85,7 @@ impl Compiler for TypstCompiler {
             manifest,
         }
     }
-    fn compile(&self) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    fn compile(&self) -> Result<PathBuf> {
         self.generate_conf(&self.day_config, &self.tmp_dir)?;
         let mut render_idx: usize = 0;
         for item in &self.renderqueue {
@@ -111,16 +114,12 @@ impl Compiler for TypstCompiler {
         } else {
             let stderr = String::from_utf8_lossy(&output.stderr);
             error!("Typst 编译失败: {}", stderr);
-            Err("Typst 编译失败".into())
+            bail!("Typst 编译失败")
         }
     }
 }
 impl TypstCompiler {
-    fn generate_conf(
-        &self,
-        day_config: &ContestDayConfig,
-        tmp_dir: &Path,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    fn generate_conf(&self, day_config: &ContestDayConfig, tmp_dir: &Path) -> Result<()> {
         // 构建问题列表
         let mut problems = Vec::new();
 
@@ -191,7 +190,7 @@ impl TypstCompiler {
             } else {
                 // 如果context中没有对应的语言配置，使用键名作为语言名称
                 error!("在语言配置中未找到 {}", lang_key);
-                return Err(format!("在语言配置中未找到 {}", lang_key).into());
+                return Err(anyhow!("在语言配置中未找到 {}", lang_key));
             };
 
             let language = SupportLanguage {
@@ -244,7 +243,7 @@ impl TypstCompiler {
         tmp_dir: &Path,
         ast: &Document,
         index: usize,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<()> {
         info!("生成Typst: {}", problem.name);
         let typst_output = render_typst(ast, Config::default().with_width(1000000));
         let typst_output = format!("#import \"utils.typ\": *\n{}", typst_output);
@@ -254,11 +253,7 @@ impl TypstCompiler {
         info!("生成: {}", typst_filename);
         Ok(())
     }
-    pub fn convert_ast_precaution(
-        &self,
-        tmp_dir: &Path,
-        ast: &Document,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn convert_ast_precaution(&self, tmp_dir: &Path, ast: &Document) -> Result<()> {
         info!("生成注意事项Typst...");
         let typst_output = render_typst(ast, Config::default().with_width(1000000));
         let typst_output = format!("#import \"utils.typ\": *\n{}", typst_output);

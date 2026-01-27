@@ -1,5 +1,7 @@
 use crate::config::ContestConfig;
 use crate::config::lang::Language;
+use anyhow::Result;
+use anyhow::bail;
 use indicatif::MultiProgress;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -27,8 +29,11 @@ pub struct Context {
 
 static GLOBAL_CONTEXT: OnceLock<Context> = OnceLock::new();
 
-pub fn setup_context(x: Context) -> Result<(), &'static str> {
-    GLOBAL_CONTEXT.set(x).map_err(|_| "Already initialized")
+pub fn setup_context(x: Context) -> Result<()> {
+    if GLOBAL_CONTEXT.set(x).is_err() {
+        bail!("Already initialized");
+    }
+    Ok(())
 }
 
 pub fn get_context() -> &'static Context {

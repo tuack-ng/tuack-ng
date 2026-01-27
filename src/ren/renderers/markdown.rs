@@ -5,6 +5,7 @@ use crate::ren::Compiler;
 use crate::ren::RenderQueue;
 use crate::ren::copy_dir_recursive;
 use crate::ren::renderers::base::Checker;
+use anyhow::Result;
 use log::info;
 use markdown_ppp::printer::config::Config;
 use markdown_ppp::printer::render_markdown;
@@ -18,7 +19,7 @@ impl Checker for MarkdownChecker {
         MarkdownChecker {}
     }
 
-    fn check_compiler(&self) -> Result<(), Box<dyn std::error::Error>> {
+    fn check_compiler(&self) -> Result<()> {
         // Markdown 不需要特殊的编译器检查
         Ok(())
     }
@@ -42,7 +43,7 @@ impl Compiler for MarkdownCompiler {
         }
     }
 
-    fn compile(&self) -> Result<PathBuf, Box<dyn std::error::Error>> {
+    fn compile(&self) -> Result<PathBuf> {
         let output_dir = &self.tmp_dir.join("output");
         if !output_dir.exists() {
             fs::create_dir_all(output_dir)?;
