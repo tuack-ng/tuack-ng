@@ -52,21 +52,13 @@ pub fn parse_result(xml_str: &str) -> Result<(JudgeResult, String)> {
 fn parse_score_value(attr_value: &Option<String>) -> Result<f64> {
     //从属性获取
     if let Some(value_str) = attr_value {
-        return value_str.parse().map(normalize_score).map_err(|e| e.into());
+        return value_str
+            .parse::<f64>()
+            .map(|score| score.clamp(0.0, 100.0))
+            .with_context(|| format!("分数解析失败: '{}'", value_str));
     }
 
     warn!("缺失分数字段");
     // 默认返回0分
     Ok(0.0)
-}
-
-/// 标准化分数到0-100范围
-fn normalize_score(score: f64) -> f64 {
-    if score > 100.0 {
-        100.0
-    } else if score < 0.0 {
-        0.0
-    } else {
-        score
-    }
 }

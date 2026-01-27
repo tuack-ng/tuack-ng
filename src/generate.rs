@@ -265,8 +265,8 @@ fn gen_data(args: GenConfirmArgs) -> Result<()> {
             for entry in fs::read_dir(&data_dir)? {
                 let entry = entry?;
                 let path = entry.path();
-                if path.is_file() {
-                    if let Some(ext) = path.extension()
+                if path.is_file()
+                    && let Some(ext) = path.extension()
                         && ext == "in"
                     {
                         let output_file = path.file_stem().unwrap().to_string_lossy() + ".ans";
@@ -277,7 +277,6 @@ fn gen_data(args: GenConfirmArgs) -> Result<()> {
                                 .push(path.file_stem().unwrap().to_string_lossy().to_string());
                         }
                     }
-                }
             }
             datas_entrys.sort_by(|a, b| compare(a, b));
             let count = datas_entrys.len() as u32;
@@ -340,8 +339,8 @@ fn gen_sample(args: GenConfirmArgs) -> Result<()> {
             for entry in fs::read_dir(&data_dir)? {
                 let entry = entry?;
                 let path = entry.path();
-                if path.is_file() {
-                    if let Some(ext) = path.extension()
+                if path.is_file()
+                    && let Some(ext) = path.extension()
                         && ext == "in"
                     {
                         let output_file = path.file_stem().unwrap().to_string_lossy() + ".ans";
@@ -352,7 +351,6 @@ fn gen_sample(args: GenConfirmArgs) -> Result<()> {
                                 .push(path.file_stem().unwrap().to_string_lossy().to_string());
                         }
                     }
-                }
             }
             datas_entrys.sort_by(|a, b| compare(a, b));
 
@@ -390,19 +388,18 @@ fn gen_code(args: GenConfirmArgs) -> Result<()> {
                 let entry_path = entry.path();
                 result.extend(find_code(&entry_path, user_skip)?);
             }
-            return Ok(result);
+            Ok(result)
         } else {
             for (key, _) in get_context().languages.iter() {
-                if let Some(ext) = path.extension() {
-                    if ext.to_string_lossy().as_ref() == key {
+                if let Some(ext) = path.extension()
+                    && ext.to_string_lossy().as_ref() == key {
                         return Ok(vec![(
                             path.clone(),
                             path.file_stem().unwrap().to_string_lossy().as_ref() == "std",
                         )]);
                     }
-                }
             }
-            return Ok(vec![]);
+            Ok(vec![])
         }
     }
     if !args.confirm && !confirm_overwrite() {
