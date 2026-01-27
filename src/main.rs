@@ -1,5 +1,4 @@
 use crate::conf::ConfArgs;
-use crate::fun::Philia093Args;
 use crate::generate::GenArgs;
 use crate::ren::RenArgs;
 use crate::test::TestArgs;
@@ -11,7 +10,6 @@ use log::info;
 mod conf;
 mod config;
 mod context;
-mod fun;
 mod generate;
 mod init;
 mod ren;
@@ -40,9 +38,6 @@ enum Commands {
     Test(TestArgs),
     /// 使用题解代码测试
     Conf(ConfArgs),
-    /// see you *tomorrow*
-    #[command(hide = true, name = "PhiLia093")]
-    Philia093(Philia093Args),
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -56,7 +51,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Ren(args) => ren::main(args),
         Commands::Gen(args) => generate::main(args),
         Commands::Test(args) => test::main(args),
-        Commands::Philia093(args) => fun::main(args, &cli.verbose),
         Commands::Conf(args) => conf::main(args),
     };
 

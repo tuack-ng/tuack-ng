@@ -15,6 +15,7 @@ use crate::context::{CurrentLocation, get_context};
 use crate::utils::optional::Optional;
 use clap::Args;
 use clap::Subcommand;
+use clap_complete::Shell;
 use dialoguer::Select;
 use dialoguer::theme::ColorfulTheme;
 use log::warn;
@@ -22,6 +23,7 @@ use natord::compare;
 use regex::Regex;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
+use std::io;
 use std::path::Path;
 use std::{fs, path::PathBuf};
 
@@ -53,6 +55,10 @@ enum Targets {
     /// 自动检测所有
     #[command(version, alias = "a")]
     All(GenConfirmArgs),
+
+    /// 生成 Shell 补全文件
+    #[command(version, hide = true)]
+    Complete(GenCompleteArgs),
 }
 
 #[derive(Args, Debug, Clone)]
@@ -69,6 +75,14 @@ pub struct GenConfirmArgs {
     /// 跳过确认提示
     #[arg(short = 'y')]
     confirm: bool,
+}
+
+#[derive(Args, Debug, Clone)]
+#[command(version)]
+pub struct GenCompleteArgs {
+    /// 对象名称
+    #[arg(required = true)]
+    name: String,
 }
 
 #[derive(Args, Debug, Clone)]
@@ -494,6 +508,22 @@ fn gen_all(args: GenConfirmArgs) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+fn gen_complete(args: GenCompleteArgs) -> Result<(), Box<dyn std::error::Error>> {
+    let shell = match args.name.to_lowercase().as_str() {
+        "bash" => Shell::Bash,
+        "zsh" => Shell::Zsh,
+        "fish" => Shell::Fish,
+        _ => {
+            eprintln!("不支持的shell类型: {}", args.name);
+            Err("不支持的shell类型")?
+        }
+    };
+    let mut cmd = crate::Cli::command_i18n();
+    clap_complete::generate(shell, &mut cmd, "tuack-ng", &mut io::stdout());
+
+    Ok(())
+}
+
 pub fn main(args: GenArgs) -> Result<(), Box<dyn std::error::Error>> {
     match args.target {
         Targets::Contest(args) => gen_contest(args)?,
@@ -503,6 +533,7 @@ pub fn main(args: GenArgs) -> Result<(), Box<dyn std::error::Error>> {
         Targets::Samples(args) => gen_sample(args)?,
         Targets::All(args) => gen_all(args)?,
         Targets::Code(args) => gen_code(args)?,
+        Targets::Complete(args) => gen_complete(args)?,
     }
 
     Ok(())

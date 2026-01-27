@@ -2,6 +2,7 @@ use crate::context::get_context;
 use log::LevelFilter;
 use log::info;
 use log::warn;
+use log4rs::append::console::Target;
 use log4rs::{
     Logger,
     append::console::ConsoleAppender,
@@ -71,6 +72,7 @@ fn init_log(verbose: &bool) -> Result<MultiProgress, Box<dyn std::error::Error>>
     };
 
     let stdout = ConsoleAppender::builder()
+        .target(Target::Stderr)
         .encoder(Box::new(PatternEncoder::new(format)))
         .build();
 

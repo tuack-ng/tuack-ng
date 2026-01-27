@@ -49,8 +49,10 @@ enum Targets {
     /// 设置时间限制
     #[command(version)]
     Time(ConfValuesArgs),
+    /// 设置比赛长度
     #[command(version)]
     Length(ConfValuesArgs),
+    /// 设置任意字段
     #[command(version)]
     Conf(ConfCustomArgs),
 }
