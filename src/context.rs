@@ -1,10 +1,6 @@
-use crate::config::ContestConfig;
 use crate::config::lang::Language;
-use anyhow::Result;
-use anyhow::bail;
+use crate::prelude::*;
 use indicatif::MultiProgress;
-use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::OnceLock;
 
 #[derive(Debug, Clone)]

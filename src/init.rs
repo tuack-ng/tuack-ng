@@ -1,9 +1,5 @@
-use crate::context::get_context;
-use anyhow::Context;
-use anyhow::Result;
+use crate::prelude::*;
 use log::LevelFilter;
-use log::info;
-use log::warn;
 use log4rs::append::console::Target;
 use log4rs::{
     Logger,

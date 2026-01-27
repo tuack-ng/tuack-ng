@@ -1,8 +1,7 @@
+use crate::prelude::*;
 pub mod renderers;
 pub mod template;
 pub mod utils;
-use crate::config::ContestDayConfig;
-use crate::config::ProblemConfig;
 use crate::config::TargetType;
 use crate::config::TemplateManifest;
 use crate::ren::renderers::base::Checker;
@@ -10,17 +9,10 @@ use crate::ren::renderers::base::Compiler;
 use crate::ren::renderers::markdown::MarkdownChecker;
 use crate::ren::renderers::markdown::MarkdownCompiler;
 use crate::ren::renderers::typst::{TypstChecker, TypstCompiler};
-use anyhow::Context;
-use anyhow::Result;
-use anyhow::anyhow;
-use anyhow::bail;
 use clap::Args;
 use indexmap::IndexMap;
-use log::{debug, error, info, warn};
 use markdown_ppp::ast::Document;
 use markdown_ppp::parser::*;
-use std::fs;
-use std::path::Path;
 use std::time::Duration;
 
 use template::render_template;

@@ -1,13 +1,8 @@
-use crate::config::ContestDayConfig;
-use crate::config::ProblemConfig;
 use crate::config::{CONFIG_FILE_NAME, save_day_config};
-use anyhow::Context;
-use anyhow::Result;
-use anyhow::bail;
+use crate::prelude::*;
 use chrono::Datelike;
 use chrono::Timelike;
 use chrono::{Duration, NaiveDateTime};
-use std::fs;
 
 fn add_minutes(time: [u32; 6], minutes: i64) -> [u32; 6] {
     let dt = NaiveDateTime::new(

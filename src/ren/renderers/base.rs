@@ -1,9 +1,6 @@
-use crate::config::ContestConfig;
-use crate::config::ContestDayConfig;
 use crate::config::TemplateManifest;
+use crate::prelude::*;
 use crate::ren::RenderQueue;
-use anyhow::Result;
-use std::path::PathBuf;
 
 pub trait Checker {
     fn check_compiler(&self) -> Result<()>;

@@ -1,36 +1,19 @@
-use crate::config::ContestDayConfig;
-use crate::config::ExpectedScore;
-use crate::config::ProblemConfig;
-use crate::config::SampleItem;
-use crate::config::ScorePolicy;
-use crate::config::TestCase;
 use crate::config::load_contest_config;
 use crate::config::load_day_config;
 use crate::config::load_problem_config;
 use crate::config::save_contest_config;
 use crate::config::save_day_config;
 use crate::config::save_problem_config;
-use crate::config::{ContestConfig, DataItem};
-use crate::context::{CurrentLocation, get_context};
+use crate::prelude::*;
 use crate::utils::optional::Optional;
-use anyhow::Context;
-use anyhow::Result;
-use anyhow::anyhow;
-use anyhow::bail;
 use clap::Args;
 use clap::Subcommand;
 use clap_complete::Shell;
 use dialoguer::Select;
 use dialoguer::theme::ColorfulTheme;
-use log::error;
-use log::warn;
 use natord::compare;
 use regex::Regex;
-use std::collections::BTreeMap;
-use std::collections::HashMap;
 use std::io;
-use std::path::Path;
-use std::{fs, path::PathBuf};
 
 const CONFIG_FILE_NAME: &str = "conf.json";
 

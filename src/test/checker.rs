@@ -1,8 +1,5 @@
-use anyhow::Result;
-use anyhow::bail;
-use log::warn;
+use crate::prelude::*;
 use quick_xml::de::from_str;
-use serde::Deserialize;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum JudgeResult {

@@ -1,24 +1,15 @@
 use crate::config::ScorePolicy;
 use crate::config::lang::Language;
-use crate::config::{ExpectedScore, TestCase};
-use crate::context::CurrentLocation;
-use crate::context::get_context;
+use crate::prelude::*;
 use crate::test::checker::parse_result;
-use anyhow::Context;
-use anyhow::Result;
-use anyhow::bail;
 use bytesize::ByteSize;
 use clap::Args;
 use colored::Colorize;
 use csv::Writer;
 use evalexpr::eval_boolean;
 use indicatif::ProgressBar;
-use log::{debug, error, info, warn};
 use shared_child::SharedChild;
-use std::collections::HashMap;
 use std::{
-    fs,
-    path::{Path, PathBuf},
     process::{Command, Stdio},
     str::FromStr,
     sync::{Arc, Mutex},

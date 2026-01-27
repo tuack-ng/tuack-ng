@@ -1,9 +1,7 @@
-use anyhow::Result;
-use log::warn;
+use crate::prelude::*;
 use markdown_ppp::ast_transform::Transform;
 use sha2::{Digest, Sha256};
 use std::ffi::OsStr;
-use std::{fs, path::Path};
 
 // 为图片分配唯一ID并复制的函数
 pub fn process_images_with_unique_ids(

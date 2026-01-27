@@ -1,12 +1,8 @@
 use crate::config::TemplateManifest;
-use crate::config::{ContestConfig, ContestDayConfig, ProblemConfig};
+use crate::prelude::*;
 use anyhow::Result;
-use log::{debug, error, info, warn};
 use minijinja::Value;
 use minijinja::{Environment, context};
-use std::collections::HashMap;
-use std::fs;
-use std::path::{Path, PathBuf};
 
 fn input_file(problem: &ProblemConfig, file_io: bool) -> Result<String, minijinja::Error> {
     Ok(if file_io {

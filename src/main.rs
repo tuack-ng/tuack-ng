@@ -1,8 +1,8 @@
 use crate::conf::ConfArgs;
 use crate::generate::GenArgs;
+use crate::prelude::*;
 use crate::ren::RenArgs;
 use crate::test::TestArgs;
-use anyhow::Result;
 use clap::ArgAction;
 use clap::{Parser, Subcommand};
 use clap_i18n_richformatter::clap_i18n;
@@ -13,6 +13,7 @@ mod config;
 mod context;
 mod generate;
 mod init;
+mod prelude;
 mod ren;
 mod test;
 mod utils;
