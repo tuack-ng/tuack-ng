@@ -5,10 +5,9 @@ use clap::ValueEnum;
 use indicatif::ProgressBar;
 use rand::Rng;
 use std::collections::HashSet;
+use std::fmt;
 use std::process::{Command, Stdio};
 use std::time::Duration;
-
-use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum Target {
@@ -16,8 +15,8 @@ pub enum Target {
     Data,
     /// 样例数据
     Sample,
-    /// 预测试数据
-    Pretest,
+    // / 预测试数据
+    // Pretest, // 还没写
 }
 
 impl fmt::Display for Target {
@@ -25,7 +24,7 @@ impl fmt::Display for Target {
         match self {
             Target::Data => write!(f, "data"),
             Target::Sample => write!(f, "sample"),
-            Target::Pretest => write!(f, "pretest"),
+            // Target::Pretest => write!(f, "pretest"),
         }
     }
 }
@@ -162,8 +161,6 @@ fn gen_data(
     let target_dir = match args.target {
         Target::Data => current_problem.path.join("data"),
         Target::Sample => current_problem.path.join("sample"),
-        // "pretest" => current_problem.path.join("pretest"),
-        _ => bail!("未知的目标类型: {}", args.target),
     };
     if !target_dir.exists() {
         fs::create_dir_all(&target_dir)?;
@@ -179,23 +176,29 @@ fn gen_data(
     );
     result1?;
     result2?;
-    let data_items: Vec<&DataItem> = match args.target {
-        Target::Data => current_problem.data.iter().collect(),
-        // "sample" => {
-        //     // 将 samples 转换为临时的 DataItem
-        //     // 这里需要一些转换逻辑
-        //     warn!("样例生成暂未完全实现");
-        //     vec![]
-        // }
-        _ => vec![],
+    let data_items: Vec<DataItem> = match args.target {
+        Target::Data => current_problem.data.iter().cloned().collect(),
+        Target::Sample => current_problem
+            .samples
+            .iter()
+            .map(|item| DataItem {
+                id: item.id,
+                score: 0,   // 用不着
+                subtest: 0, // 用不着
+                input: item.input.clone(),
+                output: item.output.clone(),
+                args: item.args.clone(),
+                manual: item.manual,
+            })
+            .collect(),
     };
-    let data_items: Vec<&DataItem> = data_items
+    let data_items: Vec<DataItem> = data_items
         .into_iter()
         .filter(|item| !item.manual.unwrap_or(false))
         .collect();
     let all_ids: Vec<u32> = data_items.iter().map(|data| data.id).collect();
     let target_ids = parse_test_object(&args.object, &all_ids)?;
-    let data_items_to_gen: Vec<&DataItem> = data_items
+    let data_items_to_gen: Vec<DataItem> = data_items
         .into_iter()
         .filter(|item| target_ids.contains(&item.id))
         .collect();
@@ -228,14 +231,10 @@ fn gen_data(
         let output_path = target_dir.join(output_file);
 
         if !matches!(args.action, DmkCommand::Gen { .. }) || !input_path.exists() {
+            let mut args = current_problem.args.clone();
+            args.extend(data_item.args.clone()); // 继承
             // 生成输入
-            generate_input(
-                &generator_path,
-                &input_path,
-                &seed,
-                data_item.id,
-                &data_item.args,
-            )?;
+            generate_input(&generator_path, &input_path, &seed, data_item.id, &args)?;
         }
 
         if !matches!(args.action, DmkCommand::Gen { .. }) || !output_path.exists() {
@@ -346,15 +345,6 @@ fn compile_std(std_path: &Path, problem: &ProblemConfig, day: &ContestDayConfig)
 
     debug!("{:#?}", output_path);
 
-    // let status = Command::new(&language.compiler.executable)
-    //     .arg(&language.compiler.object_set_arg)
-    //     .arg(&output_path)
-    //     .arg(std_path)
-    //     .arg("-O2")
-    //     .stdout(Stdio::null())
-    //     .stderr(Stdio::piped())
-    //     .status()?;
-
     compile_pb.finish_and_clear();
 
     if !status.success() {
@@ -385,7 +375,7 @@ fn mix_u128_complex(seed: u128) -> u64 {
 fn get_or_generate_seed(
     target_dir: &Path,
     force: bool,
-    data: &Vec<&DataItem>,
+    data: &Vec<DataItem>,
 ) -> Result<BTreeMap<u32, u64>> {
     // 生成新种子
     use rand::SeedableRng;
@@ -440,18 +430,14 @@ fn generate_input(
     // 添加自定义参数
     for (key, value) in args {
         cmd_args.push(format!("-{}={}", key, value.to_string()));
-        // cmd_args.push(value.to_string());
     }
 
     cmd_args.push("-seed".to_string());
     cmd_args.push(seeds.get(&test_id).unwrap().to_string());
 
-    // debug!("{:#?}", cmd_args);
-
     // 运行生成器
     let output = Command::new(&generator_exe)
         .args(&cmd_args)
-        // .env("TESTLIB_SEED", seed.to_string())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output()?;
@@ -486,8 +472,6 @@ fn generate_output(
 
         // 复制输入文件
         fs::copy(input_path, &input_file)?;
-
-        // debug!("{:#?}", std_exe);
 
         // 运行标程
         let status = Command::new(&std_exe)

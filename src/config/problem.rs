@@ -76,6 +76,10 @@ pub struct SampleItem {
         default = "Optional::uninitialized"
     )]
     pub output: Optional<String>,
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub args: HashMap<String, i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub manual: Option<bool>,
 }
 
 impl SampleItem {

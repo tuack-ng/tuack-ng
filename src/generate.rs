@@ -361,6 +361,8 @@ fn gen_sample(args: GenConfirmArgs) -> Result<()> {
                     id: id as u32 + 1,
                     input: Optional::initialized(format!("{}.in", name)),
                     output: Optional::initialized(format!("{}.ans", name)),
+                    args: HashMap::new(),
+                    manual: None,
                 })
                 .collect();
 
