@@ -5,6 +5,7 @@ use crate::config::save_contest_config;
 use crate::config::save_day_config;
 use crate::config::save_problem_config;
 use crate::prelude::*;
+use crate::utils::filesystem::copy_dir_recursive;
 use crate::utils::optional::Optional;
 use clap::Args;
 use clap::Subcommand;
@@ -536,28 +537,4 @@ fn find_scaffold_dir(dir_name: &str) -> Result<PathBuf> {
     }
 
     Err(anyhow!("找不到scaffold/{}目录", dir_name))
-}
-
-// 递归复制目录的辅助函数
-fn copy_dir_recursive<P: AsRef<Path>, Q: AsRef<Path>>(src: P, dst: Q) -> Result<()> {
-    let src = src.as_ref();
-    let dst = dst.as_ref();
-
-    if !dst.exists() {
-        fs::create_dir_all(dst)?;
-    }
-
-    for entry in fs::read_dir(src)? {
-        let entry = entry?;
-        let ty = entry.file_type()?;
-        let src_path = entry.path();
-        let dst_path = dst.join(entry.file_name());
-        if ty.is_dir() {
-            copy_dir_recursive(&src_path, &dst_path)?;
-        } else {
-            fs::copy(&src_path, &dst_path)?;
-        }
-    }
-
-    Ok(())
 }

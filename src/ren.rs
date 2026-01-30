@@ -16,7 +16,9 @@ use markdown_ppp::parser::*;
 use std::time::Duration;
 
 use template::render_template;
-use utils::{copy_dir_recursive, process_image_urls, process_images_with_unique_ids};
+use utils::{process_image_urls, process_images_with_unique_ids};
+
+use crate::utils::filesystem::copy_dir_recursive;
 
 use indicatif::ProgressBar;
 

@@ -40,7 +40,7 @@ enum Commands {
     Gen(GenArgs),
     /// 使用题解代码测试
     Test(TestArgs),
-    /// 使用题解代码测试
+    /// 批量修改配置文件
     Conf(ConfArgs),
     /// 生成数据
     Dmk(DmkArgs),

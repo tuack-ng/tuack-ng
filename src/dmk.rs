@@ -1,5 +1,7 @@
 use crate::context::{CurrentLocation, get_context};
 use crate::prelude::*;
+use crate::utils::compile::build_compile_cmd;
+use crate::utils::random::gen_rnd;
 use clap::Args;
 use clap::ValueEnum;
 use indicatif::ProgressBar;
@@ -105,22 +107,6 @@ pub struct DmkArgs {
 
     #[arg(default_value = "all")]
     object: String,
-}
-
-fn string_to_command(command_str: &str) -> Result<Command> {
-    let parts = shellwords::split(command_str)?;
-
-    if parts.is_empty() {
-        bail!("Empty command");
-    }
-
-    let mut cmd = Command::new(&parts[0]);
-
-    if parts.len() > 1 {
-        cmd.args(&parts[1..]);
-    }
-
-    Ok(cmd)
 }
 
 pub fn main(args: DmkArgs) -> Result<()> {
@@ -331,19 +317,10 @@ fn compile_std(std_path: &Path, problem: &ProblemConfig, day: &ContestDayConfig)
     compile_pb.enable_steady_tick(Duration::from_millis(100));
     compile_pb.set_message("编译标程");
 
-    let status = string_to_command(&format!(
-        " {} {} {} {} {}",
-        language.compiler.executable,
-        language.compiler.object_set_arg,
-        output_path.to_string_lossy(),
-        day.compile.get(&ext.to_string()).context("未知格式文件")?,
-        std_path.to_string_lossy(),
-    ))?
-    .stdout(Stdio::null())
-    .stderr(Stdio::null())
-    .status()?;
-
-    debug!("{:#?}", output_path);
+    let status = build_compile_cmd(day, problem, &output_path, ext.to_string(), language)?
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()?;
 
     compile_pb.finish_and_clear();
 
@@ -355,22 +332,6 @@ fn compile_std(std_path: &Path, problem: &ProblemConfig, day: &ContestDayConfig)
     Ok(())
 }
 
-fn mix_u128_complex(seed: u128) -> u64 {
-    let mut low = seed as u64;
-    let mut high = (seed >> 64) as u64;
-
-    low = low.wrapping_mul(0x4cf5ad432745937f) ^ high;
-    high = high.wrapping_mul(0x1b873593) ^ low;
-
-    low = low.rotate_left(17) ^ high.rotate_right(29);
-    high = high.rotate_left(31) ^ low.rotate_right(19);
-
-    low = low.wrapping_mul(0xbf58476d1ce4e5b9);
-    high = high.wrapping_mul(0x94d049bb133111eb);
-
-    low ^ high
-}
-
 /// 获取或生成种子
 fn get_or_generate_seed(
     target_dir: &Path,
@@ -378,12 +339,8 @@ fn get_or_generate_seed(
     data: &Vec<DataItem>,
 ) -> Result<BTreeMap<u32, u64>> {
     // 生成新种子
-    use rand::SeedableRng;
-    use rand::rngs::StdRng;
-    use std::time::{SystemTime, UNIX_EPOCH};
 
-    let random_seed = SystemTime::now().duration_since(UNIX_EPOCH)?.as_micros();
-    let mut rng = StdRng::seed_from_u64(mix_u128_complex(random_seed));
+    let mut rng = gen_rnd()?;
 
     let mut seeds: BTreeMap<u32, u64> = BTreeMap::new();
 

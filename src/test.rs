@@ -2,6 +2,7 @@ use crate::config::ScorePolicy;
 use crate::config::lang::Language;
 use crate::prelude::*;
 use crate::test::checker::parse_result;
+use crate::utils::compile::build_compile_cmd;
 use bytesize::ByteSize;
 use clap::Args;
 use colored::Colorize;
@@ -72,22 +73,6 @@ fn create_or_clear_dir(path: &Path) -> Result<(), std::io::Error> {
         fs::remove_dir_all(path)?;
     }
     fs::create_dir_all(path)
-}
-
-fn string_to_command(command_str: &str) -> Result<Command> {
-    let parts = shellwords::split(command_str)?;
-
-    if parts.is_empty() {
-        bail!("Empty command");
-    }
-
-    let mut cmd = Command::new(&parts[0]);
-
-    if parts.len() > 1 {
-        cmd.args(&parts[1..]);
-    }
-
-    Ok(cmd)
 }
 
 fn run_test_case(
@@ -546,17 +531,13 @@ pub fn main(_: TestArgs) -> Result<()> {
 
                 check_compiler(file_type)?;
 
-                let compile_status = string_to_command(&format!(
-                    " {} {} {} {} {}",
-                    file_type.compiler.executable,
-                    file_type.compiler.object_set_arg,
-                    &problem_config.name,
-                    &day_config
-                        .compile
-                        .get(ext.as_ref())
-                        .context("未知格式文件")?,
-                    target_path.file_name().unwrap().to_string_lossy()
-                ))?
+                let compile_status = build_compile_cmd(
+                    day_config,
+                    problem_config,
+                    &target_path,
+                    ext.to_string(),
+                    file_type,
+                )?
                 .current_dir(&tmp_dir)
                 .stdout(Stdio::null())
                 .stderr(Stdio::null())
