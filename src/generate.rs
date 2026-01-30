@@ -267,16 +267,15 @@ fn gen_data(args: GenConfirmArgs) -> Result<()> {
                 let path = entry.path();
                 if path.is_file()
                     && let Some(ext) = path.extension()
-                        && ext == "in"
-                    {
-                        let output_file = path.file_stem().unwrap().to_string_lossy() + ".ans";
-                        let output_path = data_dir.join(output_file.as_ref());
+                    && ext == "in"
+                {
+                    let output_file = path.file_stem().unwrap().to_string_lossy() + ".ans";
+                    let output_path = data_dir.join(output_file.as_ref());
 
-                        if output_path.exists() {
-                            datas_entrys
-                                .push(path.file_stem().unwrap().to_string_lossy().to_string());
-                        }
+                    if output_path.exists() {
+                        datas_entrys.push(path.file_stem().unwrap().to_string_lossy().to_string());
                     }
+                }
             }
             datas_entrys.sort_by(|a, b| compare(a, b));
             let count = datas_entrys.len() as u32;
@@ -290,6 +289,8 @@ fn gen_data(args: GenConfirmArgs) -> Result<()> {
                     output: Optional::initialized(format!("{}.ans", name)),
                     score: 100 / count,
                     subtest: 0,
+                    args: HashMap::new(),
+                    manual: None,
                 })
                 .collect();
             let subtests: BTreeMap<u32, ScorePolicy> = BTreeMap::from([(0, ScorePolicy::Sum)]);
@@ -341,16 +342,15 @@ fn gen_sample(args: GenConfirmArgs) -> Result<()> {
                 let path = entry.path();
                 if path.is_file()
                     && let Some(ext) = path.extension()
-                        && ext == "in"
-                    {
-                        let output_file = path.file_stem().unwrap().to_string_lossy() + ".ans";
-                        let output_path = data_dir.join(output_file.as_ref());
+                    && ext == "in"
+                {
+                    let output_file = path.file_stem().unwrap().to_string_lossy() + ".ans";
+                    let output_path = data_dir.join(output_file.as_ref());
 
-                        if output_path.exists() {
-                            datas_entrys
-                                .push(path.file_stem().unwrap().to_string_lossy().to_string());
-                        }
+                    if output_path.exists() {
+                        datas_entrys.push(path.file_stem().unwrap().to_string_lossy().to_string());
                     }
+                }
             }
             datas_entrys.sort_by(|a, b| compare(a, b));
 
@@ -376,9 +376,9 @@ fn gen_sample(args: GenConfirmArgs) -> Result<()> {
 }
 
 fn gen_code(args: GenConfirmArgs) -> Result<()> {
-    let user_skip = Regex::new(r"^(data|down|pre|val|.*validate.*|gen|chk|checker|report|check.*|make_data|data_maker|data_make|make|dmk|generate|generator|makedata|spj|judge|tables|tmp|cp|copy|mv|move|rm|remove|.*\.tmp|.*\.temp|temp|.*\.test|.*\.dir)(\..*)?$").unwrap();
+    let user_skip = Regex::new(r"(^|/|\\)(data|down|pre|val|.*validate.*|gen|chk|checker|report|check.*|make_data|data_maker|data_make|make|dmk|generate|generator|makedata|spj|judge|tables|tmp|cp|copy|mv|move|rm|remove|.*\.tmp|.*\.temp|temp|.*\.test|.*\.dir)(\..*)?$").unwrap();
     fn find_code(path: &PathBuf, user_skip: &Regex) -> Result<Vec<(PathBuf, bool)>> {
-        if user_skip.is_match(&path.to_string_lossy()) {
+        if user_skip.is_match(&path.canonicalize()?.to_string_lossy()) {
             return Ok(vec![]);
         }
         if path.is_dir() {
@@ -392,12 +392,13 @@ fn gen_code(args: GenConfirmArgs) -> Result<()> {
         } else {
             for (key, _) in get_context().languages.iter() {
                 if let Some(ext) = path.extension()
-                    && ext.to_string_lossy().as_ref() == key {
-                        return Ok(vec![(
-                            path.clone(),
-                            path.file_stem().unwrap().to_string_lossy().as_ref() == "std",
-                        )]);
-                    }
+                    && ext.to_string_lossy().as_ref() == key
+                {
+                    return Ok(vec![(
+                        path.clone(),
+                        path.file_stem().unwrap().to_string_lossy().as_ref() == "std",
+                    )]);
+                }
             }
             Ok(vec![])
         }

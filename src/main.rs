@@ -1,4 +1,5 @@
 use crate::conf::ConfArgs;
+use crate::dmk::DmkArgs;
 use crate::generate::GenArgs;
 use crate::prelude::*;
 use crate::ren::RenArgs;
@@ -11,6 +12,7 @@ use log::info;
 mod conf;
 mod config;
 mod context;
+mod dmk;
 mod generate;
 mod init;
 mod prelude;
@@ -40,6 +42,8 @@ enum Commands {
     Test(TestArgs),
     /// 使用题解代码测试
     Conf(ConfArgs),
+    /// 生成数据
+    Dmk(DmkArgs),
 }
 
 fn main() -> Result<()> {
@@ -49,17 +53,30 @@ fn main() -> Result<()> {
 
     info!("booting up");
 
-    let result = match cli.command {
-        Commands::Ren(args) => ren::main(args),
-        Commands::Gen(args) => generate::main(args),
-        Commands::Test(args) => test::main(args),
-        Commands::Conf(args) => conf::main(args),
+    #[cfg(debug_assertions)]
+    {
+        /* let result =  */
+        match cli.command {
+            Commands::Ren(args) => ren::main(args),
+            Commands::Gen(args) => generate::main(args),
+            Commands::Test(args) => test::main(args),
+            Commands::Conf(args) => conf::main(args),
+            Commands::Dmk(args) => dmk::main(args),
+        }?
     };
-
-    if let Err(e) = result {
-        log::error!("程序执行出错: {:#}", e);
-        std::process::exit(1);
+    #[cfg(not(debug_assertions))]
+    {
+        let result = match cli.command {
+            Commands::Ren(args) => ren::main(args),
+            Commands::Gen(args) => generate::main(args),
+            Commands::Test(args) => test::main(args),
+            Commands::Conf(args) => conf::main(args),
+            Commands::Dmk(args) => dmk::main(args),
+        };
+        if let Err(e) = result {
+            log::error!("程序执行出错: {:#}", e);
+            std::process::exit(1);
+        }
     }
-
     Ok(())
 }
