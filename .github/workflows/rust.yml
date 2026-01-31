@@ -13,10 +13,8 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
-
+  build-linux:
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v6
       with:
@@ -45,6 +43,11 @@ jobs:
       with:
         name: output-aur
         path: target/cargo-aur/*.tar.gz
+
+  upload-doc:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
     - name: Upload Release doc
       if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
       uses: actions/upload-artifact@v4
@@ -52,8 +55,43 @@ jobs:
         name: release-docs
         path: doc/changelog/${{ github.event.inputs.tag || github.ref_name }}.md
 
+  build-windows:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        target: [x86_64-pc-windows-msvc, i686-pc-windows-msvc]
+    
+    steps:
+    - uses: actions/checkout@v6
+      with:
+        submodules: true
+    
+    - name: Install Rust (Windows)
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        target: ${{ matrix.target }}
+    
+    - name: Build Release (Windows)
+      run: cargo build --release --target ${{ matrix.target }} --verbose
+    
+    - name: Pack
+      run: |
+        New-Item -ItemType Directory -Force -Path pack/
+        Copy-Item "target/${{ matrix.target }}/release/tuack-ng.exe" "pack/tuack-ng.exe" -Force
+        Copy-Item "assets/" "pack/assets/" -Recurse -Force
+        Compress-Archive -Path "pack/*" -DestinationPath "pack/output-windows-${{ matrix.target }}.zip" -Force
+        Get-ChildItem -Recurse
+
+    - name: Upload Windows binaries
+      uses: actions/upload-artifact@v4
+      with:
+        name: output-windows-${{ matrix.target }}
+        path: pack/output-windows-${{ matrix.target }}.zip
+        
   release:
-    needs: build
+    needs: [build-linux, build-windows, upload-doc]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
   
@@ -74,6 +112,7 @@ jobs:
         files: |
           ./output-aur/*.tar.gz
           ./output-deb/*.deb
+          ./output-windows-*/*.zip
         body_path: ./release-docs/${{ github.event.inputs.tag || github.ref_name }}.md
       env:
         GITHUB_TOKEN: ${{ secrets.GH_PAT }}
