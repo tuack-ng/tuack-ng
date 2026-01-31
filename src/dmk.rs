@@ -271,7 +271,7 @@ fn find_std(problem: &ProblemConfig) -> Result<PathBuf> {
 fn compile_generator(generator_path: &Path) -> Result<()> {
     info!("编译数据生成器...");
 
-    let output_path = generator_path.with_extension("");
+    let output_path = generator_path.with_extension(std::env::consts::EXE_EXTENSION);
 
     let compile_pb = get_context().multiprogress.add(ProgressBar::new_spinner());
     compile_pb.enable_steady_tick(Duration::from_millis(100));
@@ -285,11 +285,12 @@ fn compile_generator(generator_path: &Path) -> Result<()> {
         .arg("-std=c++17")
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
-        .status()?;
+        .output()?;
 
     compile_pb.finish_and_clear();
 
-    if !status.success() {
+    if !status.status.success() {
+        error!("{}", String::from_utf8(status.stderr)?);
         bail!("数据生成器编译失败");
     }
 
@@ -311,16 +312,25 @@ fn compile_std(std_path: &Path, problem: &ProblemConfig, day: &ContestDayConfig)
         .get(ext)
         .context(format!("不支持的语言: {}", ext))?;
 
-    let output_path = std_path.parent().unwrap().join(&problem.name);
+    // let output_path = std_path.parent().unwrap().join(&problem.name);
+
+    // FIXME TODO: output_path必须使用，build_compile_cmd不完善
 
     let compile_pb = get_context().multiprogress.add(ProgressBar::new_spinner());
     compile_pb.enable_steady_tick(Duration::from_millis(100));
     compile_pb.set_message("编译标程");
 
-    let status = build_compile_cmd(day, problem, &output_path, ext.to_string(), language)?
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .status()?;
+    let status = build_compile_cmd(
+        day,
+        problem,
+        &std_path.to_path_buf(),
+        ext.to_string(),
+        language,
+    )?
+    .current_dir(&std_path.parent().unwrap())
+    .stdout(Stdio::null())
+    .stderr(Stdio::null())
+    .status()?;
 
     compile_pb.finish_and_clear();
 

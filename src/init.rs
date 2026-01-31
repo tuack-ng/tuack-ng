@@ -92,15 +92,32 @@ fn init_log(verbose: &bool) -> Result<MultiProgress> {
 }
 
 fn init_context(multi: MultiProgress) -> Result<()> {
-    let home_dir = env::var("HOME")
-        .inspect_err(|e| log::error!("无法获取 HOME 环境变量: {}", e))
-        .context("无法获取 HOME 环境变量")?;
+    let home_dir = dirs::home_dir().context("无法获取 HOME 环境变量")?;
+
+    debug!(
+        "{:#?}",
+        dirs::data_local_dir()
+            .unwrap_or_else(|| home_dir.join(".local/share"))
+            .join("tuack-ng")
+    );
 
     let assets_dirs = vec![
+        // 开发资源目录
         #[cfg(debug_assertions)]
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("assets"),
-        PathBuf::from(&home_dir).join(".local/share/tuack-ng/"),
+        // 用户目录
+        dirs::data_local_dir()
+            .unwrap_or_else(|| home_dir.join(".local/share"))
+            .join("tuack-ng"),
+        // 系统目录
+        #[cfg(not(windows))]
         PathBuf::from("/usr/share/tuack-ng/"),
+        #[cfg(windows)]
+        {
+            let problem_files =
+                PathBuf::from(env::var("ProgramFiles").context("无法获取ProgramFiles环境变量")?);
+            problem_files.join("tuack-ng")
+        },
     ];
 
     let config = match load_config(Path::new(".")) {
@@ -123,7 +140,7 @@ fn init_context(multi: MultiProgress) -> Result<()> {
                 .exists()
                 .then(|| dir.join("langs.json"))
         })
-        .unwrap_or_else(|| get_context().assets_dirs[0].join("langs.json"));
+        .unwrap_or_else(|| assets_dirs[0].join("langs.json"));
 
     let langs_content = fs::read_to_string(langs).unwrap();
 
