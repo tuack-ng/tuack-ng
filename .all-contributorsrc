@@ -6,21 +6,10 @@
   "files": [
     "README.md"
   ],
-  "imageSize": 100,
+  "imageSize": 60,
   "commit": true,
   "commitConvention": "angular",
   "contributors": [
-    {
-      "login": "Cwhirly",
-      "name": "Cwhirly",
-      "avatar_url": "https://avatars.githubusercontent.com/u/247487531?v=4",
-      "profile": "https://github.com/Cwhirly",
-      "contributions": [
-        "design",
-        "test",
-        "review"
-      ]
-    },
     {
       "login": "Pulsar33550336",
       "name": "Pulsar",
@@ -33,9 +22,30 @@
         "design",
         "maintenance"
       ]
+    },
+    {
+      "login": "Cwhirly",
+      "name": "Cwhirly",
+      "avatar_url": "https://avatars.githubusercontent.com/u/247487531?v=4",
+      "profile": "https://github.com/Cwhirly",
+      "contributions": [
+        "design",
+        "test",
+        "review"
+      ]
+    },
+    {
+      "login": "951753yyswys",
+      "name": "Qaaxaap",
+      "avatar_url": "https://avatars.githubusercontent.com/u/175310223?v=4",
+      "profile": "https://github.com/951753yyswys",
+      "contributions": [
+        "test",
+        "review"
+      ]
     }
   ],
   "contributorsPerLine": 7,
-  "linkToUsage": true,
+  "linkToUsage": false,
   "commitType": "docs"
 }

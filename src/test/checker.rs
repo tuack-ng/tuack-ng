@@ -1,0 +1,64 @@
+use crate::prelude::*;
+use quick_xml::de::from_str;
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum JudgeResult {
+    /// 标准结果类型
+    Accepted,
+    WrongAnswer,
+    PresentationError,
+    Fail,
+    /// 部分正确或得分结果，统一表示为 0-100 的分数
+    Score(f64),
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+struct XmlResult {
+    #[serde(rename = "@outcome")]
+    outcome: String,
+    #[serde(rename = "@pctype", default)]
+    pctype: Option<String>,
+    #[serde(rename = "@points", default)]
+    points: Option<String>,
+    #[serde(rename = "$text")]
+    text: Option<String>,
+}
+
+pub fn parse_result(xml_str: &str) -> Result<(JudgeResult, String)> {
+    let xml_str = xml_str.trim();
+    let xml_result: XmlResult = from_str(xml_str)?;
+
+    let message = xml_result.text.unwrap_or_default();
+
+    let result = match xml_result.outcome.as_str() {
+        "accepted" => JudgeResult::Accepted,
+        "wrong-answer" => JudgeResult::WrongAnswer,
+        "presentation-error" => JudgeResult::PresentationError,
+        "fail" => JudgeResult::Fail,
+        "partially-correct" => {
+            let score = parse_score_value(&xml_result.pctype)?;
+            JudgeResult::Score(score)
+        }
+        "points" => {
+            let score = parse_score_value(&xml_result.points)?;
+            JudgeResult::Score(score)
+        }
+        other => bail!("Unknown outcome type: {}", other),
+    };
+
+    Ok((result, message))
+}
+
+fn parse_score_value(attr_value: &Option<String>) -> Result<f64> {
+    //从属性获取
+    if let Some(value_str) = attr_value {
+        return value_str
+            .parse::<f64>()
+            .map(|score| score.clamp(0.0, 100.0))
+            .with_context(|| format!("分数解析失败: '{}'", value_str));
+    }
+
+    warn!("缺失分数字段");
+    // 默认返回0分
+    Ok(0.0)
+}

@@ -1,15 +1,14 @@
-use log::warn;
+use crate::prelude::*;
 use markdown_ppp::ast_transform::Transform;
 use sha2::{Digest, Sha256};
 use std::ffi::OsStr;
-use std::{fs, path::Path};
 
 // 为图片分配唯一ID并复制的函数
 pub fn process_images_with_unique_ids(
     src_dir: &Path,
     dst_dir: &Path,
     _problem_idx: usize,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<()> {
     if !dst_dir.exists() {
         fs::create_dir_all(dst_dir)?;
     }
@@ -43,33 +42,6 @@ pub fn process_images_with_unique_ids(
             // 复制文件
             fs::copy(&src_path, &dst_path)?;
             log::info!("复制图片: {} -> {}", src_path.display(), dst_path.display());
-        }
-    }
-
-    Ok(())
-}
-
-// 递归复制目录的辅助函数
-pub fn copy_dir_recursive<P: AsRef<Path>, Q: AsRef<Path>>(
-    src: P,
-    dst: Q,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let src = src.as_ref();
-    let dst = dst.as_ref();
-
-    if !dst.exists() {
-        fs::create_dir_all(dst)?;
-    }
-
-    for entry in fs::read_dir(src)? {
-        let entry = entry?;
-        let ty = entry.file_type()?;
-        let src_path = entry.path();
-        let dst_path = dst.join(entry.file_name());
-        if ty.is_dir() {
-            copy_dir_recursive(&src_path, &dst_path)?;
-        } else {
-            fs::copy(&src_path, &dst_path)?;
         }
     }
 

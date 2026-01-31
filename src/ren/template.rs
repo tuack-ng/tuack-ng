@@ -1,12 +1,8 @@
 use crate::config::TemplateManifest;
-use crate::config::{ContestConfig, ContestDayConfig, ProblemConfig};
-use crate::context;
-use log::{debug, error, info, warn};
+use crate::prelude::*;
+use anyhow::Result;
 use minijinja::Value;
 use minijinja::{Environment, context};
-use std::collections::HashMap;
-use std::fs;
-use std::path::{Path, PathBuf};
 
 fn input_file(problem: &ProblemConfig, file_io: bool) -> Result<String, minijinja::Error> {
     Ok(if file_io {
@@ -47,7 +43,7 @@ fn handle_sample(
     // 输入部分
     md.push_str(&format!("## 样例 {} 输入\n\n", sample_id));
 
-    if let Some(input_file) = &sample_item.input {
+    if let Some(input_file) = &sample_item.input.get() {
         let input_path = base_path.join("sample").join(input_file);
         if input_path.exists() {
             match fs::read_to_string(&input_path) {
@@ -74,7 +70,7 @@ fn handle_sample(
     // 输出部分
     md.push_str(&format!("## 样例 {} 输出\n\n", sample_id));
 
-    if let Some(output_file) = &sample_item.output {
+    if let Some(output_file) = &sample_item.output.get() {
         let output_path = base_path.join("sample").join(output_file);
         if output_path.exists() {
             match fs::read_to_string(&output_path) {
@@ -313,25 +309,8 @@ pub fn render_template(
     day: &ContestDayConfig,
     contest: &ContestConfig,
     base_path: PathBuf,
-) -> Result<String, Box<dyn std::error::Error>> {
-    // 读取模板目录中的清单文件以获取默认值
-    let manifest_path = context::get_context().assets_dirs.iter().find_map(|dir| {
-        let manifest_file = dir.join("templates").join("noi").join("manifest.json");
-        if manifest_file.exists() {
-            Some(manifest_file)
-        } else {
-            None
-        }
-    });
-
-    let manifest = if let Some(path) = manifest_path {
-        let manifest_content = fs::read_to_string(&path)?;
-        serde_json::from_str::<TemplateManifest>(&manifest_content)?
-    } else {
-        error!("找不到清单文件");
-        return Err("致命错误: 找不到清单文件".into());
-    };
-
+    manifest: TemplateManifest,
+) -> Result<String> {
     // 创建环境
     let env = Environment::new();
 

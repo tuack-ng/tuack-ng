@@ -1,7 +1,7 @@
+use crate::prelude::*;
 pub mod renderers;
 pub mod template;
 pub mod utils;
-use crate::config::ProblemConfig;
 use crate::config::TargetType;
 use crate::config::TemplateManifest;
 use crate::ren::renderers::base::Checker;
@@ -10,15 +10,15 @@ use crate::ren::renderers::markdown::MarkdownChecker;
 use crate::ren::renderers::markdown::MarkdownCompiler;
 use crate::ren::renderers::typst::{TypstChecker, TypstCompiler};
 use clap::Args;
-use log::{debug, error, info, warn};
+use indexmap::IndexMap;
 use markdown_ppp::ast::Document;
 use markdown_ppp::parser::*;
-use std::fs;
-use std::path::Path;
 use std::time::Duration;
 
 use template::render_template;
-use utils::{copy_dir_recursive, process_image_urls, process_images_with_unique_ids};
+use utils::{process_image_urls, process_images_with_unique_ids};
+
+use crate::utils::filesystem::copy_dir_recursive;
 
 use indicatif::ProgressBar;
 
@@ -42,26 +42,24 @@ pub enum RenderQueue {
     Precaution(Document),
 }
 
-pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
+pub fn main(args: RenArgs) -> Result<()> {
     debug!(
         "当前目录: {}",
-        Path::new(".").canonicalize()?.to_string_lossy()
+        dunce::canonicalize(Path::new("."))?.to_string_lossy()
     );
 
-    let (config, current_location) = get_context().config.as_ref().ok_or("找不到配置文件")?;
+    let (config, current_location) = get_context()
+        .config
+        .as_ref()
+        .ok_or(anyhow!("找不到配置文件"))?;
 
-    // 根据当前位置确定skip_level
-    let skip_level = match current_location {
-        CurrentLocation::Problem(_, _) => 2,
-        CurrentLocation::Day(_) => 1,
-        _ => 0,
-    };
-
-    // 获取目标天和问题的名称
-    let (target_day_name, target_problem_name) = match current_location {
-        CurrentLocation::Problem(day_name, problem_name) => (Some(day_name), Some(problem_name)),
-        CurrentLocation::Day(day_name) => (Some(day_name), None),
-        _ => (None, None),
+    // 根据当前位置确定skip_level和目标配置的键
+    let (skip_level, target_day_key, target_problem_key) = match current_location {
+        CurrentLocation::Problem(day_name, problem_name) => {
+            (2, Some(day_name.as_str()), Some(problem_name.as_str()))
+        }
+        CurrentLocation::Day(day_name) => (1, Some(day_name.as_str()), None),
+        _ => (0, None, None),
     };
 
     let template_dir = context::get_context().assets_dirs.iter().find(|dir| {
@@ -79,7 +77,26 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
         }
         None => {
             error!("没有找到模板 {}", args.target);
-            return Err(format!("致命错误: 没有找到模板 {}", args.target).into());
+            return Err(anyhow!("致命错误: 没有找到模板 {}", args.target));
+        }
+    };
+
+    let fonts_dir = context::get_context().assets_dirs.iter().find(|dir| {
+        let subdir = dir.join("templates").join("fonts");
+        subdir.exists() && subdir.is_dir()
+    });
+
+    let fonts_dir = match fonts_dir {
+        Some(dir) => {
+            info!(
+                "找到字体目录: {}",
+                dir.join("templates").join("fonts").to_string_lossy()
+            );
+            dir.join("templates").join("fonts")
+        }
+        None => {
+            error!("没有找到字体目录");
+            return Err(anyhow!("致命错误: 没有找到模板 {}", args.target));
         }
     };
 
@@ -90,7 +107,7 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
             serde_json::from_str::<TemplateManifest>(&manifest_content)?
         } else {
             error!("找不到清单文件: {}", manifest_file.display());
-            return Err("致命错误: 找不到清单文件".into());
+            bail!("致命错误: 找不到清单文件");
         }
     };
 
@@ -125,47 +142,50 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
         fs::create_dir(&statements_dir)?;
     }
 
-    // 计算要渲染的总天数
-    let total_days = if skip_level >= 1 {
-        1
+    // 获取要处理的天配置
+    let days_vec;
+    let days_to_process: Vec<(&String, &ContestDayConfig)> = if let Some(day_key) = target_day_key {
+        let day_config = config
+            .subconfig
+            .get(day_key)
+            .context(format!("未找到天配置: {}", day_key))?;
+        let actual_key = config
+            .subconfig
+            .keys()
+            .find(|k| k.as_str() == day_key)
+            .context(format!("未找到天配置键: {}", day_key))?;
+        days_vec = vec![(actual_key, day_config)];
+        days_vec.iter().map(|(k, v)| (*k, *v)).collect()
     } else {
-        config.subconfig.len()
+        // 所有天
+        config.subconfig.iter().collect()
     };
+
+    let total_days = days_to_process.len();
 
     // 添加天级别进度条（仅当需要处理多天时显示）
     let day_pb = if skip_level >= 1 {
-        // 如果跳过天级别，就不显示进度条
         get_context().multiprogress.add(ProgressBar::new(0))
     } else {
-        get_context()
+        let pb = get_context()
             .multiprogress
-            .add(ProgressBar::new(total_days as u64))
-    };
-
-    if skip_level < 1 {
-        day_pb.set_style(
+            .add(ProgressBar::new(total_days as u64));
+        pb.set_style(
             indicatif::ProgressStyle::default_bar()
                 .template("  [{bar:40.green/blue}] {msg}")
                 .unwrap()
                 .progress_chars("=> "),
         );
-    }
+        pb
+    };
 
     let mut day_count = 0;
-    for day in &config.subconfig {
-        // 如果设置了跳过天级别，并且这不是目标天，则跳过
-        if skip_level >= 1
-            && target_day_name.is_some()
-            && day.name != target_day_name.as_ref().unwrap().to_string()
-        {
-            continue;
-        }
-
+    for (_day_key, day_config) in days_to_process {
         day_count += 1;
         if skip_level < 1 {
             day_pb.set_message(format!("处理第 {}/{} 天", day_count, total_days));
         }
-        info!("处理天: {}", day.name);
+        info!("处理天: {}", day_config.name);
 
         if !statements_dir.exists() {
             fs::create_dir(&statements_dir)?;
@@ -184,30 +204,40 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
         info!("复制模板文件到临时目录");
         copy_dir_recursive(&template_dir, &tmp_dir)?;
 
-        // 计算要渲染的总问题数
-        let problems_to_render: Vec<&ProblemConfig> = if skip_level >= 2
-            && let Some(target_problem_name) = target_problem_name
-        {
-            // 只渲染特定问题
-            match day
-                .subconfig
-                .iter()
-                .find(|p| p.name == *target_problem_name)
-            {
-                Some(problem) => {
-                    info!("渲染指定问题: {}", problem.name);
-                    vec![problem]
-                }
-                None => {
-                    error!("未找到问题: {}", target_problem_name);
-                    return Err(format!("未找到问题: {}", target_problem_name).into());
-                }
-            }
-        } else {
-            // 渲染所有问题
-            info!("渲染所有问题（共{}个）", day.subconfig.len());
-            day.subconfig.iter().collect()
-        };
+        let tmp_font_dir = tmp_dir.join("fonts");
+        if tmp_font_dir.exists() {
+            fs::remove_dir_all(&tmp_font_dir)?;
+        }
+
+        info!("复制字体文件到临时目录");
+        copy_dir_recursive(&fonts_dir, &tmp_font_dir)?;
+
+        // 获取要渲染的问题
+        let problems_to_render: IndexMap<String, &ProblemConfig> =
+            if let Some(problem_key) = target_problem_key {
+                // 特定问题：直接通过键获取
+                day_config
+                    .subconfig
+                    .get(problem_key)
+                    .map(|problem_config| {
+                        info!("渲染指定问题: {}", problem_config.name);
+                        let mut map = IndexMap::new();
+                        map.insert(problem_key.to_string(), problem_config);
+                        map
+                    })
+                    .ok_or_else(|| {
+                        error!("未找到问题: {}", problem_key);
+                        anyhow!("未找到问题: {}", problem_key)
+                    })?
+            } else {
+                // 所有问题
+                info!("渲染所有问题（共{}个）", day_config.subconfig.len());
+                day_config
+                    .subconfig
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v))
+                    .collect()
+            };
 
         // 添加问题级别进度条
         let problem_pb = get_context()
@@ -223,38 +253,51 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
 
         let mut renderqueue = Vec::<RenderQueue>::new();
 
-        for (idx, problem) in problems_to_render.iter().enumerate() {
-            // 题目级别时固定索引为0，其他情况使用原始索引
+        let day_to_render = if skip_level >= 2 {
+            ContestDayConfig {
+                subconfig: problems_to_render
+                    .iter()
+                    .map(|(k, v)| (k.clone(), (*v).clone()))
+                    .collect(),
+                ..day_config.clone()
+            }
+        } else {
+            day_config.clone()
+        };
+
+        for (problem_key, problem_config) in problems_to_render.iter() {
+            // 计算问题索引
             let typst_index = if skip_level >= 2 {
                 0
             } else {
-                day.subconfig
-                    .iter()
-                    .position(|p| p.name == problem.name)
-                    .unwrap_or(idx)
+                day_config
+                    .subconfig
+                    .keys()
+                    .position(|k| k == problem_key)
+                    .unwrap_or(0)
             };
 
-            problem_pb.set_message(format!("处理问题: {}", problem.name));
-
-            info!("处理问题: {}", problem.name);
+            problem_pb.set_message(format!("处理问题: {}", problem_config.name));
+            info!("处理问题: {}", problem_config.name);
 
             // 题面文件路径
-            let problem_dir = &problem.path;
+            let problem_dir = &problem_config.path;
             let statement_path = problem_dir.join("statement.md");
 
             if !statement_path.exists() {
                 error!("未找到题面文件: {}", statement_path.display());
                 problem_pb.finish_with_message("遇到错误，停止处理");
-                return Err(format!("未找到题面文件: {}", statement_path.display()).into());
+                return Err(anyhow!("未找到题面文件: {}", statement_path.display()));
             }
 
             // 解析题面顺便展开模板
             let content = match render_template(
                 &fs::read_to_string(&statement_path)?,
-                problem,
-                day,
+                problem_config,
+                &day_to_render,
                 config,
-                problem.path.clone(),
+                problem_config.path.clone(),
+                manifest.clone(),
             ) {
                 Ok(content) => content,
                 Err(e) => {
@@ -264,7 +307,7 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
                         e
                     );
                     problem_pb.finish_with_message("遇到错误，停止处理");
-                    return Err("解析题面文件失败".into());
+                    bail!("解析题面文件失败");
                 }
             };
 
@@ -274,7 +317,7 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
                 Err(e) => {
                     error!("解析题面文件 {} 失败: {:?}", statement_path.display(), e);
                     problem_pb.finish_with_message("遇到错误，停止处理");
-                    return Err("解析题面文件失败".into());
+                    bail!("解析题面文件失败");
                 }
             };
 
@@ -282,7 +325,10 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
 
             process_image_urls(&img_src_dir, &mut ast);
 
-            renderqueue.push(RenderQueue::Problem(ast, Box::new((*problem).clone())));
+            renderqueue.push(RenderQueue::Problem(
+                ast,
+                Box::new((*problem_config).clone()),
+            ));
 
             if img_src_dir.exists() && img_src_dir.is_dir() {
                 let img_dst_dir = tmp_dir.join("img");
@@ -321,23 +367,25 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
         }
 
         // 编译PDF
-        info!("开始编译: {}", day.name);
+        info!("开始编译: {}", day_config.name);
         let compile_pb = get_context().multiprogress.add(ProgressBar::new_spinner());
         compile_pb.enable_steady_tick(Duration::from_millis(100));
-        compile_pb.set_message(format!("编译: {}", day.name));
+        compile_pb.set_message(format!("编译: {}", day_config.name));
 
         let compiler: Box<dyn Compiler> = match manifest.target {
             TargetType::Typst => Box::new(TypstCompiler::new(
                 config.clone(),
-                day.clone(),
+                day_to_render,
                 tmp_dir.clone(),
                 renderqueue,
+                manifest.clone(),
             )),
             TargetType::Markdown => Box::new(MarkdownCompiler::new(
                 config.clone(),
-                day.clone(),
+                day_to_render,
                 tmp_dir.clone(),
                 renderqueue,
+                manifest.clone(),
             )),
         };
 
@@ -378,7 +426,7 @@ pub fn main(args: RenArgs) -> Result<(), Box<dyn std::error::Error>> {
             error!("编译失败:\n{}", error_output);
 
             warn!("保留临时目录以供调试: {}", tmp_dir.display());
-            return Err("编译过程出错".into());
+            bail!("编译过程出错");
         }
 
         // 如果是特定天，处理完后就跳出循环

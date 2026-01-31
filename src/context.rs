@@ -1,11 +1,9 @@
-use crate::config::ContestConfig;
 use crate::config::lang::Language;
+use crate::prelude::*;
 use indicatif::MultiProgress;
-use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::OnceLock;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum CurrentLocation {
     /// 不属于任何配置文件
     None,
@@ -27,8 +25,11 @@ pub struct Context {
 
 static GLOBAL_CONTEXT: OnceLock<Context> = OnceLock::new();
 
-pub fn setup_context(x: Context) -> Result<(), &'static str> {
-    GLOBAL_CONTEXT.set(x).map_err(|_| "Already initialized")
+pub fn setup_context(x: Context) -> Result<()> {
+    if GLOBAL_CONTEXT.set(x).is_err() {
+        bail!("Already initialized");
+    }
+    Ok(())
 }
 
 pub fn get_context() -> &'static Context {

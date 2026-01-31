@@ -1,9 +1,6 @@
-use log::{debug, error, info};
-use std::fs;
-use std::path::Path;
-use std::path::PathBuf;
+use crate::prelude::*;
 
-const CONFIG_FILE_NAME: &str = "conf.json";
+pub const CONFIG_FILE_NAME: &str = "conf.json";
 
 pub mod contest;
 pub mod contestday;
@@ -20,26 +17,23 @@ pub use self::data::*;
 pub use self::models::*;
 pub use self::problem::*;
 
-fn find_contest_config(start_path: &Path) -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let mut current_path = start_path.to_path_buf().canonicalize()?;
+fn find_contest_config(start_path: &Path) -> Result<PathBuf> {
+    let start = dunce::canonicalize(start_path)?;
 
-    loop {
-        debug!("path: {}", current_path.to_string_lossy());
-        // 检查配置文件并判断类型
-        let possible_file = CONFIG_FILE_NAME;
-        let file_path = current_path.join(possible_file);
-        if file_path.exists() && is_contest_config(&file_path)? {
-            return Ok(file_path);
-        }
+    for ancestor in start.ancestors() {
+        debug!("Checking: {:?}", ancestor);
 
-        if !current_path.pop() {
-            info!("未找到contest配置文件");
-            return Err("未找到contest配置文件".into());
+        let config_path = ancestor.join(CONFIG_FILE_NAME);
+        if config_path.exists() && is_contest_config(&config_path)? {
+            return Ok(config_path);
         }
     }
+
+    info!("未找到contest配置文件");
+    Err(anyhow::anyhow!("未找到contest配置文件"))
 }
 
-fn is_contest_config(path: &Path) -> Result<bool, Box<dyn std::error::Error>> {
+fn is_contest_config(path: &Path) -> Result<bool> {
     let content = fs::read_to_string(path)?;
     let json_value: serde_json::Value = serde_json::from_str(&content)?;
 
@@ -55,22 +49,20 @@ fn is_contest_config(path: &Path) -> Result<bool, Box<dyn std::error::Error>> {
             error!(
                 "配置文件版本过低，可能是 tuack 的配置文件。请迁移到 tuack-ng 配置文件格式再使用。"
             );
-            return Err("配置文件版本过低".into());
+            bail!("配置文件版本过低");
         }
     }
 
     Ok(false)
 }
 
-pub fn load_config(
-    path: &Path,
-) -> Result<Option<(ContestConfig, CurrentLocation)>, Box<dyn std::error::Error>> {
+pub fn load_config(path: &Path) -> Result<Option<(ContestConfig, CurrentLocation)>> {
     let config_path = match find_contest_config(path) {
         Ok(path) => path,
         Err(_) => return Ok(None),
     };
 
-    let canonicalize_path = path.to_path_buf().canonicalize()?.to_path_buf();
+    let canonicalize_path = dunce::canonicalize(path)?.to_path_buf();
 
     // 使用 load_contest_config 加载主配置
     let mut config = load_contest_config(&config_path)?;
@@ -84,7 +76,7 @@ pub fn load_config(
     let parent_dir = config_path
         .parent()
         .map(|p| p.to_path_buf())
-        .ok_or("无法获取配置文件父目录")?;
+        .context("无法获取配置文件父目录")?;
 
     // 递归加载子配置
     for dayconfig_name in &config.subdir {
@@ -99,7 +91,7 @@ pub fn load_config(
         let day_parent_dir = dayconfig_path
             .parent()
             .map(|p| p.to_path_buf())
-            .ok_or("无法获取配置文件父目录")?;
+            .context("无法获取配置文件父目录")?;
         for problemconfig_name in &dayconfig.subdir {
             let problemconfig_path = day_parent_dir
                 .join(problemconfig_name)
@@ -117,10 +109,14 @@ pub fn load_config(
                 );
             }
 
-            dayconfig.subconfig.push(problemconfig);
+            dayconfig
+                .subconfig
+                .insert(problemconfig_name.to_string(), problemconfig);
         }
 
-        config.subconfig.push(dayconfig);
+        config
+            .subconfig
+            .insert(dayconfig_name.to_string(), dayconfig);
     }
 
     Ok(Some((config, location)))
@@ -128,13 +124,10 @@ pub fn load_config(
 
 #[allow(unused)]
 /// 将整个配置序列化并保存到文件系统中
-pub fn save_config(
-    config: &ContestConfig,
-    base_path: &Path,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub fn save_config(config: &ContestConfig, base_path: &Path) -> Result<()> {
     // 检查基础目录是否存在
     if !base_path.exists() {
-        return Err(format!("基础目录 {} 不存在", base_path.display()).into());
+        return Err(anyhow!("基础目录 {} 不存在", base_path.display()));
     }
 
     // 保存主配置文件（排除null字段）
@@ -143,9 +136,12 @@ pub fn save_config(
     fs::write(&main_config_path, main_config_json)?;
 
     // 保存每个比赛日的配置
-    for (day_index, day_config) in config.subconfig.iter().enumerate() {
+    for (day_index, (day_name, day_config)) in config.subconfig.iter().enumerate() {
         if config.subdir.len() <= day_index {
-            return Err(format!("子目录名称不足，无法保存第{}个比赛日配置", day_index).into());
+            return Err(anyhow!(
+                "子目录名称不足，无法保存第{}个比赛日配置",
+                day_index
+            ));
         }
 
         let day_name = &config.subdir[day_index];
@@ -153,7 +149,7 @@ pub fn save_config(
 
         // 检查比赛日目录是否存在
         if !day_path.exists() {
-            return Err(format!("比赛日目录 {} 不存在", day_path.display()).into());
+            return Err(anyhow!("比赛日目录 {} 不存在", day_path.display()));
         }
 
         let day_config_path = day_path.join(CONFIG_FILE_NAME);
@@ -163,9 +159,10 @@ pub fn save_config(
         // 保存每个题目的配置
         for (problem_index, problem_config) in day_config.subconfig.iter().enumerate() {
             if day_config.subdir.len() <= problem_index {
-                return Err(
-                    format!("子目录名称不足，无法保存第{}个题目配置", problem_index).into(),
-                );
+                return Err(anyhow!(
+                    "子目录名称不足，无法保存第{}个题目配置",
+                    problem_index
+                ));
             }
 
             let problem_name = &day_config.subdir[problem_index];
@@ -173,11 +170,11 @@ pub fn save_config(
 
             // 检查题目目录是否存在
             if !problem_path.exists() {
-                return Err(format!("题目目录 {} 不存在", problem_path.display()).into());
+                return Err(anyhow!("题目目录 {} 不存在", problem_path.display()));
             }
 
             let problem_config_path = problem_path.join(CONFIG_FILE_NAME);
-            let problem_config_json = save_problem_config(problem_config)?;
+            let problem_config_json = save_problem_config(problem_config.1)?;
             fs::write(&problem_config_path, problem_config_json)?;
         }
     }

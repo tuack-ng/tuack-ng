@@ -1,5 +1,5 @@
 use super::models::{DateInfo, Problem, SupportLanguage};
-use serde::{Deserialize, Serialize};
+use crate::prelude::*;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DataJson {

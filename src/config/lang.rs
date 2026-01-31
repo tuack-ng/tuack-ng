@@ -1,9 +1,4 @@
-use serde::{Deserialize, Serialize};
-
-// #[derive(Debug, Serialize, Deserialize)]
-// pub struct Languages {
-//     pub languages: HashMap<String, Language>,
-// }
+use crate::prelude::*;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Language {

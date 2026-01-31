@@ -1,0 +1,32 @@
+#!/bin/bash
+set -e
+
+case "$1" in
+    configure)
+        # 为zsh生成补全文件
+        mkdir -p /usr/share/zsh/site-functions
+        /usr/bin/tuack-ng gen complete zsh > /usr/share/zsh/site-functions/_tuack-ng 2>/dev/null || true
+        chmod 644 /usr/share/zsh/site-functions/_tuack-ng
+        
+        # 为bash生成补全文件
+        mkdir -p /usr/share/bash-completion/completions
+        /usr/bin/tuack-ng gen complete bash > /usr/share/bash-completion/completions/tuack-ng 2>/dev/null || true
+        chmod 644 /usr/share/bash-completion/completions/tuack-ng
+        
+        # 为fish生成补全文件
+        mkdir -p /usr/share/fish/vendor_completions.d
+        /usr/bin/tuack-ng gen complete fish > /usr/share/fish/vendor_completions.d/tuack-ng.fish 2>/dev/null || true
+        chmod 644 /usr/share/fish/vendor_completions.d/tuack-ng.fish
+        ;;
+    
+    abort-upgrade|abort-remove|abort-deconfigure)
+        ;;
+    
+    *)
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+
+exit 0
