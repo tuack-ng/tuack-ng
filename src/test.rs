@@ -1,5 +1,4 @@
 use crate::config::ScorePolicy;
-use crate::config::lang::Language;
 use crate::prelude::*;
 use crate::test::checker::parse_result;
 use crate::utils::compile::build_compile_cmd;
@@ -304,30 +303,6 @@ fn write_results_to_csv(results: Vec<ProblemTestResult>, problem_path: &Path) ->
     Ok(())
 }
 
-fn check_compiler(language: &Language) -> Result<()> {
-    // 检查编译环境
-    let compiler = &language.compiler;
-    debug!("检查 {} 环境", language.language);
-    match Command::new(&compiler.executable)
-        .arg(&compiler.version_check)
-        .output()
-    {
-        Ok(output) if output.status.success() => {
-            let version_output = String::from_utf8_lossy(&output.stdout);
-            let version = version_output.lines().next().unwrap_or("").trim();
-            debug!("{} 版本: {}", &compiler.executable, version);
-        }
-        _ => {
-            error!(
-                "未找到 {} 命令，请确保已安装并添加到PATH",
-                &compiler.executable
-            );
-            bail!("{} 命令执行失败", &compiler.executable);
-        }
-    }
-    Ok(())
-}
-
 pub fn main(_: TestArgs) -> Result<()> {
     let (config, current_location) = get_context().config.as_ref().context("找不到配置文件")?;
 
@@ -513,8 +488,8 @@ pub fn main(_: TestArgs) -> Result<()> {
                 let tmp_dir = path.parent().unwrap().join("tmp");
                 create_or_clear_dir(&tmp_dir)?;
 
-                let target_path = tmp_dir.join(path.file_name().unwrap());
-                fs::copy(&path, &target_path)?;
+                let src_path = tmp_dir.join(path.file_name().unwrap());
+                fs::copy(&path, &src_path)?;
 
                 #[allow(unused_assignments)]
                 {
@@ -522,29 +497,17 @@ pub fn main(_: TestArgs) -> Result<()> {
                 }
                 info!("正在编译...");
 
-                let ext = target_path
-                    .extension()
-                    .context("文件无后缀名")?
-                    .to_string_lossy();
+                let target_path = tmp_dir
+                    .join(&problem_config.name)
+                    .with_extension(std::env::consts::EXE_EXTENSION);
 
-                let file_type = get_context()
-                    .languages
-                    .get(ext.as_ref())
-                    .context("未知格式文件")?;
+                let compile_args = day_config.compile.clone();
 
-                check_compiler(file_type)?;
-
-                let compile_status = build_compile_cmd(
-                    day_config,
-                    problem_config,
-                    &target_path,
-                    ext.to_string(),
-                    file_type,
-                )?
-                .current_dir(&tmp_dir)
-                .stdout(Stdio::null())
-                .stderr(Stdio::null())
-                .status()?;
+                let compile_status = build_compile_cmd(&src_path, &target_path, &compile_args)?
+                    .current_dir(&tmp_dir)
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::null())
+                    .status()?;
 
                 if compile_status.success() {
                     problem_status = ProblemStatus::Compiled;
@@ -556,7 +519,7 @@ pub fn main(_: TestArgs) -> Result<()> {
 
                 let mut total_score: u32 = 0;
 
-                fs::remove_file(&target_path)?;
+                fs::remove_file(&src_path)?;
 
                 let mut subtask_scores: HashMap<u32, Vec<u32>> = problem_config
                     .subtests

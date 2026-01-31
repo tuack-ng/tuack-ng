@@ -55,7 +55,6 @@ fn main() -> Result<()> {
 
     #[cfg(debug_assertions)]
     {
-        /* let result =  */
         match cli.command {
             Commands::Ren(args) => ren::main(args),
             Commands::Gen(args) => generate::main(args),

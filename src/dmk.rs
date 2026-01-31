@@ -302,35 +302,17 @@ fn compile_generator(generator_path: &Path) -> Result<()> {
 fn compile_std(std_path: &Path, problem: &ProblemConfig, day: &ContestDayConfig) -> Result<()> {
     info!("编译标程");
 
-    let ext = std_path
-        .extension()
-        .and_then(|s| s.to_str())
-        .context("无法获取标程文件扩展名")?;
-
-    let language = get_context()
-        .languages
-        .get(ext)
-        .context(format!("不支持的语言: {}", ext))?;
-
-    // let output_path = std_path.parent().unwrap().join(&problem.name);
-
-    // FIXME TODO: output_path必须使用，build_compile_cmd不完善
+    let output_path = std_path.parent().unwrap().join(&problem.name);
 
     let compile_pb = get_context().multiprogress.add(ProgressBar::new_spinner());
     compile_pb.enable_steady_tick(Duration::from_millis(100));
     compile_pb.set_message("编译标程");
 
-    let status = build_compile_cmd(
-        day,
-        problem,
-        &std_path.to_path_buf(),
-        ext.to_string(),
-        language,
-    )?
-    .current_dir(&std_path.parent().unwrap())
-    .stdout(Stdio::null())
-    .stderr(Stdio::null())
-    .status()?;
+    let status = build_compile_cmd(&std_path.to_path_buf(), &output_path, &day.compile)?
+        .current_dir(&std_path.parent().unwrap())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()?;
 
     compile_pb.finish_and_clear();
 
