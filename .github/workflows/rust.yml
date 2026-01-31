@@ -14,42 +14,57 @@ env:
 
 jobs:
   build-linux:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            artifact_suffix: x86_64
+          - runner: ubuntu-24.04-arm
+            artifact_suffix: arm64
+    
+    runs-on: ${{ matrix.runner }}
+    
     steps:
-    - uses: actions/checkout@v6
-      with:
-        submodules: true
-    - name: Install Dependencies
-      run:  cargo install cargo-aur cargo-deb --verbose
-    - name: Build Release
-      run: cargo build --release --verbose
-    - name: Upload bin
-      uses: actions/upload-artifact@v4
-      with:
-        name: output-bin
-        path: target/release/tuack-ng
-    - name: Pack deb
-      run: cargo deb
-    - name: Upload deb
-      uses: actions/upload-artifact@v4
-      with:
-
-        name: output-deb
-        path: target/debian/*.deb
-    - name: Pack aur
-      run: cargo aur
-    - name: Upload aur
-      uses: actions/upload-artifact@v4
-      with:
-        name: output-aur
-        path: target/cargo-aur/*.tar.gz
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+      
+      - name: Install Dependencies
+        run: cargo install cargo-aur cargo-deb --verbose
+      
+      - name: Build Release
+        run: cargo build --release --verbose
+      
+      - name: Upload bin
+        uses: actions/upload-artifact@v4
+        with:
+          name: output-bin-${{ matrix.artifact_suffix }}
+          path: target/release/tuack-ng
+      
+      - name: Pack deb
+        run: cargo deb
+      
+      - name: Upload deb
+        uses: actions/upload-artifact@v4
+        with:
+          name: output-deb-${{ matrix.artifact_suffix }}
+          path: target/debian/*.deb
+      
+      - name: Pack aur
+        run: cargo aur
+      
+      - name: Upload aur
+        uses: actions/upload-artifact@v4
+        with:
+          name: output-aur-${{ matrix.artifact_suffix }}
+          path: target/cargo-aur/*.tar.gz
 
   upload-doc:
     runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
     steps:
     - uses: actions/checkout@v6
     - name: Upload Release doc
-      if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
       uses: actions/upload-artifact@v4
       with: 
         name: release-docs
@@ -82,7 +97,6 @@ jobs:
         Copy-Item "target/${{ matrix.target }}/release/tuack-ng.exe" "pack/tuack-ng.exe" -Force
         Copy-Item "assets/" "pack/assets/" -Recurse -Force
         Compress-Archive -Path "pack/*" -DestinationPath "pack/output-windows-${{ matrix.target }}.zip" -Force
-        Get-ChildItem -Recurse
 
     - name: Upload Windows binaries
       uses: actions/upload-artifact@v4
@@ -110,8 +124,8 @@ jobs:
         tag_name: ${{ github.event.inputs.tag || github.ref_name }}
         draft: true
         files: |
-          ./output-aur/*.tar.gz
-          ./output-deb/*.deb
+          ./output-aur-*/*.tar.gz
+          ./output-deb-*/*.deb
           ./output-windows-*/*.zip
         body_path: ./release-docs/${{ github.event.inputs.tag || github.ref_name }}.md
       env:
