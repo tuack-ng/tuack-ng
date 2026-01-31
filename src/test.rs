@@ -127,6 +127,9 @@ fn run_test_case(
         let pid = Pid::from_u32(child_clone.id());
 
         loop {
+            #[cfg(windows)] // or maybe TLE
+            thread::sleep(Duration::from_millis(100));
+            #[cfg(not(windows))]
             thread::sleep(Duration::from_millis(50));
             sys.refresh_processes(ProcessesToUpdate::Some(&[pid]), false);
 
@@ -499,7 +502,7 @@ pub fn main(_: TestArgs) -> Result<()> {
                 let path = if PathBuf::from_str(&test.path)?.is_absolute() {
                     PathBuf::from_str(&test.path)?
                 } else {
-                    problem_config.path.join(&test.path).canonicalize()?
+                    dunce::canonicalize(problem_config.path.join(&test.path))?
                 };
 
                 info!("文件路径：{}", path.display());

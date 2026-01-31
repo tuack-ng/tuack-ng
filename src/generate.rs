@@ -381,7 +381,7 @@ fn gen_sample(args: GenConfirmArgs) -> Result<()> {
 fn gen_code(args: GenConfirmArgs) -> Result<()> {
     let user_skip = Regex::new(r"(^|/|\\)(data|down|pre|val|.*validate.*|gen|chk|checker|report|check.*|make_data|data_maker|data_make|make|dmk|generate|generator|makedata|spj|judge|tables|tmp|cp|copy|mv|move|rm|remove|.*\.tmp|.*\.temp|temp|.*\.test|.*\.dir)(\..*)?$").unwrap();
     fn find_code(path: &PathBuf, user_skip: &Regex) -> Result<Vec<(PathBuf, bool)>> {
-        if user_skip.is_match(&path.canonicalize()?.to_string_lossy()) {
+        if user_skip.is_match(&dunce::canonicalize(&path)?.to_string_lossy()) {
             return Ok(vec![]);
         }
         if path.is_dir() {

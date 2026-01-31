@@ -18,21 +18,19 @@ pub use self::models::*;
 pub use self::problem::*;
 
 fn find_contest_config(start_path: &Path) -> Result<PathBuf> {
-    let mut current_path = start_path.to_path_buf().canonicalize()?;
+    let start = dunce::canonicalize(start_path)?;
 
-    loop {
-        debug!("path: {}", current_path.to_string_lossy());
-        // 检查配置文件并判断类型
-        let possible_file = CONFIG_FILE_NAME;
-        let file_path = current_path.join(possible_file);
-        if file_path.exists() && is_contest_config(&file_path)? {
-            return Ok(file_path);
-        }
+    for ancestor in start.ancestors() {
+        debug!("Checking: {:?}", ancestor);
 
-        if !current_path.pop() {
-            info!("未找到contest配置文件");
+        let config_path = ancestor.join(CONFIG_FILE_NAME);
+        if config_path.exists() && is_contest_config(&config_path)? {
+            return Ok(config_path);
         }
     }
+
+    info!("未找到contest配置文件");
+    Err(anyhow::anyhow!("未找到contest配置文件"))
 }
 
 fn is_contest_config(path: &Path) -> Result<bool> {
@@ -64,7 +62,7 @@ pub fn load_config(path: &Path) -> Result<Option<(ContestConfig, CurrentLocation
         Err(_) => return Ok(None),
     };
 
-    let canonicalize_path = path.to_path_buf().canonicalize()?.to_path_buf();
+    let canonicalize_path = dunce::canonicalize(path)?.to_path_buf();
 
     // 使用 load_contest_config 加载主配置
     let mut config = load_contest_config(&config_path)?;

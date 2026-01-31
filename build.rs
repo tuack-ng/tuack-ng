@@ -1,3 +1,4 @@
+use std::env;
 use std::fs;
 use std::io;
 use std::path::Path;
@@ -56,7 +57,7 @@ fn main() {
 }
 
 fn compile_cpp_if_needed(cpp_file: &Path) {
-    let exe_name = cpp_file.with_extension("");
+    let exe_name = cpp_file.with_extension(env::consts::EXE_EXTENSION);
     let exe_name = exe_name.file_name().unwrap().to_string_lossy();
     let exe_path = cpp_file.parent().unwrap().join(exe_name.to_string());
 

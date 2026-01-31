@@ -45,7 +45,7 @@ pub enum RenderQueue {
 pub fn main(args: RenArgs) -> Result<()> {
     debug!(
         "当前目录: {}",
-        Path::new(".").canonicalize()?.to_string_lossy()
+        dunce::canonicalize(Path::new("."))?.to_string_lossy()
     );
 
     let (config, current_location) = get_context()
