@@ -45,6 +45,10 @@ enum Targets {
     #[command(version, alias = "a")]
     All(GenConfirmArgs),
 
+    /// 生成 lfs 文件
+    #[command(version)]
+    Lfs,
+
     /// 生成 Shell 补全文件
     #[command(version, hide = true)]
     Complete(GenCompleteArgs),
@@ -86,7 +90,7 @@ fn gen_contest(args: GenStatementArgs) -> Result<()> {
     let current_dir = std::env::current_dir()?;
 
     // 查找scaffold/contest目录（在程序上下文中的列表中第一个存在的）
-    let scaffold_path = find_scaffold_dir("contest")?;
+    let scaffold_path = find_in_scaffold("contest", true)?;
 
     for contest_name in &args.name {
         copy_dir_recursive(&scaffold_path, current_dir.join(contest_name))?;
@@ -128,7 +132,7 @@ fn gen_day(args: GenStatementArgs) -> Result<()> {
     }
 
     // 查找scaffold/day目录（在程序上下文中的列表中第一个存在的）
-    let scaffold_path = find_scaffold_dir("day")?;
+    let scaffold_path = find_in_scaffold("day", true)?;
 
     for day_name in &args.name {
         copy_dir_recursive(&scaffold_path, current_dir.join(day_name))?;
@@ -184,7 +188,7 @@ fn gen_problem(args: GenStatementArgs) -> Result<()> {
     }
 
     // 查找scaffold/problem目录（在程序上下文中的列表中第一个存在的）
-    let scaffold_path = find_scaffold_dir("problem")?;
+    let scaffold_path = find_in_scaffold("problem", true)?;
 
     for problem_name in &args.name {
         copy_dir_recursive(&scaffold_path, current_dir.join(problem_name))?;
@@ -211,6 +215,63 @@ fn gen_problem(args: GenStatementArgs) -> Result<()> {
 
     let updated_content = serde_json::to_string_pretty(&day_config)?;
     std::fs::write(&config_path, updated_content)?;
+    Ok(())
+}
+
+fn gen_lfs() -> Result<()> {
+    let attributes_path = find_in_scaffold("problem.gitattributes", false)?;
+
+    // 统一获取配置，避免重复调用
+    let config = &get_context()
+        .config
+        .as_ref()
+        .context("没有有效的配置文件")?
+        .0;
+
+    // 根据当前位置获取需要处理的问题列表
+    let problems_to_process = match get_context()
+        .config
+        .as_ref()
+        .context("没有有效的配置文件")?
+        .1
+    {
+        CurrentLocation::Root => {
+            // 获取所有问题
+            config
+                .subconfig
+                .values()
+                .flat_map(|day| day.subconfig.values())
+                .collect()
+        }
+        CurrentLocation::Day(ref day_name) => config
+            .subconfig
+            .get(day_name)
+            .map(|day| day.subconfig.values().collect())
+            .context(format!("找不到天 '{}'", day_name))?,
+        CurrentLocation::Problem(ref day_name, ref problem_name) => config
+            .subconfig
+            .get(day_name)
+            .and_then(|day| day.subconfig.get(problem_name))
+            .map(|problem| vec![problem])
+            .context(format!("找不到问题 '{}/{}'", day_name, problem_name))?,
+        CurrentLocation::None => bail!("没有有效的配置文件"),
+    };
+
+    for problem in problems_to_process {
+        let target_path = problem.path.join(".gitattributes");
+
+        if !target_path.exists() {
+            fs::copy(&attributes_path, &target_path)
+                .with_context(|| format!("复制文件到 {} 失败", target_path.display()))?;
+            info!("已生成 .gitattributes 到 {}", target_path.display());
+        } else {
+            warn!(
+                "目录 {} 已存在 .gitattributes, 跳过",
+                problem.path.display()
+            );
+        }
+    }
+
     Ok(())
 }
 
@@ -519,22 +580,26 @@ pub fn main(args: GenArgs) -> Result<()> {
         Targets::Samples(args) => gen_sample(args)?,
         Targets::All(args) => gen_all(args)?,
         Targets::Code(args) => gen_code(args)?,
+        Targets::Lfs => gen_lfs()?,
         Targets::Complete(args) => gen_complete(args)?,
     }
 
     Ok(())
 }
 
-// 查找scaffold目录（在程序上下文中的列表中第一个存在的）
-fn find_scaffold_dir(dir_name: &str) -> Result<PathBuf> {
+fn find_in_scaffold(name: &str, is_dir: bool) -> Result<PathBuf> {
     let context = crate::context::get_context();
 
     for assets_dir in &context.assets_dirs {
-        let path = assets_dir.join("scaffold").join(dir_name);
+        let path = assets_dir.join("scaffold").join(name);
         if path.exists() {
-            return Ok(path);
+            // 根据需求检查类型
+            if (is_dir && path.is_dir()) || (!is_dir && path.is_file()) {
+                return Ok(path);
+            }
         }
     }
 
-    Err(anyhow!("找不到scaffold/{}目录", dir_name))
+    let item_type = if is_dir { "目录" } else { "文件" };
+    Err(anyhow!("找不到scaffold/{} {}", name, item_type))
 }
