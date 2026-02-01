@@ -550,14 +550,8 @@ pub fn main(_: TestArgs) -> Result<()> {
                     for case in &problem_config.data {
                         case_count += 1;
 
-                        let input_path = problem_config
-                            .path
-                            .join("data")
-                            .join(case.input.get().unwrap());
-                        let answer_path = problem_config
-                            .path
-                            .join("data")
-                            .join(case.output.get().unwrap());
+                        let input_path = problem_config.path.join("data").join(&case.input);
+                        let answer_path = problem_config.path.join("data").join(&case.output);
 
                         info!("运行测试点: {}", case.id);
 

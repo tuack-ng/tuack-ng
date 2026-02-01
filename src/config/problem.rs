@@ -21,7 +21,8 @@ pub struct ProblemConfig {
     pub samples: Vec<SampleItem>,
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub args: HashMap<String, i64>,
-    pub data: Vec<DataItem>,
+    #[serde(rename = "data")]
+    pub orig_data: Vec<DataItem>,
     #[serde(default)]
     pub subtests: BTreeMap<u32, ScorePolicy>,
     // pub pretest: Vec<PreItem>,
@@ -36,6 +37,9 @@ pub struct ProblemConfig {
     pub noi_style: Option<bool>,
     #[serde(default, skip, rename = "file-io")]
     pub file_io: Option<bool>,
+
+    #[serde(skip, default)]
+    pub data: Vec<ExpandedDataItem>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -53,11 +57,38 @@ pub enum ExpectedScore {
 
 impl ProblemConfig {
     pub fn finalize(mut self) -> Self {
+        // 初始化 data 的默认文件名
+        self.orig_data = self.orig_data.into_iter().map(|d| d.finalize()).collect();
+
+        for data in &self.orig_data {
+            match data {
+                DataItem::Single(item) => self.data.push(ExpandedDataItem {
+                    id: item.id,
+                    score: item.score,
+                    subtest: item.subtest,
+                    input: item.input.get().unwrap().clone(),
+                    output: item.output.get().unwrap().clone(),
+                    args: item.args.clone(),
+                    manual: item.manual.unwrap_or(false),
+                }),
+                DataItem::Bundle(item) => {
+                    for id in &item.id {
+                        self.data.push(ExpandedDataItem {
+                            id: *id as u32,
+                            score: item.score,
+                            subtest: item.subtest,
+                            input: format!("{}.in", id),
+                            output: format!("{}.ans", id),
+                            args: item.args.clone(),
+                            manual: item.manual.unwrap_or(false),
+                        })
+                    }
+                }
+            }
+        }
+
         // 初始化 samples 的默认文件名
         self.samples = self.samples.into_iter().map(|s| s.finalize()).collect();
-
-        // 初始化 data 的默认文件名
-        self.data = self.data.into_iter().map(|d| d.finalize()).collect();
 
         self
     }
@@ -91,7 +122,14 @@ impl SampleItem {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DataItem {
+#[serde(untagged)]
+pub enum DataItem {
+    Single(SingleDataItem), // 单个条件，如 ">= 60"
+    Bundle(BundleDataItem), // 多个条件，如 [">= 60", "< 90"]
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SingleDataItem {
     pub id: u32,
     pub score: u32,
     #[serde(default)]
@@ -113,10 +151,35 @@ pub struct DataItem {
     pub manual: Option<bool>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BundleDataItem {
+    pub id: Vec<i32>,
+    pub score: u32,
+    #[serde(default)]
+    pub subtest: u32,
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub args: HashMap<String, i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub manual: Option<bool>,
+}
+
+#[derive(Debug, Clone)]
+pub struct ExpandedDataItem {
+    pub id: u32,
+    pub score: u32,
+    pub subtest: u32,
+    pub input: String,
+    pub output: String,
+    pub args: HashMap<String, i64>,
+    pub manual: bool,
+}
+
 impl DataItem {
     pub fn finalize(mut self) -> Self {
-        self.input.set_default(format!("{}.in", self.id));
-        self.output.set_default(format!("{}.ans", self.id));
+        if let DataItem::Single(ref mut item) = self {
+            item.input.set_default(format!("{}.in", item.id));
+            item.output.set_default(format!("{}.ans", item.id));
+        }
         self
     }
 }

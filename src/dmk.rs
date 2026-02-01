@@ -1,3 +1,4 @@
+use crate::config::ExpandedDataItem;
 use crate::context::{CurrentLocation, get_context};
 use crate::prelude::*;
 use crate::utils::compile::build_compile_cmd;
@@ -162,29 +163,27 @@ fn gen_data(
     );
     result1?;
     result2?;
-    let data_items: Vec<DataItem> = match args.target {
+    let data_items: Vec<ExpandedDataItem> = match args.target {
         Target::Data => current_problem.data.iter().cloned().collect(),
         Target::Sample => current_problem
             .samples
             .iter()
-            .map(|item| DataItem {
+            .map(|item| ExpandedDataItem {
                 id: item.id,
                 score: 0,   // 用不着
                 subtest: 0, // 用不着
-                input: item.input.clone(),
-                output: item.output.clone(),
+                input: item.input.get().unwrap().clone(),
+                output: item.output.get().unwrap().clone(),
                 args: item.args.clone(),
-                manual: item.manual,
+                manual: item.manual.unwrap_or(false),
             })
             .collect(),
     };
-    let data_items: Vec<DataItem> = data_items
-        .into_iter()
-        .filter(|item| !item.manual.unwrap_or(false))
-        .collect();
+    let data_items: Vec<ExpandedDataItem> =
+        data_items.into_iter().filter(|item| !item.manual).collect();
     let all_ids: Vec<u32> = data_items.iter().map(|data| data.id).collect();
     let target_ids = parse_test_object(&args.object, &all_ids)?;
-    let data_items_to_gen: Vec<DataItem> = data_items
+    let data_items_to_gen: Vec<ExpandedDataItem> = data_items
         .into_iter()
         .filter(|item| target_ids.contains(&item.id))
         .collect();
@@ -210,8 +209,8 @@ fn gen_data(
     for data_item in data_items_to_gen {
         pb.set_message(format!("生成数据点 #{}", data_item.id));
 
-        let input_file = data_item.input.get().context("缺少输入文件名")?;
-        let output_file = data_item.output.get().context("缺少输出文件名")?;
+        let input_file = data_item.input;
+        let output_file = data_item.output;
 
         let input_path = target_dir.join(input_file);
         let output_path = target_dir.join(output_file);
@@ -328,7 +327,7 @@ fn compile_std(std_path: &Path, problem: &ProblemConfig, day: &ContestDayConfig)
 fn get_or_generate_seed(
     target_dir: &Path,
     force: bool,
-    data: &Vec<DataItem>,
+    data: &Vec<ExpandedDataItem>,
 ) -> Result<BTreeMap<u32, u64>> {
     // 生成新种子
 
