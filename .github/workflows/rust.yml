@@ -30,34 +30,36 @@ jobs:
           submodules: true
       
       - name: Install Dependencies
-        run: cargo install cargo-aur cargo-deb --verbose
+        run: cargo install cargo-deb --verbose
       
       - name: Build Release
         run: cargo build --release --verbose
       
-      - name: Upload bin
-        uses: actions/upload-artifact@v4
-        with:
-          name: output-bin-${{ matrix.artifact_suffix }}
-          path: target/release/tuack-ng
-      
       - name: Pack deb
-        run: cargo deb
+        run: |
+          cargo deb
+          mv target/debian/*.deb target/debian/tuack-ng-linux-${{ matrix.artifact_suffix }}.deb
       
       - name: Upload deb
         uses: actions/upload-artifact@v4
         with:
-          name: output-deb-${{ matrix.artifact_suffix }}
+          name: output-linux-deb-${{ matrix.artifact_suffix }}
           path: target/debian/*.deb
       
-      - name: Pack aur
-        run: cargo aur
+      - name: Pack zip
+        run: |
+          mkdir -p pack/
+          cp "target/release/tuack-ng" "pack/tuack-ng"
+          cp -r "assets/" "pack/assets/"
+          cd pack/
+          zip -r "tuack-ng-linux-${{ matrix.artifact_suffix }}.zip" .
+          cd ..
       
-      - name: Upload aur
+      - name: Upload zip
         uses: actions/upload-artifact@v4
         with:
-          name: output-aur-${{ matrix.artifact_suffix }}
-          path: target/cargo-aur/*.tar.gz
+          name: output-linux-zip-${{ matrix.artifact_suffix }}
+          path: pack/tuack-ng-linux-${{ matrix.artifact_suffix }}.zip
 
   upload-doc:
     runs-on: ubuntu-latest
@@ -74,7 +76,11 @@ jobs:
     runs-on: windows-latest
     strategy:
       matrix:
-        target: [x86_64-pc-windows-msvc, i686-pc-windows-msvc]
+        include:
+          - target: x86_64-pc-windows-msvc
+            artifact_suffix: x86_64
+          - target: i686-pc-windows-msvc
+            artifact_suffix: x86
     
     steps:
     - uses: actions/checkout@v6
@@ -96,13 +102,13 @@ jobs:
         New-Item -ItemType Directory -Force -Path pack/
         Copy-Item "target/${{ matrix.target }}/release/tuack-ng.exe" "pack/tuack-ng.exe" -Force
         Copy-Item "assets/" "pack/assets/" -Recurse -Force
-        Compress-Archive -Path "pack/*" -DestinationPath "pack/output-windows-${{ matrix.target }}.zip" -Force
+        Compress-Archive -Path "pack/*" -DestinationPath "pack/tuack-ng-windows-${{ matrix.artifact_suffix }}.zip" -Force
 
     - name: Upload Windows binaries
       uses: actions/upload-artifact@v4
       with:
-        name: output-windows-${{ matrix.target }}
-        path: pack/output-windows-${{ matrix.target }}.zip
+        name: output-windows-${{ matrix.artifact_suffix }}
+        path: pack/tuack-ng-windows-${{ matrix.artifact_suffix }}.zip
         
   release:
     needs: [build-linux, build-windows, upload-doc]
@@ -124,8 +130,8 @@ jobs:
         tag_name: ${{ github.event.inputs.tag || github.ref_name }}
         draft: true
         files: |
-          ./output-aur-*/*.tar.gz
-          ./output-deb-*/*.deb
+          ./output-linux-deb-*/*.deb
+          ./output-linux-zip-*/*.zip
           ./output-windows-*/*.zip
         body_path: ./release-docs/${{ github.event.inputs.tag || github.ref_name }}.md
       env:
