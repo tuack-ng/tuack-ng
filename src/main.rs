@@ -54,15 +54,13 @@ fn main() -> Result<()> {
     info!("booting up");
 
     #[cfg(debug_assertions)]
-    {
-        match cli.command {
+    match cli.command {
             Commands::Ren(args) => ren::main(args),
             Commands::Gen(args) => generate::main(args),
             Commands::Test(args) => test::main(args),
             Commands::Conf(args) => conf::main(args),
             Commands::Dmk(args) => dmk::main(args),
-        }?
-    };
+        }?;
     #[cfg(not(debug_assertions))]
     {
         let result = match cli.command {

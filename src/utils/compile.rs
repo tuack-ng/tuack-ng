@@ -43,8 +43,8 @@ pub fn check_compiler(language: &Language) -> Result<()> {
 }
 
 pub fn build_compile_cmd(
-    src_path: &PathBuf,
-    target_path: &PathBuf,
+    src_path: &Path,
+    target_path: &Path,
     compile_args: &HashMap<String, String>,
 ) -> Result<Command, anyhow::Error> {
     let ext = src_path
@@ -59,7 +59,7 @@ pub fn build_compile_cmd(
 
     check_compiler(file_type)?;
 
-    Ok(string_to_command(
+    string_to_command(
         format!(
             " {} {} {} {} {}",
             file_type.compiler.executable,
@@ -69,5 +69,5 @@ pub fn build_compile_cmd(
             src_path.to_string_lossy()
         )
         .as_str(),
-    )?)
+    )
 }

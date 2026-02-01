@@ -154,7 +154,7 @@ fn gen_data(
         info!("创建目标目录: {}", target_dir.display());
     }
     let generator_path = find_generator(&current_problem.path)?;
-    let std_path = find_std(&current_problem)?;
+    let std_path = find_std(current_problem)?;
     info!("找到生成器: {}", generator_path.display());
     info!("找到标程: {}", std_path.display());
     let (result1, result2) = rayon::join(
@@ -164,7 +164,7 @@ fn gen_data(
     result1?;
     result2?;
     let data_items: Vec<ExpandedDataItem> = match args.target {
-        Target::Data => current_problem.data.iter().cloned().collect(),
+        Target::Data => current_problem.data.to_vec(),
         Target::Sample => current_problem
             .samples
             .iter()
@@ -190,7 +190,7 @@ fn gen_data(
 
     let seed = get_or_generate_seed(
         &target_dir,
-        matches!(args.action, DmkCommand::Reset { .. }),
+        matches!(args.action, DmkCommand::Reset),
         &data_items_to_gen,
     )?;
     if data_items_to_gen.is_empty() {
@@ -215,14 +215,14 @@ fn gen_data(
         let input_path = target_dir.join(input_file);
         let output_path = target_dir.join(output_file);
 
-        if !matches!(args.action, DmkCommand::Gen { .. }) || !input_path.exists() {
+        if !matches!(args.action, DmkCommand::Gen) || !input_path.exists() {
             let mut args = current_problem.args.clone();
             args.extend(data_item.args.clone()); // 继承
             // 生成输入
             generate_input(&generator_path, &input_path, &seed, data_item.id, &args)?;
         }
 
-        if !matches!(args.action, DmkCommand::Gen { .. }) || !output_path.exists() {
+        if !matches!(args.action, DmkCommand::Gen) || !output_path.exists() {
             // 使用标程生成输出
             generate_output(
                 &std_path,
@@ -307,8 +307,8 @@ fn compile_std(std_path: &Path, problem: &ProblemConfig, day: &ContestDayConfig)
     compile_pb.enable_steady_tick(Duration::from_millis(100));
     compile_pb.set_message("编译标程");
 
-    let status = build_compile_cmd(&std_path.to_path_buf(), &output_path, &day.compile)?
-        .current_dir(&std_path.parent().unwrap())
+    let status = build_compile_cmd(std_path, &output_path, &day.compile)?
+        .current_dir(std_path.parent().unwrap())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status()?;
@@ -348,11 +348,9 @@ fn get_or_generate_seed(
 
     for i in data {
         let id = i.id;
-        if !seeds.contains_key(&id) {
-            seeds.insert(id, rng.random());
-        }
+        seeds.entry(id).or_insert_with(|| rng.random());
     }
-    return Ok(seeds);
+    Ok(seeds)
 }
 
 /// 保存种子
@@ -377,7 +375,7 @@ fn generate_input(
 
     // 添加自定义参数
     for (key, value) in args {
-        cmd_args.push(format!("-{}={}", key, value.to_string()));
+        cmd_args.push(format!("-{}={}", key, value));
     }
 
     cmd_args.push("-seed".to_string());
