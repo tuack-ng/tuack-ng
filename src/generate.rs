@@ -352,17 +352,17 @@ fn gen_data(args: GenConfirmArgs) -> Result<()> {
                         input: Optional::initialized(format!("{}.in", name)),
                         output: Optional::initialized(format!("{}.ans", name)),
                         score: 100 / count,
-                        subtest: 0,
+                        subtask: 0,
                         args: HashMap::new(),
                         manual: None,
                     })
                 })
                 .collect();
-            let subtests: BTreeMap<u32, ScorePolicy> = BTreeMap::from([(0, ScorePolicy::Sum)]);
+            let subtasks: BTreeMap<u32, ScorePolicy> = BTreeMap::from([(0, ScorePolicy::Sum)]);
 
             let mut now_problem = load_problem_config(&problem.path.join(CONFIG_FILE_NAME))?;
             now_problem.orig_data = datas;
-            now_problem.subtests = subtests;
+            now_problem.subtasks = subtasks;
 
             let updated_content = save_problem_config(&now_problem)?;
             fs::write(problem.path.join(CONFIG_FILE_NAME), updated_content)?;

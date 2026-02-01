@@ -171,7 +171,7 @@ fn gen_data(
             .map(|item| ExpandedDataItem {
                 id: item.id,
                 score: 0,   // 用不着
-                subtest: 0, // 用不着
+                subtask: 0, // 用不着
                 input: item.input.get().unwrap().clone(),
                 output: item.output.get().unwrap().clone(),
                 args: item.args.clone(),

@@ -24,7 +24,7 @@ pub struct ProblemConfig {
     #[serde(rename = "data")]
     pub orig_data: Vec<DataItem>,
     #[serde(default)]
-    pub subtests: BTreeMap<u32, ScorePolicy>,
+    pub subtasks: BTreeMap<u32, ScorePolicy>,
     // pub pretest: Vec<PreItem>,
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub tests: HashMap<String, TestCase>,
@@ -65,7 +65,7 @@ impl ProblemConfig {
                 DataItem::Single(item) => self.data.push(ExpandedDataItem {
                     id: item.id,
                     score: item.score,
-                    subtest: item.subtest,
+                    subtask: item.subtask,
                     input: item.input.get().unwrap().clone(),
                     output: item.output.get().unwrap().clone(),
                     args: item.args.clone(),
@@ -76,7 +76,7 @@ impl ProblemConfig {
                         self.data.push(ExpandedDataItem {
                             id: *id as u32,
                             score: item.score,
-                            subtest: item.subtest,
+                            subtask: item.subtask,
                             input: format!("{}.in", id),
                             output: format!("{}.ans", id),
                             args: item.args.clone(),
@@ -133,7 +133,7 @@ pub struct SingleDataItem {
     pub id: u32,
     pub score: u32,
     #[serde(default)]
-    pub subtest: u32,
+    pub subtask: u32,
     // #[serde(skip)]
     #[serde(
         skip_serializing_if = "Optional::should_skip",
@@ -156,7 +156,7 @@ pub struct BundleDataItem {
     pub id: Vec<i32>,
     pub score: u32,
     #[serde(default)]
-    pub subtest: u32,
+    pub subtask: u32,
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub args: HashMap<String, i64>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -167,7 +167,7 @@ pub struct BundleDataItem {
 pub struct ExpandedDataItem {
     pub id: u32,
     pub score: u32,
-    pub subtest: u32,
+    pub subtask: u32,
     pub input: String,
     pub output: String,
     pub args: HashMap<String, i64>,

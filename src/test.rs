@@ -522,7 +522,7 @@ pub fn main(_: TestArgs) -> Result<()> {
                 fs::remove_file(&src_path)?;
 
                 let mut subtask_scores: HashMap<u32, Vec<u32>> = problem_config
-                    .subtests
+                    .subtasks
                     .keys()
                     .map(|id| (*id, Vec::new()))
                     .collect();
@@ -597,7 +597,7 @@ pub fn main(_: TestArgs) -> Result<()> {
                             _ => 0,
                         };
                         subtask_scores
-                            .get_mut(&case.subtest)
+                            .get_mut(&case.subtask)
                             .context("不存在指定的 Subtask")?
                             .push(earned_score);
 
@@ -631,18 +631,18 @@ pub fn main(_: TestArgs) -> Result<()> {
 
                     case_test_pb.finish_and_clear();
 
-                    for (id, policy) in &problem_config.subtests {
+                    for (id, policy) in &problem_config.subtasks {
                         let scores = &subtask_scores[id];
 
-                        let subtest_score = match policy {
+                        let subtask_score = match policy {
                             ScorePolicy::Sum => scores.iter().sum(),
                             ScorePolicy::Max => *scores.iter().max().unwrap_or(&0),
                             ScorePolicy::Min => *scores.iter().min().unwrap_or(&0),
                         };
 
-                        info!("Subtask #{} 得分 {}", id, subtest_score);
+                        info!("Subtask #{} 得分 {}", id, subtask_score);
 
-                        total_score += subtest_score;
+                        total_score += subtask_score;
                     }
 
                     let problem_result = ProblemTestResult {
