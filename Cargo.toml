@@ -41,6 +41,7 @@ sha2 = "0.10.9"
 shared_child = "1.1.1"
 shellwords = "1.1.0"
 sysinfo = "0.37.2"
+tokio = { version = "1.49.0", features = ["fs", "macros", "process", "rt", "time", "tokio-macros"] }
 
 [build-dependencies]
 ureq = "3.1.4"

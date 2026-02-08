@@ -8,13 +8,10 @@ use colored::Colorize;
 use csv::Writer;
 use evalexpr::eval_boolean;
 use indicatif::ProgressBar;
-use shared_child::SharedChild;
 use std::{
     process::{Command, Stdio},
     str::FromStr,
-    sync::{Arc, Mutex},
-    thread,
-    time::{Duration, Instant},
+    time::Duration,
 };
 use sysinfo::{Pid, ProcessesToUpdate, System};
 
@@ -76,13 +73,14 @@ fn create_or_clear_dir(path: &Path) -> Result<(), std::io::Error> {
 
 fn run_test_case(
     program_path: &Path,
-    problem_name: &String,
+    problem_name: &str,
     input_path: &Path,
     time_limit_ms: u128,
     memory_limit_bytes: u64,
     file_io: bool,
 ) -> Result<TestCaseStatus> {
-    // 复制输入文件
+    use tokio::process::Command;
+    use tokio::time::{Duration, Instant, sleep};
     let program_dir = program_path.parent().unwrap();
     let test_input_path = if file_io {
         program_dir.join(format!("{}.in", problem_name))
@@ -91,83 +89,86 @@ fn run_test_case(
     };
     fs::copy(input_path, &test_input_path)?;
 
-    // 启动程序
-    let child = if file_io {
-        SharedChild::spawn(
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?;
+
+    let result = rt.block_on(async {
+        let mut child = if file_io {
             Command::new(program_path)
                 .current_dir(program_dir)
-                .stdin(Stdio::null())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped()),
-        )?
-    } else {
-        let stdin_file = fs::File::open(&test_input_path)?;
-        let stdout_file = fs::File::create(program_dir.join(format!("{}.stdout", problem_name)))?;
-        SharedChild::spawn(
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped())
+                .spawn()?
+        } else {
+            let stdin_file = std::fs::File::open(&test_input_path)?;
+            let stdout_file =
+                std::fs::File::create(program_dir.join(format!("{}.stdout", problem_name)))?;
+
             Command::new(program_path)
                 .current_dir(program_dir)
                 .stdin(Stdio::from(stdin_file))
                 .stdout(Stdio::from(stdout_file))
-                .stderr(Stdio::piped()),
-        )?
-    };
+                .stderr(std::process::Stdio::piped())
+                .spawn()?
+        };
 
-    let child = Arc::new(child);
-    let child_clone = child.clone();
-    let start = Instant::now();
+        let pid = child.id().unwrap() as u32;
+        let start = Instant::now();
+        let time_limit = Duration::from_millis(time_limit_ms as u64);
+        Ok::<TestCaseStatus, anyhow::Error>(tokio::select! {
+            biased;
 
-    // 用于监控线程和主线程通信的状态
-    let case_status = Arc::new(Mutex::new(TestCaseStatus::Running));
-    let status_clone = case_status.clone();
+            // 内存和超时监控任务
+            _ = async move {
+                let mut sys = System::new();
+                let sys_pid = Pid::from_u32(pid);
 
-    // 启动监控线程
-    let monitor_thread = thread::spawn(move || {
-        let mut sys = System::new();
-        let pid = Pid::from_u32(child_clone.id());
+                loop {
+                    // 定期检查
+                    sleep(Duration::from_millis(10)).await;
 
-        loop {
-            #[cfg(windows)] // or maybe TLE
-            thread::sleep(Duration::from_millis(100));
-            #[cfg(not(windows))]
-            thread::sleep(Duration::from_millis(50));
-            sys.refresh_processes(ProcessesToUpdate::Some(&[pid]), false);
+                    // 检查超时
+                    if start.elapsed() > time_limit {
+                        return;
+                    }
 
-            // 检查时间限制
-            if start.elapsed().as_millis() > time_limit_ms {
-                let _ = child_clone.kill();
-                *status_clone.lock().unwrap() = TestCaseStatus::TLE;
-                break;
+                    // 检查内存
+                    sys.refresh_processes(ProcessesToUpdate::Some(&[sys_pid]), false);
+                    if let Some(process) = sys.process(sys_pid) {
+                        if process.memory() > memory_limit_bytes {
+                            return;
+                        }
+                    } else {
+                        // 进程已结束
+                        return;
+                    }
+                }
+            } => {
+                // 内存超限或超时
+                let _ = child.kill().await;
+
+                // 需要区分是超时还是MLE
+                if start.elapsed() > time_limit {
+                    TestCaseStatus::TLE
+                } else {
+                    TestCaseStatus::MLE
+                }
             }
 
-            // 检查内存限制
-            if let Some(process) = sys.process(pid)
-                && process.memory() > memory_limit_bytes
-            {
-                let _ = child_clone.kill();
-                *status_clone.lock().unwrap() = TestCaseStatus::MLE;
-                break;
+            // 等待进程结束
+            exit_status = child.wait() => {
+                match exit_status {
+                    Ok(status) if status.success() => TestCaseStatus::AC,
+                    Ok(_) => TestCaseStatus::RE,
+                    Err(_) => TestCaseStatus::RE,
+                }
             }
+        })
+    })?;
 
-            // 检查进程是否已退出
-            if sys.process(pid).is_none() {
-                break;
-            }
-        }
-    });
-
-    // 等待程序结束
-    let run_status = child.wait()?;
-    monitor_thread.join().unwrap();
-
-    // 获取最终状态
-    let mut final_status = *case_status.lock().unwrap();
-
-    // 如果监控线程没有标记超限，但程序运行失败，则标记为RE
-    if final_status == TestCaseStatus::Running && !run_status.success() {
-        final_status = TestCaseStatus::RE;
-    }
-
-    Ok(final_status)
+    Ok(result)
 }
 
 fn validate_output(
