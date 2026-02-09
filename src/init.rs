@@ -7,7 +7,6 @@ use log4rs::{
     config::{Appender, Config, Root},
     encode::pattern::PatternEncoder,
 };
-use std::env;
 
 use crate::{config::load_config, context};
 use chrono::Local;

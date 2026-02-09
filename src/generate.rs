@@ -13,6 +13,7 @@ use clap::Subcommand;
 use clap_complete::Shell;
 use dialoguer::Select;
 use dialoguer::theme::ColorfulTheme;
+use indexmap::IndexMap;
 use natord::compare;
 use regex::Regex;
 use std::io;
@@ -506,7 +507,7 @@ fn gen_code(args: GenConfirmArgs) -> Result<()> {
                 )
             });
 
-            let mut tests = HashMap::<String, TestCase>::new();
+            let mut tests = IndexMap::<String, TestCase>::new();
 
             for (path, is_std) in codes {
                 let name = if is_std {

@@ -2,12 +2,15 @@ use crate::config::ScorePolicy;
 use crate::prelude::*;
 use crate::test::checker::parse_result;
 use crate::utils::compile::build_compile_cmd;
+use crate::utils::compile::build_run_cmd;
 use bytesize::ByteSize;
 use clap::Args;
 use colored::Colorize;
 use csv::Writer;
 use evalexpr::eval_boolean;
 use indicatif::ProgressBar;
+use std::cmp::max;
+use std::sync::{Arc, Mutex};
 use std::{
     process::{Command, Stdio},
     str::FromStr,
@@ -17,7 +20,7 @@ use sysinfo::{Pid, ProcessesToUpdate, System};
 
 pub mod checker;
 
-// **注意**：这**不是**用于测试这个程序的测试用例的命令
+// *注意*：这*不是*用于测试这个程序的测试用例的命令
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum ProblemStatus {
     Waiting,
@@ -49,6 +52,8 @@ pub struct IndividualTestCaseResult {
     pub status: TestCaseStatus,
     pub score: u32,
     pub max_score: u32,
+    pub time: String,
+    pub memory: String,
 }
 
 // 记录题目测试结果
@@ -72,13 +77,14 @@ fn create_or_clear_dir(path: &Path) -> Result<(), std::io::Error> {
 }
 
 fn run_test_case(
+    src_path: &Path,
     program_path: &Path,
     problem_name: &str,
     input_path: &Path,
     time_limit_ms: u128,
     memory_limit_bytes: u64,
     file_io: bool,
-) -> Result<TestCaseStatus> {
+) -> Result<(TestCaseStatus, Option<Duration>, Option<ByteSize>)> {
     use tokio::process::Command;
     use tokio::time::{Duration, Instant, sleep};
     let program_dir = program_path.parent().unwrap();
@@ -93,21 +99,24 @@ fn run_test_case(
         .enable_all()
         .build()?;
 
+    let mut cmd = match build_run_cmd(src_path, program_dir, problem_name)? {
+        Some(cmd) => tokio::process::Command::from(cmd),
+        None => Command::new(program_path),
+    };
+
     let result = rt.block_on(async {
         let mut child = if file_io {
-            Command::new(program_path)
-                .current_dir(program_dir)
-                .stdin(std::process::Stdio::null())
-                .stdout(std::process::Stdio::piped())
-                .stderr(std::process::Stdio::piped())
+            cmd.current_dir(program_dir)
+                .stdin(Stdio::null())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
                 .spawn()?
         } else {
             let stdin_file = std::fs::File::open(&test_input_path)?;
             let stdout_file =
                 std::fs::File::create(program_dir.join(format!("{}.stdout", problem_name)))?;
 
-            Command::new(program_path)
-                .current_dir(program_dir)
+            cmd.current_dir(program_dir)
                 .stdin(Stdio::from(stdin_file))
                 .stdout(Stdio::from(stdout_file))
                 .stderr(std::process::Stdio::piped())
@@ -117,7 +126,12 @@ fn run_test_case(
         let pid = child.id().unwrap() as u32;
         let start = Instant::now();
         let time_limit = Duration::from_millis(time_limit_ms as u64);
-        Ok::<TestCaseStatus, anyhow::Error>(tokio::select! {
+
+        // 使用 Arc 和 Mutex 来在线程间共享内存使用数据
+        let peak_memory = Arc::new(Mutex::new(0u64));
+        let monitoring_peak_memory = Arc::clone(&peak_memory);
+
+        Ok::<(TestCaseStatus, Option<Duration>, Option<ByteSize>), anyhow::Error>(tokio::select! {
             biased;
 
             // 内存和超时监控任务
@@ -130,14 +144,18 @@ fn run_test_case(
                     sleep(Duration::from_millis(10)).await;
 
                     // 检查超时
-                    if start.elapsed() > time_limit {
+                    if start.elapsed() > time_limit+Duration::from_millis(200) {
                         return;
                     }
 
                     // 检查内存
                     sys.refresh_processes(ProcessesToUpdate::Some(&[sys_pid]), false);
                     if let Some(process) = sys.process(sys_pid) {
-                        if process.memory() > memory_limit_bytes {
+                        let memory = process.memory();
+                        let mut peak = monitoring_peak_memory.lock().unwrap();
+
+                        *peak = max(*peak,memory);
+                        if memory > memory_limit_bytes {
                             return;
                         }
                     } else {
@@ -149,20 +167,40 @@ fn run_test_case(
                 // 内存超限或超时
                 let _ = child.kill().await;
 
+                // 获取记录的峰值内存
+                let final_peak = *peak_memory.lock().unwrap();
+
                 // 需要区分是超时还是MLE
                 if start.elapsed() > time_limit {
-                    TestCaseStatus::TLE
+                    info!("测试点超时");
+                    (TestCaseStatus::TLE,None,None)
                 } else {
-                    TestCaseStatus::MLE
+                    info!("测试点内存超限，峰值内存: {} bytes", ByteSize(final_peak));
+                    (TestCaseStatus::MLE,None,None)
                 }
             }
 
             // 等待进程结束
             exit_status = child.wait() => {
+                let elapsed_time = start.elapsed();
+
+                // 获取记录的峰值内存
+                let final_peak = *peak_memory.lock().unwrap();
+
+                // 记录时间和内存使用情况到日志
+                info!("测试点运行完成，使用时间: {:?}, 峰值内存: {}", elapsed_time, ByteSize(final_peak));
+
                 match exit_status {
-                    Ok(status) if status.success() => TestCaseStatus::AC,
-                    Ok(_) => TestCaseStatus::RE,
-                    Err(_) => TestCaseStatus::RE,
+                    Ok(status) if status.success() => {
+                        (TestCaseStatus::Running,Some(elapsed_time),Some(ByteSize(final_peak)))
+                    },
+                    Ok(_) => {
+                        (TestCaseStatus::RE,Some(elapsed_time),Some(ByteSize(final_peak)))
+                    },
+                    Err(e) => {
+                        error!("测试点运行出现内部错误: {}", e);
+                        (TestCaseStatus::UKE,None,None)
+                    },
                 }
             }
         })
@@ -275,7 +313,15 @@ fn write_results_to_csv(results: Vec<ProblemTestResult>, problem_path: &Path) ->
 
     let mut wtr = Writer::from_path(&csv_path)?;
 
-    wtr.write_record(["测试者", "测试点ID", "状态", "得分", "最高分"])?;
+    wtr.write_record([
+        "测试者",
+        "测试点ID",
+        "状态",
+        "得分",
+        "最高分",
+        "时间",
+        "空间",
+    ])?;
 
     // 写入所有测试者的结果
     for result in &results {
@@ -287,6 +333,8 @@ fn write_results_to_csv(results: Vec<ProblemTestResult>, problem_path: &Path) ->
                 format!("{:?}", test_case_result.status),
                 test_case_result.score.to_string(),
                 test_case_result.max_score.to_string(),
+                test_case_result.time.clone(),
+                test_case_result.memory.clone(),
             ])?;
         }
 
@@ -297,6 +345,8 @@ fn write_results_to_csv(results: Vec<ProblemTestResult>, problem_path: &Path) ->
             "TOTAL".to_string(),                   // 状态
             result.total_score.to_string(),        // 得分
             result.max_possible_score.to_string(), // 最高分
+            "".to_string(),
+            "".to_string(),
         ])?;
     }
 
@@ -496,27 +546,14 @@ pub fn main(_: TestArgs) -> Result<()> {
                 {
                     problem_status = ProblemStatus::Compiling;
                 }
-                info!("正在编译...");
 
-                let target_path = tmp_dir
-                    .join(&problem_config.name)
-                    .with_extension(std::env::consts::EXE_EXTENSION);
-
-                let compile_args = day_config.compile.clone();
-
-                let compile_status = build_compile_cmd(&src_path, &target_path, &compile_args)?
-                    .current_dir(&tmp_dir)
-                    .stdout(Stdio::null())
-                    .stderr(Stdio::null())
-                    .status()?;
-
-                if compile_status.success() {
-                    problem_status = ProblemStatus::Compiled;
-                    info!("编译成功");
-                } else {
-                    problem_status = ProblemStatus::CE;
-                    info!("编译错误");
-                }
+                compile(
+                    day_config,
+                    problem_config,
+                    &mut problem_status,
+                    &tmp_dir,
+                    &src_path,
+                )?;
 
                 let mut total_score: u32 = 0;
 
@@ -557,6 +594,7 @@ pub fn main(_: TestArgs) -> Result<()> {
                         info!("运行测试点: {}", case.id);
 
                         let run_result = run_test_case(
+                            &src_path,
                             &program_path,
                             &problem_config.name,
                             &input_path,
@@ -573,7 +611,7 @@ pub fn main(_: TestArgs) -> Result<()> {
                             problem_config.file_io.unwrap_or(true),
                         )?;
 
-                        let case_status = match run_result {
+                        let case_status = match run_result.0 {
                             TestCaseStatus::Running => validate_output(
                                 &tmp_dir,
                                 &problem_config.name,
@@ -607,6 +645,14 @@ pub fn main(_: TestArgs) -> Result<()> {
                             status: case_status,
                             score: earned_score,
                             max_score: case.score,
+                            time: match run_result.1 {
+                                Some(duration) => format!("{:?}", duration),
+                                None => "N/A".to_string(),
+                            },
+                            memory: match run_result.2 {
+                                Some(memory) => format!("{}", memory),
+                                None => "N/A".to_string(),
+                            },
                         });
 
                         let status_str = match case_status {
@@ -616,7 +662,7 @@ pub fn main(_: TestArgs) -> Result<()> {
                             TestCaseStatus::MLE => "MLE".blue(),
                             TestCaseStatus::RE => "RE".bright_blue(),
                             TestCaseStatus::UKE => "UKE".bright_black(),
-                            TestCaseStatus::Running => "Running".yellow(),
+                            TestCaseStatus::Running => unreachable!(),
                             TestCaseStatus::CE => "CE".yellow(),
                             TestCaseStatus::PC(score) => format!("PC {:.2} / 100", score).yellow(),
                         };
@@ -662,6 +708,8 @@ pub fn main(_: TestArgs) -> Result<()> {
                             status: TestCaseStatus::CE,
                             score: 0,
                             max_score: problem_config.data.iter().map(|case| case.score).sum(),
+                            time: "N/A".to_string(),
+                            memory: "N/A".to_string(),
                         }],
                         total_score: 0,
                         max_possible_score: problem_config.data.iter().map(|case| case.score).sum(),
@@ -723,4 +771,53 @@ pub fn main(_: TestArgs) -> Result<()> {
     }
 
     Ok(())
+}
+
+fn compile(
+    day_config: &ContestDayConfig,
+    problem_config: &ProblemConfig,
+    problem_status: &mut ProblemStatus,
+    tmp_dir: &PathBuf,
+    src_path: &PathBuf,
+) -> Result<()> {
+    info!("正在编译...");
+    let target_path = tmp_dir;
+    let program_name = problem_config.name.clone();
+    // .join(&problem_config.name)
+    // .with_extension(std::env::consts::EXE_EXTENSION);
+    let compile_args = day_config.compile.clone();
+    let compile_cmd = build_compile_cmd(src_path, target_path, &program_name, &compile_args)?;
+    if let Some(mut cmd) = compile_cmd {
+        let compile_status = cmd
+            .current_dir(tmp_dir)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()?;
+        if compile_status.success() {
+            *problem_status = ProblemStatus::Compiled;
+            info!("编译成功");
+        } else {
+            *problem_status = ProblemStatus::CE;
+            info!("编译错误");
+        }
+        Ok(())
+    } else {
+        // 该语言无须编译
+        match fs::copy(
+            src_path,
+            target_path
+                .join(problem_config.name.clone())
+                .with_extension(src_path.extension().unwrap()),
+        ) {
+            Ok(_) => {
+                *problem_status = ProblemStatus::Compiled;
+                info!("编译成功");
+            }
+            Err(_) => {
+                *problem_status = ProblemStatus::CE;
+                info!("编译错误");
+            }
+        };
+        Ok(())
+    }
 }

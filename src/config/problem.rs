@@ -1,5 +1,6 @@
 use crate::prelude::*;
 use crate::utils::optional::Optional;
+use indexmap::IndexMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -26,8 +27,8 @@ pub struct ProblemConfig {
     #[serde(default)]
     pub subtasks: BTreeMap<u32, ScorePolicy>,
     // pub pretest: Vec<PreItem>,
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub tests: HashMap<String, TestCase>,
+    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    pub tests: IndexMap<String, TestCase>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub use_chk: Option<bool>,
 

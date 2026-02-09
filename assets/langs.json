@@ -1,26 +1,47 @@
 {
-    "c": {
-        "language": "C",
-        "compiler": {
-            "executable": "gcc",
-            "version_check": "--version",
-            "object_set_arg": "-o"
-        }
-    },
     "cpp": {
         "language": "C++",
         "compiler": {
             "executable": "g++",
-            "version_check": "--version",
-            "object_set_arg": "-o"
+            "check": "{executable} --version",
+            "run": "{executable} -o {output_path}/{program_name}{exe_suffix} {args} {input_path}"
+        }
+    },
+    "c": {
+        "language": "C",
+        "compiler": {
+            "executable": "gcc",
+            "check": "{executable} --version",
+            "run": "{executable} -o {output_path}/{program_name}{exe_suffix} {args} {input_path}"
         }
     },
     "rs": {
         "language": "Rust",
         "compiler": {
             "executable": "rustc",
-            "version_check": "--version",
-            "object_set_arg": "-o"
+            "check": "{executable} --version",
+            "run": "{executable} -o {output_path}/{program_name}{exe_suffix} {args} {input_path}"
+        }
+    },
+    "py": {
+        "language": "Python",
+        "runner": {
+            "executable": "python3",
+            "check": "{executable} --version",
+            "run": "{executable} {input_path}/{program_name}.py"
+        }
+    },
+    "java": {
+        "language": "Java",
+        "compiler": {
+            "executable": "javac",
+            "check": "{executable} --version",
+            "run": "{executable} {input_path} {args} -d {output_path}"
+        },
+        "runner": {
+            "executable": "java",
+            "check": "{executable} --version",
+            "run": "{executable} Main"
         }
     }
 }
