@@ -113,6 +113,7 @@ fn init_context(multi: MultiProgress) -> Result<()> {
         PathBuf::from("/usr/share/tuack-ng/"),
         #[cfg(windows)]
         {
+            use std::env;
             let exe_path = env::current_exe().expect("Failed to get executable path");
             exe_path.parent().unwrap().join("assets")
         },
