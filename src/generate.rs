@@ -23,7 +23,7 @@ const CONFIG_FILE_NAME: &str = "conf.json";
 #[derive(Debug, Clone, Subcommand)]
 #[command(version)]
 #[command(infer_subcommands = false)]
-enum Targets {
+pub enum Targets {
     /// 生成竞赛文件夹
     #[command(version, aliases = ["n"])]
     Contest(GenStatementArgs),
@@ -85,7 +85,7 @@ pub struct GenCompleteArgs {
 pub struct GenArgs {
     /// 生成的对象
     #[command(subcommand)]
-    target: Targets,
+    pub target: Targets,
 }
 
 fn gen_contest(args: GenStatementArgs) -> Result<()> {

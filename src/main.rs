@@ -46,32 +46,39 @@ enum Commands {
     Dmk(DmkArgs),
 }
 
-fn main() -> Result<()> {
-    let cli = Cli::parse_i18n_or_exit();
+fn tuack_ng(cli: Cli) -> Result<()> {
+    // 生成补全文件时，有可能还没有全局配置文件亦或者不合法，所以可能会失败
+    // 因此，跳过初始化逻辑
+    if !matches!(cli.command, Commands::Gen(ref args)
+       if matches!(args.target, crate::generate::Targets::Complete(_)))
+    {
+        init::init(&(cli.verbose >= 1))?;
+        info!("booting up");
+    }
 
-    init::init(&(cli.verbose >= 1))?;
-
-    info!("booting up");
-
-    #[cfg(debug_assertions)]
     match cli.command {
         Commands::Ren(args) => ren::main(args),
         Commands::Gen(args) => generate::main(args),
         Commands::Test(args) => test::main(args),
         Commands::Conf(args) => conf::main(args),
         Commands::Dmk(args) => dmk::main(args),
-    }?;
-    #[cfg(not(debug_assertions))]
-    {
-        let result = match cli.command {
-            Commands::Ren(args) => ren::main(args),
-            Commands::Gen(args) => generate::main(args),
-            Commands::Test(args) => test::main(args),
-            Commands::Conf(args) => conf::main(args),
-            Commands::Dmk(args) => dmk::main(args),
-        };
+    }
+}
+
+fn main() -> Result<()> {
+    let cli = Cli::parse_i18n_or_exit();
+
+    let result = tuack_ng(cli);
+
+    if cfg!(debug_assertions) {
+        result?;
+    } else {
         if let Err(e) = result {
-            log::error!("程序执行出错: {:#}", e);
+            if log::max_level() == log::LevelFilter::Off {
+                eprintln!("程序执行出错: {:#}", e);
+            } else {
+                log::error!("程序执行出错: {:#}", e);
+            }
             std::process::exit(1);
         }
     }
