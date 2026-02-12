@@ -363,7 +363,7 @@ fn gen_data(args: GenConfirmArgs) -> Result<()> {
 
             let mut now_problem = load_problem_config(&problem.path.join(CONFIG_FILE_NAME))?;
             now_problem.orig_data = datas;
-            now_problem.subtasks = subtasks;
+            now_problem.orig_subtasks = subtasks;
 
             let updated_content = save_problem_config(&now_problem)?;
             fs::write(problem.path.join(CONFIG_FILE_NAME), updated_content)?;

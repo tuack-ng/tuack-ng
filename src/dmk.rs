@@ -10,6 +10,7 @@ use rand::Rng;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt;
 use std::process::{Command, Stdio};
+use std::sync::Arc;
 use std::time::Duration;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
@@ -159,29 +160,31 @@ fn gen_data(
     result1?;
     result2?;
 
-    let data_items: Vec<ExpandedDataItem> = match args.target {
+    let data_items: Vec<Arc<ExpandedDataItem>> = match args.target {
         Target::Data => current_problem.data.to_vec(),
         Target::Sample => current_problem
             .samples
             .iter()
-            .map(|item| ExpandedDataItem {
-                id: item.id,
-                score: 0,
-                subtask: 0,
-                input: item.input.get().unwrap().clone(),
-                output: item.output.get().unwrap().clone(),
-                args: item.args.clone(),
-                manual: item.manual.unwrap_or(false),
+            .map(|item| {
+                Arc::new(ExpandedDataItem {
+                    id: item.id,
+                    score: 0,
+                    subtask: 0,
+                    input: item.input.get().unwrap().clone(),
+                    output: item.output.get().unwrap().clone(),
+                    args: item.args.clone(),
+                    manual: item.manual.unwrap_or(false),
+                })
             })
             .collect(),
     };
 
-    let data_items: Vec<ExpandedDataItem> =
+    let data_items: Vec<Arc<ExpandedDataItem>> =
         data_items.into_iter().filter(|item| !item.manual).collect();
 
     let all_ids: Vec<u32> = data_items.iter().map(|data| data.id).collect();
     let target_ids = parse_test_object(&args.object, &all_ids)?;
-    let data_items_to_gen: Vec<ExpandedDataItem> = data_items
+    let data_items_to_gen: Vec<Arc<ExpandedDataItem>> = data_items
         .into_iter()
         .filter(|item| target_ids.contains(&item.id))
         .collect();
@@ -376,7 +379,7 @@ fn create_or_clear_dir(path: &std::path::Path) -> Result<(), std::io::Error> {
 fn get_or_generate_seed(
     target_dir: &std::path::Path,
     force: bool,
-    data: &[ExpandedDataItem],
+    data: &[Arc<ExpandedDataItem>],
 ) -> Result<BTreeMap<u32, u64>> {
     let mut rng = gen_rnd()?;
     let mut seeds: BTreeMap<u32, u64> = BTreeMap::new();

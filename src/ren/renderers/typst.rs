@@ -146,22 +146,15 @@ impl TypstCompiler {
                 dir: problem_config.name.clone(), // 假设目录名就是问题名
                 exec: problem_config.name.clone(), // 默认值，你可能需要从配置文件读取
                 input: problem_config.name.clone() + ".in",
-                output: problem_config.name.clone() + ".ans", // 改为使用 .ans 后缀
-                problem_type: match problem_config.problem_type.as_str() {
-                    "program" => "传统型",
-                    "output" => "提交答案型",
-                    "interactive" => "交互型",
-                    _ => {
-                        warn!(
-                            "未知的题目类型 {} , 使用默认值: 传统型",
-                            problem_config.problem_type
-                        );
-                        "传统型"
-                    }
+                output: problem_config.name.clone() + ".out",
+                problem_type: match problem_config.problem_type {
+                    ProblemType::Program => "传统型",
+                    ProblemType::Output => "提交答案型",
+                    ProblemType::Interactive => "交互型",
                 }
                 .to_string(),
                 time_limit: format!("{:.1} 秒", problem_config.time_limit),
-                memory_limit: problem_config.memory_limit.clone(),
+                memory_limit: format!("{:.0}", problem_config.memory_limit),
                 testcase: problem_config.data.len().to_string(),
                 point_equal,
                 submit_filename: submit_filenames,

@@ -599,15 +599,7 @@ pub fn main(_: TestArgs) -> Result<()> {
                             &problem_config.name,
                             &input_path,
                             (problem_config.time_limit * 1000.0) as u128,
-                            ByteSize::from_str(&problem_config.memory_limit)
-                                .unwrap_or_else(|e| {
-                                    warn!(
-                                        "空间限制东西字符串转换失败: {}, 使用 512 MiB 作为默认值",
-                                        e
-                                    );
-                                    ByteSize::mib(512)
-                                })
-                                .as_u64(),
+                            problem_config.memory_limit.as_u64(),
                             problem_config.file_io.unwrap_or(true),
                         )?;
 
@@ -678,16 +670,19 @@ pub fn main(_: TestArgs) -> Result<()> {
 
                     case_test_pb.finish_and_clear();
 
-                    for (id, policy) in &problem_config.subtasks {
+                    for (id, subtask) in &problem_config.subtasks {
                         let scores = &subtask_scores[id];
 
-                        let subtask_score = match policy {
+                        let subtask_score = match subtask.policy {
                             ScorePolicy::Sum => scores.iter().sum(),
                             ScorePolicy::Max => *scores.iter().max().unwrap_or(&0),
                             ScorePolicy::Min => *scores.iter().min().unwrap_or(&0),
                         };
 
-                        info!("Subtask #{} 得分 {}", id, subtask_score);
+                        info!(
+                            "Subtask #{} 得分 {}/{}",
+                            id, subtask_score, subtask.max_score
+                        );
 
                         total_score += subtask_score;
                     }
@@ -696,7 +691,11 @@ pub fn main(_: TestArgs) -> Result<()> {
                         tester_name: test_name.to_string(),
                         test_case_results: individual_results,
                         total_score,
-                        max_possible_score: problem_config.data.iter().map(|case| case.score).sum(),
+                        max_possible_score: problem_config
+                            .subtasks
+                            .iter()
+                            .map(|task| task.1.max_score)
+                            .sum(),
                     };
 
                     all_test_results.push(problem_result);
