@@ -82,15 +82,20 @@ fn compile_cpp_if_needed(cpp_file: &Path) {
     if need_compile {
         println!("cargo:warning=Compiling: {}", cpp_file.display());
 
-        let status = Command::new("g++")
-            .current_dir(cpp_file.parent().unwrap())
+        let mut cmd = Command::new("g++");
+        cmd.current_dir(cpp_file.parent().unwrap())
             .arg("-std=c++17")
             .arg("-O2")
             .arg(cpp_file.file_name().unwrap())
             .arg("-o")
-            .arg(exe_name.to_string())
-            .arg("-static")
-            .status();
+            .arg(exe_name.to_string());
+
+        #[cfg(feature = "static-checkers")]
+        {
+            cmd.arg("-static");
+        }
+
+        let status = cmd.status();
 
         if let Ok(status) = status {
             if !status.success() {

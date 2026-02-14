@@ -44,6 +44,11 @@ strfmt = "0.2.5"
 sysinfo = "0.37.2"
 tokio = { version = "1.49.0", features = ["fs", "macros", "process", "rt", "sync", "time", "tokio-macros"] }
 
+[features]
+default = ["static-checkers"] # we will close it in nix
+static-checkers = []
+nix = []
+
 [build-dependencies]
 ureq = "3.1.4"
 
