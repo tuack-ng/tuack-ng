@@ -1,5 +1,6 @@
 use crate::conf::ConfArgs;
 use crate::dmk::DmkArgs;
+use crate::dump::DumpArgs;
 use crate::generate::GenArgs;
 use crate::prelude::*;
 use crate::ren::RenArgs;
@@ -7,12 +8,12 @@ use crate::test::TestArgs;
 use clap::ArgAction;
 use clap::{Parser, Subcommand};
 use clap_i18n_richformatter::clap_i18n;
-use log::info;
 
 mod conf;
 mod config;
 mod context;
 mod dmk;
+mod dump;
 mod generate;
 mod init;
 mod prelude;
@@ -44,6 +45,8 @@ enum Commands {
     Conf(ConfArgs),
     /// 生成数据
     Dmk(DmkArgs),
+    /// 导出到评测系统
+    Dump(DumpArgs),
 }
 
 fn tuack_ng(cli: Cli) -> Result<()> {
@@ -62,6 +65,7 @@ fn tuack_ng(cli: Cli) -> Result<()> {
         Commands::Test(args) => test::main(args),
         Commands::Conf(args) => conf::main(args),
         Commands::Dmk(args) => dmk::main(args),
+        Commands::Dump(args) => dump::main(args),
     }
 }
 
