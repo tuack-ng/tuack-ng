@@ -605,5 +605,5 @@ fn find_in_scaffold(name: &str, is_dir: bool) -> Result<PathBuf> {
     }
 
     let item_type = if is_dir { "目录" } else { "文件" };
-    Err(anyhow!("找不到scaffold/{} {}", name, item_type))
+    bail!("找不到scaffold/{} {}", name, item_type);
 }

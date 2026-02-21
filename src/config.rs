@@ -30,7 +30,7 @@ fn find_contest_config(start_path: &Path) -> Result<PathBuf> {
     }
 
     info!("未找到contest配置文件");
-    Err(anyhow::anyhow!("未找到contest配置文件"))
+    bail!("未找到contest配置文件");
 }
 
 fn is_contest_config(path: &Path) -> Result<bool> {
@@ -127,7 +127,7 @@ pub fn load_config(path: &Path) -> Result<Option<(ContestConfig, CurrentLocation
 pub fn save_config(config: &ContestConfig, base_path: &Path) -> Result<()> {
     // 检查基础目录是否存在
     if !base_path.exists() {
-        return Err(anyhow!("基础目录 {} 不存在", base_path.display()));
+        bail!("基础目录 {} 不存在", base_path.display());
     }
 
     // 保存主配置文件（排除null字段）
@@ -138,10 +138,7 @@ pub fn save_config(config: &ContestConfig, base_path: &Path) -> Result<()> {
     // 保存每个比赛日的配置
     for (day_index, (day_name, day_config)) in config.subconfig.iter().enumerate() {
         if config.subdir.len() <= day_index {
-            return Err(anyhow!(
-                "子目录名称不足，无法保存第{}个比赛日配置",
-                day_index
-            ));
+            bail!("子目录名称不足，无法保存第{}个比赛日配置", day_index);
         }
 
         let day_name = &config.subdir[day_index];
@@ -149,7 +146,7 @@ pub fn save_config(config: &ContestConfig, base_path: &Path) -> Result<()> {
 
         // 检查比赛日目录是否存在
         if !day_path.exists() {
-            return Err(anyhow!("比赛日目录 {} 不存在", day_path.display()));
+            bail!("比赛日目录 {} 不存在", day_path.display());
         }
 
         let day_config_path = day_path.join(CONFIG_FILE_NAME);
@@ -159,10 +156,7 @@ pub fn save_config(config: &ContestConfig, base_path: &Path) -> Result<()> {
         // 保存每个题目的配置
         for (problem_index, problem_config) in day_config.subconfig.iter().enumerate() {
             if day_config.subdir.len() <= problem_index {
-                return Err(anyhow!(
-                    "子目录名称不足，无法保存第{}个题目配置",
-                    problem_index
-                ));
+                bail!("子目录名称不足，无法保存第{}个题目配置", problem_index);
             }
 
             let problem_name = &day_config.subdir[problem_index];
@@ -170,7 +164,7 @@ pub fn save_config(config: &ContestConfig, base_path: &Path) -> Result<()> {
 
             // 检查题目目录是否存在
             if !problem_path.exists() {
-                return Err(anyhow!("题目目录 {} 不存在", problem_path.display()));
+                bail!("题目目录 {} 不存在", problem_path.display());
             }
 
             let problem_config_path = problem_path.join(CONFIG_FILE_NAME);

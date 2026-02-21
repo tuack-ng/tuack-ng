@@ -76,15 +76,13 @@ fn main() -> Result<()> {
 
     if cfg!(debug_assertions) {
         result?;
-    } else {
-        if let Err(e) = result {
-            if log::max_level() == log::LevelFilter::Off {
-                eprintln!("程序执行出错: {:#}", e);
-            } else {
-                log::error!("程序执行出错: {:#}", e);
-            }
-            std::process::exit(1);
+    } else if let Err(e) = result {
+        if log::max_level() == log::LevelFilter::Off {
+            eprintln!("程序执行出错: {:#}", e);
+        } else {
+            log::error!("程序执行出错: {:#}", e);
         }
+        std::process::exit(1);
     }
     Ok(())
 }

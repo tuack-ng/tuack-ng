@@ -10,26 +10,26 @@ pub fn main(day: &ContestDayConfig) -> Result<()> {
         fs::remove_dir_all(&output_dir)?;
     }
     fs::create_dir(&output_dir)?;
-    fs::create_dir(&output_dir.join("data"))?;
+    fs::create_dir(output_dir.join("data"))?;
 
     let mut prob_jsons: Vec<Value> = Vec::new();
 
     for (_, prob) in &day.subconfig {
-        fs::create_dir(&output_dir.join("data").join(&prob.name))?;
+        fs::create_dir(output_dir.join("data").join(&prob.name))?;
         let mut cases: Vec<Value> = Vec::new();
 
         // 拷贝数据
         for case in &prob.data {
             fs::copy(
                 prob.path.join("data").join(&case.input),
-                &output_dir
+                output_dir
                     .join("data")
                     .join(&prob.name)
                     .join(prob.name.clone() + &case.id.to_string() + ".in"),
             )?;
             fs::copy(
                 prob.path.join("data").join(&case.output),
-                &output_dir
+                output_dir
                     .join("data")
                     .join(&prob.name)
                     .join(prob.name.clone() + &case.id.to_string() + ".ans"),
@@ -37,7 +37,7 @@ pub fn main(day: &ContestDayConfig) -> Result<()> {
         }
 
         // 处理配置文件
-        for (_, task) in &prob.subtasks {
+        for task in prob.subtasks.values() {
             match task.policy {
                 ScorePolicy::Sum => {
                     for case in &task.items {
@@ -103,7 +103,7 @@ pub fn main(day: &ContestDayConfig) -> Result<()> {
             let compile_status = Command::new("g++")
                 .arg("-o")
                 .arg(
-                    &output_dir
+                    output_dir
                         .join("data")
                         .join(&prob.name)
                         .join("chk")
@@ -122,7 +122,7 @@ pub fn main(day: &ContestDayConfig) -> Result<()> {
         // 组装这道题的 JSON
         let mut compilers: Map<String, Value> = Map::new();
 
-        for (lang, _) in &day.compile {
+        for lang in day.compile.keys() {
             compilers.insert(
                 match lang.as_str() {
                     "cpp" => "g++",
@@ -172,7 +172,7 @@ pub fn main(day: &ContestDayConfig) -> Result<()> {
     fs::write(cdf_file, serde_json::to_string_pretty(&day_cdf)?)?;
 
     warn!("受 Lemon 限制，您需要手动调整编译选项。");
-    warn!("目前设置是默认 (default)，如需要请自行修改。");
+    warn!("目前设置是默认(default)，如需要请自行修改。");
 
     Ok(())
 }
