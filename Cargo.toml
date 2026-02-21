@@ -9,7 +9,6 @@ license = "AGPL-3.0-or-later"
 
 [dependencies]
 anyhow = {version = "1.0.100", features = ["backtrace"]}
-bytes = "1.11.0"
 bytesize = { version = "2.3.1", features = ["serde"] }
 chrono = "0.4.42"
 clap = { version = "4.5.53", features = ["cargo", "derive"] }
@@ -38,14 +37,10 @@ regex = "1.12.2"
 serde = "1.0.228"
 serde_json = { version = "1.0.145", features = ["preserve_order"] }
 sha2 = "0.10.9"
-shared_child = "1.1.1"
 shellwords = "1.1.0"
 strfmt = "0.2.5"
 sysinfo = "0.37.2"
 tokio = { version = "1.49.0", features = ["fs", "macros", "process", "rt", "sync", "time", "tokio-macros"] }
-
-[build-dependencies]
-ureq = "3.1.4"
 
 [profile.release]
 opt-level = 3
