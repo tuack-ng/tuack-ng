@@ -111,11 +111,12 @@ fn init_context(multi: MultiProgress) -> Result<()> {
         // 系统目录
         #[cfg(not(windows))]
         {
+            // Nix 下, 使用相对路径探测
             #[cfg(feature = "nix")]
-            let path = PathBuf::from(
-                env!("out", "$out should be set when building by Nix").to_owned()
-                    + "/share/tuack-ng/",
-            );
+            let path = std::env::current_exe()
+                .ok()
+                .and_then(|p| p.parent()?.parent()?.join("share/tuack-ng").into())
+                .context("找不到资源")?;
 
             #[cfg(not(feature = "nix"))]
             let path = PathBuf::from("/usr/share/tuack-ng/");

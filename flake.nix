@@ -5,10 +5,7 @@
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
     rust-overlay.url = "github:oxalica/rust-overlay";
-
-    crane = {
-      url = "github:ipetkov/crane";
-    };
+    crane.url = "github:ipetkov/crane";
 
     templates-src = {
       url = "github:tuack-ng/templates";
@@ -50,23 +47,28 @@
 
         # 编译 checkers
         checkers =
-          pkgs.runCommand "build-checkers"
+          pkgs.runCommand "tuack-ng-checkers"
             {
-              buildInputs = [ pkgs.gcc ];
+              nativeBuildInputs = [
+                pkgs.stdenv.cc
+                pkgs.testlib
+              ];
             }
             ''
+              set -e
+
               mkdir -p $out/share/tuack-ng/checkers
 
               # 编译所有 cpp 文件
               for f in ${./assets/checkers}/*.cpp; do
                 name=$(basename $f .cpp)
-                ${pkgs.gcc}/bin/g++ -std=c++17 -O2 -I${pkgs.testlib}/include/testlib $f -o $out/share/tuack-ng/checkers/$name
+                $CXX -std=c++17 -O2 -I${pkgs.testlib}/include/testlib $f -o $out/share/tuack-ng/checkers/$name
                 cp $f $out/share/tuack-ng/checkers/
               done
             '';
 
         # 准备 templates
-        templates = pkgs.runCommand "prepare-templates" { } ''
+        templates = pkgs.runCommand "tuack-ng-templates" { } ''
           mkdir -p $out/share/tuack-ng/templates
           cp -r ${templates-src}/* $out/share/tuack-ng/templates/
         '';
@@ -74,13 +76,13 @@
         assets = pkgs.symlinkJoin {
           name = "tuack-ng-assets";
           paths = [
-            (pkgs.runCommand "testlib-only" { } ''
+            (pkgs.runCommand "tuack-ng-testlib" { } ''
               mkdir -p $out/share/tuack-ng/checkers
               ln -s ${pkgs.testlib}/include/testlib/testlib.h $out/share/tuack-ng/checkers/testlib.h
             '')
             checkers
             templates
-            (pkgs.runCommand "others-assets" { } ''
+            (pkgs.runCommand "tuack-ng-assets" { } ''
               mkdir -p $out/share/tuack-ng/
               cp -r ${src}/assets/* $out/share/tuack-ng/
             '')
@@ -138,7 +140,7 @@
             description = "重构后的 tuack 项目，旨在提供更加高效和轻量的出题体验。";
             homepage = "https://github.com/tuack-ng/tuack-ng";
             license = licenses.agpl3Only;
-            platforms = platforms.linux;
+            platforms = platforms.unix;
             mainProgram = "tuack-ng";
           };
         };

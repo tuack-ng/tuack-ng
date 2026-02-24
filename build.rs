@@ -40,6 +40,9 @@ fn copy_testlib() -> io::Result<()> {
 }
 
 fn main() {
+    #[cfg(feature = "nix")]
+    panic!("Nix 下不应使用 build.rs");
+
     let checkers_dir = "assets/checkers";
     println!("cargo:rerun-if-changed={}", checkers_dir);
 
