@@ -1,5 +1,6 @@
 /target
 /tests
+/result
 *.pdf
 /assets/checkers/*
 !/assets/checkers/*.cpp

@@ -40,6 +40,9 @@ fn copy_testlib() -> io::Result<()> {
 }
 
 fn main() {
+    #[cfg(feature = "nix")]
+    panic!("Nix 下不应使用 build.rs");
+
     let checkers_dir = "assets/checkers";
     println!("cargo:rerun-if-changed={}", checkers_dir);
 
@@ -82,15 +85,16 @@ fn compile_cpp_if_needed(cpp_file: &Path) {
     if need_compile {
         println!("cargo:warning=Compiling: {}", cpp_file.display());
 
-        let status = Command::new("g++")
-            .current_dir(cpp_file.parent().unwrap())
+        let mut cmd = Command::new("g++");
+        cmd.current_dir(cpp_file.parent().unwrap())
             .arg("-std=c++17")
             .arg("-O2")
             .arg(cpp_file.file_name().unwrap())
             .arg("-o")
             .arg(exe_name.to_string())
-            .arg("-static")
-            .status();
+            .arg("-static"); // Nix 构建不通过 build.rs, 无须顾虑 `-static`
+
+        let status = cmd.status();
 
         if let Ok(status) = status {
             if !status.success() {

@@ -2,12 +2,14 @@ name: Rust Build and Release
 
 on:
   push:
-    branches: [ "master" ]
+    branches:
+      - '**'
+      - '!all-contributors/**'
     tags:
       - "*.*.*"
 
   pull_request:
-    branches: [ "master" ]  
+    branches: [ "master" ]
 
 env:
   CARGO_TERM_COLOR: always
@@ -21,31 +23,31 @@ jobs:
             artifact_suffix: x86_64
           - runner: ubuntu-24.04-arm
             artifact_suffix: arm64
-    
+
     runs-on: ${{ matrix.runner }}
-    
+
     steps:
       - uses: actions/checkout@v6
         with:
           submodules: true
-      
+
       - name: Install Dependencies
         run: cargo install cargo-deb --verbose
-      
+
       - name: Build Release
         run: cargo build --release --verbose
-      
+
       - name: Pack deb
         run: |
           cargo deb
           mv target/debian/*.deb target/debian/tuack-ng-linux-${{ matrix.artifact_suffix }}.deb
-      
+
       - name: Upload deb
         uses: actions/upload-artifact@v4
         with:
           name: output-linux-deb-${{ matrix.artifact_suffix }}
           path: target/debian/*.deb
-      
+
       - name: Pack zip
         run: |
           mkdir -p pack/
@@ -54,23 +56,59 @@ jobs:
           cd pack/
           zip -r "tuack-ng-linux-${{ matrix.artifact_suffix }}.zip" .
           cd ..
-      
+
       - name: Upload zip
         uses: actions/upload-artifact@v4
         with:
           name: output-linux-zip-${{ matrix.artifact_suffix }}
           path: pack/tuack-ng-linux-${{ matrix.artifact_suffix }}.zip
 
-  upload-doc:
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+  build-nix:
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            artifact_suffix: linux-x86_64
+          - runner: ubuntu-24.04-arm
+            artifact_suffix: linux-arm64
+          - runner: macos-15-intel
+            artifact_suffix: darwin-x86_64
+          - runner: macos-15
+            artifact_suffix: darwin-arm64
+
+    runs-on: ${{ matrix.runner }}
+
     steps:
-    - uses: actions/checkout@v6
-    - name: Upload Release doc
-      uses: actions/upload-artifact@v4
-      with: 
-        name: release-docs
-        path: doc/changelog/${{ github.event.inputs.tag || github.ref_name }}.md
+      - uses: actions/checkout@v6
+        with:
+          submodules: true
+
+      - name: Install Nix
+        uses: nixbuild/nix-quick-install-action@v31
+        with:
+          nix_conf: |
+            keep-env-derivations = true
+            keep-outputs = true
+
+      - name: Cache Nix store
+        uses: nix-community/cache-nix-action@v6
+        with:
+          primary-key: nix-${{ matrix.artifact_suffix }}
+          restore-prefixes-first-match: nix-${{ matrix.artifact_suffix }}
+          gc-max-store-size-linux: 5G
+
+      - name: Build Nix
+        run: |
+          nix build .#tuack-ng -L
+
+      - name: Pack zip
+        run: zip -r "tuack-ng-nix-${{ matrix.artifact_suffix }}.zip" result/
+
+      - name: Upload zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: output-nix-zip-${{ matrix.artifact_suffix }}
+          path: tuack-ng-nix-${{ matrix.artifact_suffix }}.zip
 
   build-windows:
     runs-on: windows-latest
@@ -81,22 +119,22 @@ jobs:
             artifact_suffix: x86_64
           - target: i686-pc-windows-msvc
             artifact_suffix: x86
-    
+
     steps:
     - uses: actions/checkout@v6
       with:
         submodules: true
-    
+
     - name: Install Rust (Windows)
       uses: actions-rs/toolchain@v1
       with:
         profile: minimal
         toolchain: stable
         target: ${{ matrix.target }}
-    
+
     - name: Build Release (Windows)
       run: cargo build --release --target ${{ matrix.target }} --verbose
-    
+
     - name: Pack
       run: |
         New-Item -ItemType Directory -Force -Path pack/
@@ -109,18 +147,29 @@ jobs:
       with:
         name: output-windows-${{ matrix.artifact_suffix }}
         path: pack/tuack-ng-windows-${{ matrix.artifact_suffix }}.zip
-        
-  release:
-    needs: [build-linux, build-windows, upload-doc]
+
+  upload-doc:
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
-  
+    steps:
+    - uses: actions/checkout@v6
+    - name: Upload Release doc
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-docs
+        path: doc/changelog/${{ github.event.inputs.tag || github.ref_name }}.md
+
+  release:
+    needs: [build-linux, build-nix, build-windows, upload-doc]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+
     steps:
     - name: Download artifact
       uses: actions/download-artifact@v4
       with:
         path: .
-    
+
     - name: Display structure of downloaded files
       run: ls -R .
 
