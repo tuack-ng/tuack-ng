@@ -90,6 +90,13 @@ jobs:
             keep-env-derivations = true
             keep-outputs = true
 
+      - name: Cache Nix store
+        uses: nix-community/cache-nix-action@v6
+        with:
+          primary-key: nix-${{ matrix.artifact_suffix }}
+          restore-prefixes-first-match: nix-${{ matrix.artifact_suffix }}
+          gc-max-store-size-linux: 5G
+
       - name: Build Nix
         run: |
           nix build .#tuack-ng -L
@@ -102,17 +109,6 @@ jobs:
         with:
           name: output-nix-zip-${{ matrix.artifact_suffix }}
           path: tuack-ng-nix-${{ matrix.artifact_suffix }}.zip
-
-  upload-doc:
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
-    steps:
-    - uses: actions/checkout@v6
-    - name: Upload Release doc
-      uses: actions/upload-artifact@v4
-      with:
-        name: release-docs
-        path: doc/changelog/${{ github.event.inputs.tag || github.ref_name }}.md
 
   build-windows:
     runs-on: windows-latest
@@ -152,8 +148,19 @@ jobs:
         name: output-windows-${{ matrix.artifact_suffix }}
         path: pack/tuack-ng-windows-${{ matrix.artifact_suffix }}.zip
 
+  upload-doc:
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+    steps:
+    - uses: actions/checkout@v6
+    - name: Upload Release doc
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-docs
+        path: doc/changelog/${{ github.event.inputs.tag || github.ref_name }}.md
+
   release:
-    needs: [build-linux, build-windows, upload-doc]
+    needs: [build-linux, build-nix, build-windows, upload-doc]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
 
