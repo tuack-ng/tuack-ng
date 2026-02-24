@@ -110,7 +110,18 @@ fn init_context(multi: MultiProgress) -> Result<()> {
             .join("tuack-ng"),
         // 系统目录
         #[cfg(not(windows))]
-        PathBuf::from("/usr/share/tuack-ng/"),
+        {
+            #[cfg(feature = "nix")]
+            let path = PathBuf::from(
+                env!("out", "$out should be set when building by Nix").to_owned()
+                    + "/share/tuack-ng/",
+            );
+
+            #[cfg(not(feature = "nix"))]
+            let path = PathBuf::from("/usr/share/tuack-ng/");
+
+            path
+        },
         #[cfg(windows)]
         {
             use std::env;

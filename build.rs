@@ -88,12 +88,8 @@ fn compile_cpp_if_needed(cpp_file: &Path) {
             .arg("-O2")
             .arg(cpp_file.file_name().unwrap())
             .arg("-o")
-            .arg(exe_name.to_string());
-
-        #[cfg(feature = "static-checkers")]
-        {
-            cmd.arg("-static");
-        }
+            .arg(exe_name.to_string())
+            .arg("-static"); // Nix 构建不通过 build.rs, 无须顾虑 `-static`
 
         let status = cmd.status();
 

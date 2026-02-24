@@ -28,6 +28,9 @@
     flake-utils.lib.eachDefaultSystem (
       system:
       let
+        cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
+        version = cargoToml.package.version;
+
         pkgs = import nixpkgs {
           inherit system;
           overlays = [ (import rust-overlay) ];
@@ -60,8 +63,6 @@
                 ${pkgs.gcc}/bin/g++ -std=c++17 -O2 -I${pkgs.testlib}/include/testlib $f -o $out/share/tuack-ng/checkers/$name
                 cp $f $out/share/tuack-ng/checkers/
               done
-
-              cp ${pkgs.testlib}/include/testlib/testlib.h $out/share/tuack-ng/checkers/
             '';
 
         # 准备 templates
@@ -79,6 +80,10 @@
             '')
             checkers
             templates
+            (pkgs.runCommand "others-assets" { } ''
+              mkdir -p $out/share/tuack-ng/
+              cp -r ${src}/assets/* $out/share/tuack-ng/
+            '')
           ];
         };
 
@@ -86,16 +91,16 @@
         cargoArtifacts = craneLib.buildDepsOnly {
           inherit src;
           pname = "tuack-ng";
-          version = "0.3.0";
+          inherit version;
         };
 
         # 构建主程序
         tuack-ng = craneLib.buildPackage {
           inherit src cargoArtifacts;
           pname = "tuack-ng";
-          version = "0.3.0-unstable";
+          inherit version;
 
-          cargoExtraArgs = "--locked --no-default-features";
+          cargoExtraArgs = "--locked --no-default-features --features=nix";
 
           nativeBuildInputs = with pkgs; [
             installShellFiles
@@ -113,7 +118,8 @@
 
             # 安装资产
             install -dm755 $out/share/
-            cp -r ${assets}/share/tuack-ng $out/share/
+            # cp -r ${src}/assets/ $out/share/
+            cp -r ${assets}/share/tuack-ng $out/share/ # 覆盖
 
             # 生成 shell 补全
             $out/bin/tuack-ng gen complete bash > tuack-ng.bash
