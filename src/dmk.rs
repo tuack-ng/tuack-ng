@@ -78,13 +78,13 @@ pub fn parse_test_object(s: &str, all_ids: &[u32]) -> Result<HashSet<u32>> {
 
             let start = start_str
                 .parse::<u32>()
-                .map_err(|_| anyhow!("无效的起始ID: {}", start_str))?;
+                .with_context(|| format!("无效的起始ID: {}", start_str))?;
             let end = end_str
                 .parse::<u32>()
-                .map_err(|_| anyhow!("无效的结束ID: {}", end_str))?;
+                .with_context(|| anyhow!("无效的结束ID: {}", end_str))?;
 
             if start > end {
-                return Err(anyhow!("起始ID不能大于结束ID: {}", part));
+                bail!("起始ID不能大于结束ID: {}", part);
             }
 
             for id in start..=end {
@@ -95,7 +95,7 @@ pub fn parse_test_object(s: &str, all_ids: &[u32]) -> Result<HashSet<u32>> {
         } else {
             let id = part
                 .parse::<u32>()
-                .map_err(|_| anyhow!("无效的测试点ID: {}", part))?;
+                .with_context(|| anyhow!("无效的测试点ID: {}", part))?;
 
             if all_ids.contains(&id) {
                 result.insert(id);
@@ -137,7 +137,7 @@ fn gen_data(
     args: &DmkArgs,
     current_problem: &crate::config::ProblemConfig,
     current_day: &crate::config::ContestDayConfig,
-) -> Result<(), anyhow::Error> {
+) -> Result<()> {
     info!("开始生成数据: {}", current_problem.name);
     let target_dir = match args.target {
         Target::Data => current_problem.path.join("data"),

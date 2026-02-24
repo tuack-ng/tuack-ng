@@ -139,7 +139,7 @@ impl ProblemConfig {
                 .push(data.clone());
         }
 
-        for (_, subtask) in &mut self.subtasks {
+        for subtask in self.subtasks.values_mut() {
             subtask.max_score = match subtask.policy {
                 ScorePolicy::Max => subtask
                     .items

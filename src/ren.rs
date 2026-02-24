@@ -48,10 +48,7 @@ pub fn main(args: RenArgs) -> Result<()> {
         dunce::canonicalize(Path::new("."))?.to_string_lossy()
     );
 
-    let (config, current_location) = get_context()
-        .config
-        .as_ref()
-        .ok_or(anyhow!("找不到配置文件"))?;
+    let (config, current_location) = get_context().config.as_ref().context("找不到配置文件")?;
 
     // 根据当前位置确定skip_level和目标配置的键
     let (skip_level, target_day_key, target_problem_key) = match current_location {
@@ -77,7 +74,7 @@ pub fn main(args: RenArgs) -> Result<()> {
         }
         None => {
             error!("没有找到模板 {}", args.target);
-            return Err(anyhow!("致命错误: 没有找到模板 {}", args.target));
+            bail!("没有找到模板 {}", args.target);
         }
     };
 
@@ -96,7 +93,7 @@ pub fn main(args: RenArgs) -> Result<()> {
         }
         None => {
             error!("没有找到字体目录");
-            return Err(anyhow!("致命错误: 没有找到模板 {}", args.target));
+            bail!("致命错误: 没有找到模板 {}", args.target);
         }
     };
 
@@ -225,9 +222,9 @@ pub fn main(args: RenArgs) -> Result<()> {
                         map.insert(problem_key.to_string(), problem_config);
                         map
                     })
-                    .ok_or_else(|| {
+                    .with_context(|| {
                         error!("未找到问题: {}", problem_key);
-                        anyhow!("未找到问题: {}", problem_key)
+                        format!("未找到问题: {}", problem_key)
                     })?
             } else {
                 // 所有问题
@@ -287,7 +284,7 @@ pub fn main(args: RenArgs) -> Result<()> {
             if !statement_path.exists() {
                 error!("未找到题面文件: {}", statement_path.display());
                 problem_pb.finish_with_message("遇到错误，停止处理");
-                return Err(anyhow!("未找到题面文件: {}", statement_path.display()));
+                bail!("未找到题面文件: {}", statement_path.display());
             }
 
             // 解析题面顺便展开模板

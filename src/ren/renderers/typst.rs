@@ -43,7 +43,7 @@ impl Checker for TypstChecker {
         for file in template_required_files {
             if !self.template_dir.join(file).exists() {
                 error!("模板缺少必要文件: {}", file);
-                return Err(anyhow!("模板缺少必要文件: {}", file));
+                bail!("模板缺少必要文件: {}", file);
             }
             info!("文件存在: {}", file);
         }
@@ -173,7 +173,7 @@ impl TypstCompiler {
             } else {
                 // 如果context中没有对应的语言配置，使用键名作为语言名称
                 error!("在语言配置中未找到 {}", lang_key);
-                return Err(anyhow!("在语言配置中未找到 {}", lang_key));
+                bail!("在语言配置中未找到 {}", lang_key);
             };
 
             let language = SupportLanguage {
