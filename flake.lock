@@ -71,8 +71,7 @@
         "flake-utils": "flake-utils",
         "nixpkgs": "nixpkgs",
         "rust-overlay": "rust-overlay",
-        "templates-src": "templates-src",
-        "testlib-src": "testlib-src"
+        "templates-src": "templates-src"
       }
     },
     "rust-overlay": {
@@ -121,22 +120,6 @@
       "original": {
         "owner": "tuack-ng",
         "repo": "templates",
-        "type": "github"
-      }
-    },
-    "testlib-src": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1770389813,
-        "narHash": "sha256-+gTiv/3glv5KfT6Hitcuh7uReSvI2j0ii1Ufr1vGfms=",
-        "owner": "MikeMirzayanov",
-        "repo": "testlib",
-        "rev": "1e4e8a24c79c6bad3becbdb5a332ffc352b7d5dd",
-        "type": "github"
-      },
-      "original": {
-        "owner": "MikeMirzayanov",
-        "repo": "testlib",
         "type": "github"
       }
     }
