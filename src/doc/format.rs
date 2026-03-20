@@ -1,0 +1,91 @@
+use crate::{
+    config::{CONFIG_FILE_NAME, save_problem_config},
+    doc::rules::*,
+    prelude::*,
+};
+use markdown_ppp::parser::*;
+
+fn get_formatters() -> Vec<Box<dyn FormatRule>> {
+    let mut formatters: Vec<Box<dyn FormatRule>> = vec![];
+    formatters.push(Box::new(
+        samples_should_be_external::SamplesShouldBeExternal,
+    ));
+
+    formatters
+}
+
+pub fn format(problem_config: &ProblemConfig) -> Result<()> {
+    let markdown_path = problem_config.path.join("statement.md");
+    let markdown_backup_path = markdown_path.with_extension("bak");
+    fs::copy(&markdown_path, &markdown_backup_path)?;
+
+    let markdown_text = fs::read_to_string(&markdown_path)?;
+
+    let state = MarkdownParserState::new();
+    let mut ast = match parse_markdown(state, &markdown_text) {
+        Ok(val) => val,
+        Err(_) => bail!("解析题面文件失败"),
+    };
+
+    let formatters = get_formatters();
+
+    let mut problem_config = problem_config.to_owned();
+
+    for formatter in formatters {
+        debug!("正在应用格式化规则 {}", formatter.name());
+        (ast, problem_config) = formatter.apply(ast, problem_config).unwrap();
+    }
+
+    let markdown_text = markdown_ppp::printer::render_markdown(
+        &ast,
+        markdown_ppp::printer::config::Config::default().with_smart_wrapping(false),
+    );
+
+    fs::write(&markdown_path, markdown_text)?;
+
+    let problem_config_text = save_problem_config(&problem_config)?;
+
+    fs::write(
+        problem_config.path.join(CONFIG_FILE_NAME),
+        problem_config_text,
+    )?;
+
+    Ok(())
+}
+
+pub fn format_day(day_config: &ContestDayConfig) -> Result<()> {
+    for (_, problem_config) in &day_config.subconfig {
+        format(problem_config)?;
+    }
+    Ok(())
+}
+
+pub fn main() -> Result<()> {
+    let config = get_context().config.as_ref().context("没有可用的工程")?;
+
+    match &config.1 {
+        CurrentLocation::None => bail!("没有可用的工程"),
+        CurrentLocation::Root => {
+            for (_, day_config) in &config.0.subconfig {
+                format_day(day_config)?;
+            }
+        }
+        CurrentLocation::Day(day) => {
+            format_day(config.0.subconfig.get(day).unwrap())?;
+        }
+        CurrentLocation::Problem(day, problem) => {
+            format(
+                &config
+                    .0
+                    .subconfig
+                    .get(day)
+                    .unwrap()
+                    .subconfig
+                    .get(problem)
+                    .unwrap(),
+            )?;
+        }
+    }
+
+    Ok(())
+}

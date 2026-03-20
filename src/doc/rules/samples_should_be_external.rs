@@ -1,0 +1,165 @@
+use super::FormatRule;
+use crate::{prelude::*, utils::optional::Optional};
+use markdown_ppp::ast::*;
+use regex::Regex;
+use std::sync::OnceLock;
+
+fn input_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r"样例\s*(\d+)?\s*输入\s*#?(\d+)?").unwrap())
+}
+
+fn output_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r"样例\s*(\d+)?\s*输出\s*#?(\d+)?").unwrap())
+}
+
+fn extract_text(inlines: &[Inline]) -> String {
+    inlines
+        .iter()
+        .map(|inline| match inline {
+            Inline::Text(t) => t.clone(),
+            Inline::Strong(inner) => extract_text(inner),
+            Inline::Emphasis(inner) => extract_text(inner),
+            Inline::Strikethrough(inner) => extract_text(inner),
+            Inline::Code(t) => t.clone(),
+            Inline::Link(link) => extract_text(&link.children),
+            _ => String::new(),
+        })
+        .collect()
+}
+
+enum SampleHeading {
+    Input(Option<usize>),
+    Output,
+    None,
+}
+
+fn classify_inlines(inlines: &[Inline]) -> SampleHeading {
+    let text = extract_text(inlines).replace('【', "").replace('】', "");
+    // .replace('「', "")
+    // .replace('」', "")
+    // .replace('《', "")
+    // .replace('》', "");
+
+    if let Some(cap) = input_regex().captures(&text) {
+        let n = cap
+            .get(1)
+            .or_else(|| cap.get(2))
+            .and_then(|m| m.as_str().parse().ok());
+        return SampleHeading::Input(n);
+    }
+    if let Some(_) = output_regex().captures(&text) {
+        return SampleHeading::Output;
+    }
+    SampleHeading::None
+}
+
+fn classify_block(block: &Block) -> SampleHeading {
+    match block {
+        Block::Heading(h) => classify_inlines(&h.content),
+        Block::Paragraph(inlines) => {
+            let is_decorated = inlines.len() == 1
+                && matches!(&inlines[0], Inline::Strong(_) | Inline::Emphasis(_));
+            let is_plain = inlines.iter().all(|i| matches!(i, Inline::Text(_)));
+            if is_decorated || is_plain {
+                classify_inlines(inlines)
+            } else {
+                SampleHeading::None
+            }
+        }
+        _ => SampleHeading::None,
+    }
+}
+
+pub struct SamplesShouldBeExternal;
+
+impl FormatRule for SamplesShouldBeExternal {
+    fn name(&self) -> &'static str {
+        "samples-should-be-external"
+    }
+
+    fn apply(
+        &self,
+        doc: Document,
+        mut problem_config: ProblemConfig,
+    ) -> Result<(Document, ProblemConfig)> {
+        let mut new_blocks: Vec<Block> = Vec::new();
+        let mut queue: Vec<Block> = Vec::new();
+        let mut auto_index = (problem_config
+            .samples
+            .iter()
+            .map(|item| item.id)
+            .max()
+            .unwrap_or(0)
+            + 1) as usize;
+
+        for block in doc.blocks {
+            let expected = match queue.len() {
+                0 => matches!(classify_block(&block), SampleHeading::Input(_)),
+                1 => matches!(&block, Block::CodeBlock(_)),
+                2 => matches!(classify_block(&block), SampleHeading::Output),
+                3 => matches!(&block, Block::CodeBlock(_)),
+                _ => unreachable!(),
+            };
+
+            if expected {
+                queue.push(block);
+            } else {
+                new_blocks.extend(queue.drain(..));
+                if matches!(classify_block(&block), SampleHeading::Input(_)) {
+                    queue.push(block);
+                } else {
+                    new_blocks.push(block);
+                }
+            }
+
+            if queue.len() == 4 {
+                let index = match classify_block(&queue[0]) {
+                    SampleHeading::Input(n) => n.unwrap_or_else(|| {
+                        let i = auto_index;
+                        auto_index += 1;
+                        i
+                    }),
+                    _ => unreachable!(),
+                };
+
+                debug!("找到应该被提取的样例, id: {}", index);
+
+                let input_code = match &queue[1] {
+                    Block::CodeBlock(cb) => cb.literal.clone(),
+                    _ => unreachable!(),
+                };
+                let output_code = match &queue[3] {
+                    Block::CodeBlock(cb) => cb.literal.clone(),
+                    _ => unreachable!(),
+                };
+
+                let sample_path = problem_config.path.join("sample");
+
+                if !sample_path.exists() {
+                    fs::create_dir(&sample_path)?;
+                }
+
+                fs::write(sample_path.join(format!("{}.in", index)), &input_code)?;
+                fs::write(sample_path.join(format!("{}.ans", index)), &output_code)?;
+                problem_config.samples.push(SampleItem {
+                    id: index as u32,
+                    input: Optional::uninitialized(),
+                    output: Optional::uninitialized(),
+                    args: HashMap::new(),
+                    manual: None,
+                });
+
+                new_blocks.push(markdown_ppp::ast::Block::Paragraph(vec![
+                    markdown_ppp::ast::Inline::Text(format!("{{{{ sample.text({}) }}}}", index)),
+                ]));
+
+                queue.clear();
+            }
+        }
+
+        new_blocks.extend(queue);
+        Ok((Document { blocks: new_blocks }, problem_config))
+    }
+}

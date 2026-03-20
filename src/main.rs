@@ -1,5 +1,6 @@
 use crate::conf::ConfArgs;
 use crate::dmk::DmkArgs;
+use crate::doc::DocArgs;
 use crate::dump::DumpArgs;
 use crate::generate::GenArgs;
 use crate::prelude::*;
@@ -13,6 +14,7 @@ mod conf;
 mod config;
 mod context;
 mod dmk;
+mod doc;
 mod dump;
 mod generate;
 mod init;
@@ -47,6 +49,8 @@ enum Commands {
     Dmk(DmkArgs),
     /// 导出到评测系统
     Dump(DumpArgs),
+    /// 文档相关
+    Doc(DocArgs),
 }
 
 fn tuack_ng(cli: Cli) -> Result<()> {
@@ -66,6 +70,7 @@ fn tuack_ng(cli: Cli) -> Result<()> {
         Commands::Conf(args) => conf::main(args),
         Commands::Dmk(args) => dmk::main(args),
         Commands::Dump(args) => dump::main(args),
+        Commands::Doc(args) => doc::main(args),
     }
 }
 
