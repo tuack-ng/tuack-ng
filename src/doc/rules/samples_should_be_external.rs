@@ -1,5 +1,11 @@
 use super::FormatRule;
-use crate::{prelude::*, utils::optional::Optional};
+use crate::{
+    doc::rules::{
+        CheckImportance, CheckInfo, CheckManifest, CheckResult, CheckRule, FormatManifest,
+    },
+    prelude::*,
+    utils::optional::Optional,
+};
 use markdown_ppp::ast::*;
 use regex::Regex;
 use std::sync::OnceLock;
@@ -74,25 +80,22 @@ fn classify_block(block: &Block) -> SampleHeading {
 
 pub struct SamplesShouldBeExternal;
 
-impl FormatRule for SamplesShouldBeExternal {
-    fn name(&self) -> &'static str {
-        "samples-should-be-external"
-    }
-
-    fn apply(
+impl SamplesShouldBeExternal {
+    fn format(
         &self,
         doc: Document,
-        mut problem_config: ProblemConfig,
-    ) -> Result<(Document, ProblemConfig)> {
+        problem_config: &ProblemConfig,
+    ) -> Result<(Document, Vec<(String, String, SampleItem)>)> {
         let mut new_blocks: Vec<Block> = Vec::new();
         let mut queue: Vec<Block> = Vec::new();
-        let mut auto_index = (problem_config
+        let mut auto_index = problem_config
             .samples
             .iter()
             .map(|item| item.id)
             .max()
-            .unwrap_or(0)
-            + 1) as usize;
+            .unwrap_or(0) as usize;
+
+        let mut samples: Vec<(String, String, SampleItem)> = Vec::new();
 
         for block in doc.blocks {
             let expected = match queue.len() {
@@ -135,21 +138,17 @@ impl FormatRule for SamplesShouldBeExternal {
                     _ => unreachable!(),
                 };
 
-                let sample_path = problem_config.path.join("sample");
-
-                if !sample_path.exists() {
-                    fs::create_dir(&sample_path)?;
-                }
-
-                fs::write(sample_path.join(format!("{}.in", index)), &input_code)?;
-                fs::write(sample_path.join(format!("{}.ans", index)), &output_code)?;
-                problem_config.samples.push(SampleItem {
-                    id: index as u32,
-                    input: Optional::uninitialized(),
-                    output: Optional::uninitialized(),
-                    args: HashMap::new(),
-                    manual: None,
-                });
+                samples.push((
+                    input_code,
+                    output_code,
+                    SampleItem {
+                        id: index as u32,
+                        input: Optional::uninitialized(),
+                        output: Optional::uninitialized(),
+                        args: HashMap::new(),
+                        manual: None,
+                    },
+                ));
 
                 new_blocks.push(markdown_ppp::ast::Block::Paragraph(vec![
                     markdown_ppp::ast::Inline::Text(format!("{{{{ sample.text({}) }}}}", index)),
@@ -160,6 +159,80 @@ impl FormatRule for SamplesShouldBeExternal {
         }
 
         new_blocks.extend(queue);
-        Ok((Document { blocks: new_blocks }, problem_config))
+        Ok((Document { blocks: new_blocks }, samples))
+    }
+}
+
+impl FormatRule for SamplesShouldBeExternal {
+    fn manifest(&self) -> FormatManifest {
+        FormatManifest {
+            name: "samples-should-be-external".to_string(),
+            description: "应当将样例数据外置到文件中并导入".to_string(),
+            markdown_formatter: false,
+            ast_formatter: true,
+        }
+    }
+
+    fn apply_markdown(&self, _: String, _: ProblemConfig) -> Result<(String, ProblemConfig)> {
+        unreachable!()
+    }
+
+    fn apply_ast(
+        &self,
+        doc: Document,
+        mut problem_config: ProblemConfig,
+    ) -> Result<(Document, ProblemConfig)> {
+        let result = self.format(doc, &problem_config)?;
+
+        for item in result.1 {
+            let index = item.2.id as usize;
+            let sample_path = problem_config.path.join("sample");
+
+            if !sample_path.exists() {
+                fs::create_dir(&sample_path)?;
+            }
+
+            problem_config.samples.push(SampleItem {
+                id: index as u32,
+                ..item.2
+            });
+
+            fs::write(sample_path.join(format!("{}.in", index)), &item.0)?;
+            fs::write(sample_path.join(format!("{}.ans", index)), &item.1)?;
+        }
+
+        Ok((result.0, problem_config))
+    }
+}
+
+impl CheckRule for SamplesShouldBeExternal {
+    fn manifest(&self) -> CheckManifest {
+        CheckManifest {
+            name: "samples-should-be-external".to_string(),
+            description: "应当将样例数据外置到文件中并导入".to_string(),
+            markdown_checker: false,
+            ast_checker: true,
+        }
+    }
+
+    fn check_markdown(&self, _: &String, _: &ProblemConfig) -> Result<CheckResult> {
+        unreachable!()
+    }
+
+    fn check_ast(&self, doc: &Document, problem_config: &ProblemConfig) -> Result<CheckResult> {
+        let result = self.format(doc.to_owned(), problem_config)?;
+
+        let mut messages: Vec<CheckInfo> = vec![];
+
+        for item in result.1 {
+            let index = item.2.id as usize;
+            messages.push(CheckInfo {
+                line: None,
+                col: None,
+                info: format!("ID 为 {} 的样例内置在了题目内", index),
+                importance: CheckImportance::Error,
+            });
+        }
+        Ok(CheckResult::Tagged(messages))
     }
 }

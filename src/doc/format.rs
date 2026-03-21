@@ -10,16 +10,28 @@ fn get_formatters() -> Vec<Box<dyn FormatRule>> {
     formatters.push(Box::new(
         samples_should_be_external::SamplesShouldBeExternal,
     ));
+    formatters.push(Box::new(autocorrect::Autocorrect));
 
     formatters
 }
 
 pub fn format(problem_config: &ProblemConfig) -> Result<()> {
     let markdown_path = problem_config.path.join("statement.md");
-    let markdown_backup_path = markdown_path.with_extension("bak");
+    let markdown_backup_path = markdown_path.with_extension("md.bak");
     fs::copy(&markdown_path, &markdown_backup_path)?;
 
-    let markdown_text = fs::read_to_string(&markdown_path)?;
+    let mut markdown_text = fs::read_to_string(&markdown_path)?;
+
+    let formatters = get_formatters();
+    let mut problem_config = problem_config.to_owned();
+
+    for formatter in &formatters {
+        if formatter.manifest().markdown_formatter {
+            debug!("正在应用文本格式化规则 {}", formatter.manifest().name);
+            (markdown_text, problem_config) =
+                formatter.apply_markdown(markdown_text, problem_config)?;
+        }
+    }
 
     let state = MarkdownParserState::new();
     let mut ast = match parse_markdown(state, &markdown_text) {
@@ -27,18 +39,16 @@ pub fn format(problem_config: &ProblemConfig) -> Result<()> {
         Err(_) => bail!("解析题面文件失败"),
     };
 
-    let formatters = get_formatters();
-
-    let mut problem_config = problem_config.to_owned();
-
-    for formatter in formatters {
-        debug!("正在应用格式化规则 {}", formatter.name());
-        (ast, problem_config) = formatter.apply(ast, problem_config).unwrap();
+    for formatter in &formatters {
+        if formatter.manifest().ast_formatter {
+            debug!("正在应用格式化规则 {}", formatter.manifest().name);
+            (ast, problem_config) = formatter.apply_ast(ast, problem_config)?;
+        }
     }
 
     let markdown_text = markdown_ppp::printer::render_markdown(
         &ast,
-        markdown_ppp::printer::config::Config::default().with_smart_wrapping(false),
+        markdown_ppp::printer::config::Config::default().with_width(10000000),
     );
 
     fs::write(&markdown_path, markdown_text)?;
