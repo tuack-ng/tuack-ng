@@ -7,6 +7,7 @@ fn get_checkers() -> Vec<Box<dyn CheckRule>> {
         samples_should_be_external::SamplesShouldBeExternal,
     ));
     checkers.push(Box::new(autocorrect::Autocorrect));
+    checkers.push(Box::new(latex::Latex));
 
     checkers
 }

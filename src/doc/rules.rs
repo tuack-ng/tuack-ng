@@ -2,6 +2,7 @@ use crate::prelude::*;
 use markdown_ppp::ast::Document;
 
 pub mod autocorrect;
+pub mod latex;
 pub mod samples_should_be_external;
 
 // Format
@@ -28,7 +29,7 @@ pub trait FormatRule {
 }
 
 // Check
-
+#[derive(PartialEq)]
 pub enum CheckImportance {
     Warn,
     Error,

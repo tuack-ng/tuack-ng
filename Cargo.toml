@@ -24,6 +24,7 @@ evalexpr = "13.1.0"
 indexmap = { version = "2.13.0", features = ["serde"] }
 indicatif = "0.18.3"
 indicatif-log-bridge = "0.2.3"
+lazy_static = "1.5.0"
 log = "0.4.29"
 log4rs = "1.4.0"
 markdown-ppp = { git = "https://github.com/tuack-ng/markdown-ppp.git", rev = "795f631",features = ["parser", "ast-serde", "ast-transform", "typst-printer"] }

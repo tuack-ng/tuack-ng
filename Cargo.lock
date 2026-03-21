@@ -1778,6 +1778,7 @@ dependencies = [
  "indexmap",
  "indicatif",
  "indicatif-log-bridge",
+ "lazy_static",
  "log",
  "log4rs",
  "markdown-ppp",
