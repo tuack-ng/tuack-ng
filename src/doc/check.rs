@@ -16,6 +16,8 @@ fn get_checkers() -> Vec<Box<dyn CheckRule>> {
     checkers.push(Box::new(
         samples_should_be_external::SamplesShouldBeExternal,
     ));
+    checkers.push(Box::new(samples_too_large::SamplesTooLarge));
+    checkers.push(Box::new(samples_not_found::SamplesNotFound));
     checkers.push(Box::new(autocorrect::Autocorrect));
     checkers.push(Box::new(latex::Latex));
 

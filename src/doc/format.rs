@@ -20,6 +20,7 @@ fn get_formatters() -> Vec<Box<dyn FormatRule>> {
     formatters.push(Box::new(
         samples_should_be_external::SamplesShouldBeExternal,
     ));
+    formatters.push(Box::new(samples_too_large::SamplesTooLarge));
     formatters.push(Box::new(autocorrect::Autocorrect));
 
     formatters
