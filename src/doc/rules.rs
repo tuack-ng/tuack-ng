@@ -2,6 +2,7 @@ use crate::prelude::*;
 use markdown_ppp::ast::Document;
 
 pub mod autocorrect;
+pub mod html;
 pub mod invisible;
 pub mod latex;
 pub mod samples_not_found;

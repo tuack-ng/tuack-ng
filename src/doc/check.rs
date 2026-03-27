@@ -20,6 +20,7 @@ fn get_checkers() -> Vec<Box<dyn CheckRule>> {
     checkers.push(Box::new(samples_not_found::SamplesNotFound));
     checkers.push(Box::new(autocorrect::Autocorrect));
     checkers.push(Box::new(latex::Latex));
+    checkers.push(Box::new(html::Html));
 
     checkers
 }
