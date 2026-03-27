@@ -3,6 +3,7 @@ use markdown_ppp::parser::*;
 
 fn get_checkers() -> Vec<Box<dyn CheckRule>> {
     let mut checkers: Vec<Box<dyn CheckRule>> = vec![];
+    checkers.push(Box::new(invisible::Invisible));
     checkers.push(Box::new(
         samples_should_be_external::SamplesShouldBeExternal,
     ));

@@ -7,6 +7,7 @@ use markdown_ppp::parser::*;
 
 fn get_formatters() -> Vec<Box<dyn FormatRule>> {
     let mut formatters: Vec<Box<dyn FormatRule>> = vec![];
+    formatters.push(Box::new(invisible::Invisible));
     formatters.push(Box::new(
         samples_should_be_external::SamplesShouldBeExternal,
     ));
