@@ -44,6 +44,7 @@ pub struct CheckInfo {
 }
 
 pub enum CheckResult {
+    #[allow(unused)]
     Untagged(usize),
     Tagged(Vec<CheckInfo>),
 }

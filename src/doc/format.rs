@@ -3,7 +3,16 @@ use crate::{
     doc::rules::*,
     prelude::*,
 };
+use clap::Args;
 use markdown_ppp::parser::*;
+
+#[derive(Args, Debug, Clone)]
+#[command(version)]
+pub struct FormatArgs {
+    /// 解释这个规则
+    #[arg(long)]
+    explain: Option<String>,
+}
 
 fn get_formatters() -> Vec<Box<dyn FormatRule>> {
     let mut formatters: Vec<Box<dyn FormatRule>> = vec![];
@@ -71,7 +80,25 @@ pub fn format_day(day_config: &ContestDayConfig) -> Result<()> {
     Ok(())
 }
 
-pub fn main() -> Result<()> {
+fn explain(id: String) -> Result<()> {
+    let formatters = get_formatters();
+
+    for formatter in formatters {
+        if formatter.manifest().name == id {
+            println!("规则 {}: {}", id, formatter.manifest().description);
+            return Ok(());
+        }
+    }
+
+    bail!("找不到规则 {}", id);
+}
+
+pub fn main(args: FormatArgs) -> Result<()> {
+    if args.explain.is_some() {
+        explain(args.explain.unwrap())?;
+        return Ok(());
+    }
+
     let config = get_context().config.as_ref().context("没有可用的工程")?;
 
     match &config.1 {

@@ -1,4 +1,6 @@
+use crate::doc::format::FormatArgs;
 use crate::prelude::*;
+use check::CheckArgs;
 use clap::Args;
 use clap::Subcommand;
 
@@ -12,10 +14,10 @@ pub mod rules;
 pub enum Targets {
     #[command(version)]
     /// 格式化
-    Format,
+    Format(FormatArgs),
     #[command(version)]
     /// 检查
-    Check,
+    Check(CheckArgs),
 }
 
 #[derive(Args, Debug, Clone)]
@@ -28,8 +30,8 @@ pub struct DocArgs {
 
 pub fn main(args: DocArgs) -> Result<()> {
     match args.target {
-        Targets::Format => format::main()?,
-        Targets::Check => check::main()?,
+        Targets::Format(args) => format::main(args)?,
+        Targets::Check(args) => check::main(args)?,
     }
 
     Ok(())

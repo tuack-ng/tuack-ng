@@ -1,5 +1,14 @@
 use crate::{doc::rules::*, prelude::*};
+use clap::Args;
 use markdown_ppp::parser::*;
+
+#[derive(Args, Debug, Clone)]
+#[command(version)]
+pub struct CheckArgs {
+    /// 解释这个规则
+    #[arg(long)]
+    explain: Option<String>,
+}
 
 fn get_checkers() -> Vec<Box<dyn CheckRule>> {
     let mut checkers: Vec<Box<dyn CheckRule>> = vec![];
@@ -102,7 +111,25 @@ pub fn check_day(day_config: &ContestDayConfig) -> Result<()> {
     Ok(())
 }
 
-pub fn main() -> Result<()> {
+fn explain(id: String) -> Result<()> {
+    let checkers = get_checkers();
+
+    for checker in checkers {
+        if checker.manifest().name == id {
+            println!("规则 {}: {}", id, checker.manifest().description);
+            return Ok(());
+        }
+    }
+
+    bail!("找不到规则 {}", id);
+}
+
+pub fn main(args: CheckArgs) -> Result<()> {
+    if args.explain.is_some() {
+        explain(args.explain.unwrap())?;
+        return Ok(());
+    }
+
     let config = get_context().config.as_ref().context("没有可用的工程")?;
 
     match &config.1 {
