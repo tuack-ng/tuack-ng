@@ -11,21 +11,18 @@ pub struct CheckArgs {
 }
 
 fn get_checkers() -> Vec<Box<dyn CheckRule>> {
-    let mut checkers: Vec<Box<dyn CheckRule>> = vec![];
-    checkers.push(Box::new(invisible::Invisible));
-    checkers.push(Box::new(
-        samples_should_be_external::SamplesShouldBeExternal,
-    ));
-    checkers.push(Box::new(samples_too_large::SamplesTooLarge));
-    checkers.push(Box::new(samples_not_found::SamplesNotFound));
-    checkers.push(Box::new(autocorrect::Autocorrect));
-    checkers.push(Box::new(latex::Latex));
-    checkers.push(Box::new(html::Html));
-
-    checkers
+    vec![
+        Box::new(invisible::Invisible),
+        Box::new(samples_should_be_external::SamplesShouldBeExternal),
+        Box::new(samples_too_large::SamplesTooLarge),
+        Box::new(samples_not_found::SamplesNotFound),
+        Box::new(autocorrect::Autocorrect),
+        Box::new(latex::Latex),
+        Box::new(html::Html),
+    ]
 }
 
-fn print_messages(messages: CheckResult, path: &PathBuf, checker: &Box<dyn CheckRule>) {
+fn print_messages(messages: CheckResult, path: &Path, checker: &dyn CheckRule) {
     match messages {
         CheckResult::Untagged(num) => {
             if num > 0 {
@@ -38,7 +35,7 @@ fn print_messages(messages: CheckResult, path: &PathBuf, checker: &Box<dyn Check
             }
         }
         CheckResult::Tagged(result) => {
-            if result.len() > 0 {
+            if !result.is_empty() {
                 warn!(
                     "{} 检查器在文件 {} 中检测到 {} 个问题，下面是详细信息",
                     checker.manifest().name,
@@ -46,12 +43,14 @@ fn print_messages(messages: CheckResult, path: &PathBuf, checker: &Box<dyn Check
                     result.len()
                 );
                 for message in result {
-                    if message.col.is_some() && message.line.is_some() {
+                    if let Some(col) = message.col
+                        && let Some(line) = message.line
+                    {
                         warn!(
                             "在 {}:{},{} 等级 {}, 消息: {}",
                             path.display(),
-                            message.line.unwrap(),
-                            message.col.unwrap(),
+                            col,
+                            line,
                             match message.importance {
                                 CheckImportance::Warn => "警告",
                                 CheckImportance::Error => "错误",
@@ -92,7 +91,7 @@ pub fn check(problem_config: &ProblemConfig) -> Result<()> {
         if checker.manifest().markdown_checker {
             debug!("正在应用文本检查器 {}", checker.manifest().name);
             let messages = checker.check_markdown(&markdown_text, problem_config)?;
-            print_messages(messages, &markdown_path, checker);
+            print_messages(messages, &markdown_path, checker.as_ref());
         }
     }
 
@@ -100,7 +99,7 @@ pub fn check(problem_config: &ProblemConfig) -> Result<()> {
         if checker.manifest().ast_checker {
             debug!("正在应用检查器 {}", checker.manifest().name);
             let messages = checker.check_ast(&ast, problem_config)?;
-            print_messages(messages, &markdown_path, checker);
+            print_messages(messages, &markdown_path, checker.as_ref());
         }
     }
 
@@ -128,8 +127,8 @@ fn explain(id: String) -> Result<()> {
 }
 
 pub fn main(args: CheckArgs) -> Result<()> {
-    if args.explain.is_some() {
-        explain(args.explain.unwrap())?;
+    if let Some(rule) = args.explain {
+        explain(rule)?;
         return Ok(());
     }
 
@@ -147,7 +146,7 @@ pub fn main(args: CheckArgs) -> Result<()> {
         }
         CurrentLocation::Problem(day, problem) => {
             check(
-                &config
+                config
                     .0
                     .subconfig
                     .get(day)

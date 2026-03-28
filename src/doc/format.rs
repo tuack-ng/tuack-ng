@@ -15,15 +15,13 @@ pub struct FormatArgs {
 }
 
 fn get_formatters() -> Vec<Box<dyn FormatRule>> {
-    let mut formatters: Vec<Box<dyn FormatRule>> = vec![];
-    formatters.push(Box::new(invisible::Invisible));
-    formatters.push(Box::new(
-        samples_should_be_external::SamplesShouldBeExternal,
-    ));
-    formatters.push(Box::new(samples_too_large::SamplesTooLarge));
-    formatters.push(Box::new(autocorrect::Autocorrect));
-
-    formatters
+    vec![
+        Box::new(invisible::Invisible),
+        Box::new(samples_should_be_external::SamplesShouldBeExternal),
+        Box::new(samples_should_be_external::SamplesShouldBeExternal),
+        Box::new(samples_too_large::SamplesTooLarge),
+        Box::new(autocorrect::Autocorrect),
+    ]
 }
 
 pub fn format(problem_config: &ProblemConfig) -> Result<()> {
@@ -95,8 +93,8 @@ fn explain(id: String) -> Result<()> {
 }
 
 pub fn main(args: FormatArgs) -> Result<()> {
-    if args.explain.is_some() {
-        explain(args.explain.unwrap())?;
+    if let Some(rule) = args.explain {
+        explain(rule)?;
         return Ok(());
     }
 
@@ -114,7 +112,7 @@ pub fn main(args: FormatArgs) -> Result<()> {
         }
         CurrentLocation::Problem(day, problem) => {
             format(
-                &config
+                config
                     .0
                     .subconfig
                     .get(day)

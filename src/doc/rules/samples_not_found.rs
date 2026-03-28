@@ -25,7 +25,7 @@ impl CheckRule for SamplesNotFound {
 
     fn check_markdown(
         &self,
-        markdown_text: &String,
+        markdown_text: &str,
         problem_config: &ProblemConfig,
     ) -> Result<CheckResult> {
         let mut messages: Vec<CheckInfo> = vec![];

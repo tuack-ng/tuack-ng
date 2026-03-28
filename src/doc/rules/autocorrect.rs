@@ -59,7 +59,7 @@ impl CheckRule for Autocorrect {
         }
     }
 
-    fn check_markdown(&self, markdown_text: &String, _: &ProblemConfig) -> Result<CheckResult> {
+    fn check_markdown(&self, markdown_text: &str, _: &ProblemConfig) -> Result<CheckResult> {
         autocorrect::config::load(
             r#"
             rules:
@@ -67,7 +67,7 @@ impl CheckRule for Autocorrect {
             "#,
         )
         .unwrap();
-        let check_result = lint_for(&markdown_text, "md");
+        let check_result = lint_for(markdown_text, "md");
 
         if check_result.has_error() {
             bail!("检查失败: {}", check_result.error);

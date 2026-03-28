@@ -91,7 +91,7 @@ impl CheckRule for Invisible {
         }
     }
 
-    fn check_markdown(&self, markdown_text: &String, _: &ProblemConfig) -> Result<CheckResult> {
+    fn check_markdown(&self, markdown_text: &str, _: &ProblemConfig) -> Result<CheckResult> {
         let mut messages: Vec<CheckInfo> = vec![];
 
         for (line_num, line) in markdown_text.lines().enumerate() {

@@ -13,33 +13,27 @@ struct HtmlVisitor {
 
 impl Visitor for HtmlVisitor {
     fn visit_inline(&mut self, inline: &Inline) {
-        match inline {
-            Inline::Html(content) => {
-                self.messages.push(CheckInfo {
-                    line: None,
-                    col: None,
-                    info: format!("检测到内嵌 Html: {}", content),
-                    importance: CheckImportance::Warn,
-                });
-            }
-            _ => {}
+        if let Inline::Html(content) = inline {
+            self.messages.push(CheckInfo {
+                line: None,
+                col: None,
+                info: format!("检测到内嵌 Html: {}", content),
+                importance: CheckImportance::Warn,
+            });
         }
         self.walk_inline(inline);
     }
     fn visit_block(&mut self, block: &Block) {
-        match block {
-            Block::HtmlBlock(content) => {
-                self.messages.push(CheckInfo {
-                    line: None,
-                    col: None,
-                    info: format!(
-                        "检测到 Html 块, 第一行为: {}",
-                        content.lines().nth(0).unwrap_or("")
-                    ),
-                    importance: CheckImportance::Warn,
-                });
-            }
-            _ => {}
+        if let Block::HtmlBlock(content) = block {
+            self.messages.push(CheckInfo {
+                line: None,
+                col: None,
+                info: format!(
+                    "检测到 Html 块, 第一行为: {}",
+                    content.lines().nth(0).unwrap_or("")
+                ),
+                importance: CheckImportance::Warn,
+            });
         }
         self.walk_block(block);
     }
@@ -57,7 +51,7 @@ impl CheckRule for Html {
         }
     }
 
-    fn check_markdown(&self, _: &String, _: &ProblemConfig) -> Result<CheckResult> {
+    fn check_markdown(&self, _: &str, _: &ProblemConfig) -> Result<CheckResult> {
         unreachable!()
     }
 

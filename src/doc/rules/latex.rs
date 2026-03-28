@@ -52,12 +52,7 @@ impl LatexVisitor {
             let func = cap.as_str();
             // 检查是否已经有反斜杠
             let start = cap.start();
-            if start == 0
-                || !latex
-                    .as_bytes()
-                    .get(start - 1)
-                    .map_or(false, |&b| b == b'\\')
-            {
+            if start == 0 || latex.as_bytes().get(start - 1).is_none_or(|&b| b != b'\\') {
                 self.messages.push(CheckInfo {
                     line: None,
                     col: None,
@@ -111,12 +106,7 @@ impl LatexVisitor {
             for cap in MOD_OPERATOR.find_iter(latex) {
                 let start = cap.start();
                 // 检查是否已经有反斜杠（\bmod 或 \pmod）
-                if start == 0
-                    || !latex
-                        .as_bytes()
-                        .get(start - 1)
-                        .map_or(false, |&b| b == b'\\')
-                {
+                if start == 0 || latex.as_bytes().get(start - 1).is_none_or(|&b| b != b'\\') {
                     self.messages.push(CheckInfo {
                         line: None,
                         col: None,
@@ -225,16 +215,14 @@ impl LatexVisitor {
 
 impl Visitor for LatexVisitor {
     fn visit_inline(&mut self, inline: &Inline) {
-        match inline {
-            Inline::Latex(content) => self.check_latex(content),
-            _ => {}
+        if let Inline::Latex(content) = inline {
+            self.check_latex(content)
         }
         self.walk_inline(inline);
     }
     fn visit_block(&mut self, block: &Block) {
-        match block {
-            Block::LatexBlock(content) => self.check_latex(content),
-            _ => {}
+        if let Block::LatexBlock(content) = block {
+            self.check_latex(content)
         }
         self.walk_block(block);
     }
@@ -252,7 +240,7 @@ impl CheckRule for Latex {
         }
     }
 
-    fn check_markdown(&self, _: &String, _: &ProblemConfig) -> Result<CheckResult> {
+    fn check_markdown(&self, _: &str, _: &ProblemConfig) -> Result<CheckResult> {
         unreachable!()
     }
 

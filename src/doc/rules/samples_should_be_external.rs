@@ -42,7 +42,7 @@ enum SampleHeading {
 }
 
 fn classify_inlines(inlines: &[Inline]) -> SampleHeading {
-    let text = extract_text(inlines).replace('【', "").replace('】', "");
+    let text = extract_text(inlines).replace(['【', '】'], "");
     // .replace('「', "")
     // .replace('」', "")
     // .replace('《', "")
@@ -55,7 +55,7 @@ fn classify_inlines(inlines: &[Inline]) -> SampleHeading {
             .and_then(|m| m.as_str().parse().ok());
         return SampleHeading::Input(n);
     }
-    if let Some(_) = output_regex().captures(&text) {
+    if output_regex().captures(&text).is_some() {
         return SampleHeading::Output;
     }
     SampleHeading::None
@@ -78,6 +78,12 @@ fn classify_block(block: &Block) -> SampleHeading {
     }
 }
 
+pub struct ExportedSample {
+    input: String,
+    output: String,
+    sample_item: SampleItem,
+}
+
 pub struct SamplesShouldBeExternal;
 
 impl SamplesShouldBeExternal {
@@ -85,7 +91,7 @@ impl SamplesShouldBeExternal {
         &self,
         doc: Document,
         problem_config: &ProblemConfig,
-    ) -> Result<(Document, Vec<(String, String, SampleItem)>)> {
+    ) -> Result<(Document, Vec<ExportedSample>)> {
         let mut new_blocks: Vec<Block> = Vec::new();
         let mut queue: Vec<Block> = Vec::new();
         let mut auto_index = problem_config
@@ -95,7 +101,7 @@ impl SamplesShouldBeExternal {
             .max()
             .unwrap_or(0) as usize;
 
-        let mut samples: Vec<(String, String, SampleItem)> = Vec::new();
+        let mut samples: Vec<ExportedSample> = Vec::new();
 
         for block in doc.blocks {
             let expected = match queue.len() {
@@ -109,7 +115,7 @@ impl SamplesShouldBeExternal {
             if expected {
                 queue.push(block);
             } else {
-                new_blocks.extend(queue.drain(..));
+                new_blocks.append(&mut queue);
                 if matches!(classify_block(&block), SampleHeading::Input(_)) {
                     queue.push(block);
                 } else {
@@ -138,17 +144,17 @@ impl SamplesShouldBeExternal {
                     _ => unreachable!(),
                 };
 
-                samples.push((
-                    input_code,
-                    output_code,
-                    SampleItem {
+                samples.push(ExportedSample {
+                    input: input_code,
+                    output: output_code,
+                    sample_item: SampleItem {
                         id: index as u32,
                         input: Optional::uninitialized(),
                         output: Optional::uninitialized(),
                         args: HashMap::new(),
                         manual: None,
                     },
-                ));
+                });
 
                 new_blocks.push(markdown_ppp::ast::Block::Paragraph(vec![
                     markdown_ppp::ast::Inline::Text(format!("{{{{ sample.text({}) }}}}", index)),
@@ -185,7 +191,7 @@ impl FormatRule for SamplesShouldBeExternal {
         let result = self.format(doc, &problem_config)?;
 
         for item in result.1 {
-            let index = item.2.id as usize;
+            let index = item.sample_item.id as usize;
             let sample_path = problem_config.path.join("sample");
 
             if !sample_path.exists() {
@@ -194,11 +200,11 @@ impl FormatRule for SamplesShouldBeExternal {
 
             problem_config.samples.push(SampleItem {
                 id: index as u32,
-                ..item.2
+                ..item.sample_item
             });
 
-            fs::write(sample_path.join(format!("{}.in", index)), &item.0)?;
-            fs::write(sample_path.join(format!("{}.ans", index)), &item.1)?;
+            fs::write(sample_path.join(format!("{}.in", index)), &item.input)?;
+            fs::write(sample_path.join(format!("{}.ans", index)), &item.output)?;
         }
 
         Ok((result.0, problem_config))
@@ -215,7 +221,7 @@ impl CheckRule for SamplesShouldBeExternal {
         }
     }
 
-    fn check_markdown(&self, _: &String, _: &ProblemConfig) -> Result<CheckResult> {
+    fn check_markdown(&self, _: &str, _: &ProblemConfig) -> Result<CheckResult> {
         unreachable!()
     }
 
@@ -225,7 +231,7 @@ impl CheckRule for SamplesShouldBeExternal {
         let mut messages: Vec<CheckInfo> = vec![];
 
         for item in result.1 {
-            let index = item.2.id as usize;
+            let index = item.sample_item.id as usize;
             messages.push(CheckInfo {
                 line: None,
                 col: None,
