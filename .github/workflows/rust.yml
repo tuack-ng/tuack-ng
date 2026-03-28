@@ -90,13 +90,6 @@ jobs:
             keep-env-derivations = true
             keep-outputs = true
 
-      - name: Cache Nix store
-        uses: nix-community/cache-nix-action@v6
-        with:
-          primary-key: nix-${{ matrix.artifact_suffix }}
-          restore-prefixes-first-match: nix-${{ matrix.artifact_suffix }}
-          gc-max-store-size-linux: 5G
-
       - name: Build Nix
         run: |
           nix build .#tuack-ng -L
