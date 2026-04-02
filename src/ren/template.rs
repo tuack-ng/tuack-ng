@@ -1,8 +1,8 @@
 use crate::config::TemplateManifest;
 use crate::prelude::*;
 use anyhow::Result;
-use minijinja::Value;
-use minijinja::{Environment, context};
+use colored::Colorize;
+use minijinja::{Environment, Value, context};
 
 fn input_file(problem: &ProblemConfig, file_io: bool) -> Result<String, minijinja::Error> {
     Ok(if file_io {
@@ -28,12 +28,19 @@ fn handle_sample(
 ) -> Result<String, minijinja::Error> {
     debug!("处理 sample 函数: {}", sample_id);
 
-    // 查找样本
+    // 查找样例
     let sample_item = match problem.samples.iter().find(|s| s.id == sample_id) {
         Some(item) => item,
         None => {
-            warn!("未找到样本ID: {}", sample_id);
-            return Ok(format!("**错误：未找到样本 {}**", sample_id));
+            msg_warn!(
+                "在题目 {} 中未找到样例 {}",
+                problem.name.magenta(),
+                sample_id.to_string().cyan()
+            );
+            return Err(minijinja::Error::new(
+                minijinja::ErrorKind::InvalidOperation,
+                format!("未找到样例 {}", sample_id),
+            ));
         }
     };
 
@@ -56,18 +63,24 @@ fn handle_sample(
                     md.push_str("```\n\n");
                 }
                 Err(e) => {
-                    error!("读取输入文件失败: {:?} -> {}", input_path, e);
-                    md.push_str(&format!("*读取失败：{}*\n\n", e));
+                    msg_error!("读取输入文件失败: {:?} -> {}", input_path, e);
+                    return Err(minijinja::Error::new(
+                        minijinja::ErrorKind::InvalidOperation,
+                        format!("读取输入文件失败 {}", e),
+                    ));
                 }
             }
         } else {
-            md.push_str(&format!("*文件不存在：{}*\n\n", input_path.display()));
+            return Err(minijinja::Error::new(
+                minijinja::ErrorKind::InvalidOperation,
+                format!("文件不存在 {}", input_path.display()),
+            ));
         }
     } else {
-        md.push_str("*无输入文件*\n\n");
+        unreachable!();
     }
 
-    // 输出部分
+    // 输出部分（修改这里）
     md.push_str(&format!("## 样例 {} 输出\n\n", sample_id));
 
     if let Some(output_file) = &sample_item.output.get() {
@@ -83,18 +96,24 @@ fn handle_sample(
                     md.push_str("```\n");
                 }
                 Err(e) => {
-                    error!("读取输出文件失败: {:?} -> {}", output_path, e);
-                    md.push_str(&format!("*读取失败：{}*", e));
+                    msg_error!("读取输出文件失败: {:?} -> {}", output_path, e);
+                    return Err(minijinja::Error::new(
+                        minijinja::ErrorKind::InvalidOperation,
+                        format!("读取输出文件失败 {}", e),
+                    ));
                 }
             }
         } else {
-            md.push_str(&format!("*文件不存在：{}*", output_path.display()));
+            return Err(minijinja::Error::new(
+                minijinja::ErrorKind::InvalidOperation,
+                format!("输出文件不存在 {}", output_path.display()),
+            ));
         }
     } else {
-        md.push_str("*无输出文件*");
+        unreachable!();
     }
 
-    info!("成功生成样例 {} 的Markdown", sample_id);
+    debug!("成功生成样例 {} 的Markdown", sample_id);
     Ok(md)
 }
 
@@ -102,18 +121,21 @@ fn handle_sample(
 fn handle_sample_file(sample_id: u32, problem: &ProblemConfig) -> Result<String, minijinja::Error> {
     debug!("处理 sample_file 函数: {}", sample_id);
 
-    // 检查样本是否存在
+    // 检查样例是否存在
     if !problem.samples.iter().any(|s| s.id == sample_id) {
-        warn!("未找到样本ID: {}", sample_id);
+        msg_warn!(
+            "在题目 {} 中未找到样例 {}",
+            problem.name.magenta(),
+            sample_id.to_string().cyan()
+        );
     }
 
-    // 直接生成Markdown文本
     let text = format!(
         "见选手目录下的 _{0}/{0}{1}.in_ 与 _{0}/{0}{1}.ans_。",
         problem.name, sample_id
     );
 
-    info!("生成文件引用: sample_file({}) -> {}", sample_id, text);
+    debug!("生成文件引用: sample_file({}) -> {}", sample_id, text);
     Ok(text)
 }
 

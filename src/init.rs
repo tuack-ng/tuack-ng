@@ -60,7 +60,7 @@ fn custom_panic_handler(panic_info: &PanicHookInfo, verbose: bool) {
 }
 
 fn init_log(verbose: &bool) -> Result<MultiProgress> {
-    let format = if DEBUG || *verbose {
+    let format = if *verbose {
         "{d(%Y-%m-%d %H:%M:%S)} | {h({l})} | {t} | {m}{n}"
     } else {
         "{h({l})} | {m}{n}"
@@ -71,7 +71,7 @@ fn init_log(verbose: &bool) -> Result<MultiProgress> {
         .encoder(Box::new(PatternEncoder::new(format)))
         .build();
 
-    let loglevel = if DEBUG || *verbose {
+    let loglevel = if *verbose {
         LevelFilter::Trace
     } else {
         LevelFilter::Warn
@@ -139,7 +139,7 @@ fn init_context(multi: MultiProgress) -> Result<()> {
             res
         }
         Err(e) => {
-            warn!("配置文件解析失败，可能导致问题: {}", e);
+            msg_warn!("配置文件解析失败，可能导致问题: {}", e);
             None
         }
     };

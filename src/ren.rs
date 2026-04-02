@@ -10,6 +10,7 @@ use crate::ren::renderers::markdown::MarkdownChecker;
 use crate::ren::renderers::markdown::MarkdownCompiler;
 use crate::ren::renderers::typst::{TypstChecker, TypstCompiler};
 use clap::Args;
+use colored::Colorize;
 use indexmap::IndexMap;
 use markdown_ppp::ast::Document;
 use markdown_ppp::parser::*;
@@ -23,7 +24,7 @@ use crate::utils::filesystem::copy_dir_recursive;
 use indicatif::ProgressBar;
 
 use crate::context;
-use crate::context::{CurrentLocation, get_context};
+use crate::context::{CurrentLocation, gctx};
 
 #[derive(Args, Debug)]
 #[command(version)]
@@ -48,7 +49,7 @@ pub fn main(args: RenArgs) -> Result<()> {
         dunce::canonicalize(Path::new("."))?.to_string_lossy()
     );
 
-    let (config, current_location) = get_context().config.as_ref().context("找不到配置文件")?;
+    let (config, current_location) = gctx().config.as_ref().context("找不到配置文件")?;
 
     // 根据当前位置确定skip_level和目标配置的键
     let (skip_level, target_day_key, target_problem_key) = match current_location {
@@ -59,7 +60,7 @@ pub fn main(args: RenArgs) -> Result<()> {
         _ => (0, None, None),
     };
 
-    let template_dir = context::get_context().assets_dirs.iter().find(|dir| {
+    let template_dir = context::gctx().assets_dirs.iter().find(|dir| {
         let subdir = dir.join("templates").join(&args.target);
         subdir.exists() && subdir.is_dir()
     });
@@ -73,12 +74,12 @@ pub fn main(args: RenArgs) -> Result<()> {
             dir.join("templates").join(&args.target)
         }
         None => {
-            error!("没有找到模板 {}", args.target);
+            msg_error!("没有找到模板 {}", args.target);
             bail!("没有找到模板 {}", args.target);
         }
     };
 
-    let fonts_dir = context::get_context().assets_dirs.iter().find(|dir| {
+    let fonts_dir = context::gctx().assets_dirs.iter().find(|dir| {
         let subdir = dir.join("templates").join("fonts");
         subdir.exists() && subdir.is_dir()
     });
@@ -92,7 +93,7 @@ pub fn main(args: RenArgs) -> Result<()> {
             dir.join("templates").join("fonts")
         }
         None => {
-            error!("没有找到字体目录");
+            msg_error!("没有找到字体目录");
             bail!("致命错误: 没有找到模板 {}", args.target);
         }
     };
@@ -103,7 +104,7 @@ pub fn main(args: RenArgs) -> Result<()> {
             let manifest_content = fs::read_to_string(&manifest_file)?;
             serde_json::from_str::<TemplateManifest>(&manifest_content)?
         } else {
-            error!("找不到清单文件: {}", manifest_file.display());
+            msg_error!("找不到清单文件: {}", manifest_file.display());
             bail!("致命错误: 找不到清单文件");
         }
     };
@@ -112,7 +113,10 @@ pub fn main(args: RenArgs) -> Result<()> {
         TargetType::Typst => Box::new(TypstChecker::new(template_dir.to_path_buf())),
         TargetType::Markdown => Box::new(MarkdownChecker::new(template_dir.to_path_buf())),
     };
-    checker.check_compiler()?;
+    if let Err(e) = checker.check_compiler() {
+        msg_error!("渲染器检查未通过: \n{:?}", e);
+        bail!(e.context("渲染器检查未通过"));
+    }
 
     let statements_dir = match current_location {
         CurrentLocation::Problem(day_name, problem_name) => Path::new(&config.path)
@@ -162,9 +166,9 @@ pub fn main(args: RenArgs) -> Result<()> {
 
     // 添加天级别进度条（仅当需要处理多天时显示）
     let day_pb = if skip_level >= 1 {
-        get_context().multiprogress.add(ProgressBar::new(0))
+        gctx().multiprogress.add(ProgressBar::new(0))
     } else {
-        let pb = get_context()
+        let pb = gctx()
             .multiprogress
             .add(ProgressBar::new(total_days as u64));
         pb.set_style(
@@ -183,6 +187,7 @@ pub fn main(args: RenArgs) -> Result<()> {
             day_pb.set_message(format!("处理第 {}/{} 天", day_count, total_days));
         }
         info!("处理天: {}", day_config.name);
+        msg_info!("正在处理比赛日 {}", day_config.name.magenta().bold());
 
         if !statements_dir.exists() {
             fs::create_dir(&statements_dir)?;
@@ -223,7 +228,7 @@ pub fn main(args: RenArgs) -> Result<()> {
                         map
                     })
                     .with_context(|| {
-                        error!("未找到问题: {}", problem_key);
+                        msg_error!("未找到问题: {}", problem_key);
                         format!("未找到问题: {}", problem_key)
                     })?
             } else {
@@ -237,7 +242,7 @@ pub fn main(args: RenArgs) -> Result<()> {
             };
 
         // 添加问题级别进度条
-        let problem_pb = get_context()
+        let problem_pb = gctx()
             .multiprogress
             .add(ProgressBar::new(problems_to_render.len() as u64));
 
@@ -282,7 +287,7 @@ pub fn main(args: RenArgs) -> Result<()> {
             let statement_path = problem_dir.join("statement.md");
 
             if !statement_path.exists() {
-                error!("未找到题面文件: {}", statement_path.display());
+                msg_error!("未找到题面文件: {}", statement_path.display());
                 problem_pb.finish_with_message("遇到错误，停止处理");
                 bail!("未找到题面文件: {}", statement_path.display());
             }
@@ -298,7 +303,7 @@ pub fn main(args: RenArgs) -> Result<()> {
             ) {
                 Ok(content) => content,
                 Err(e) => {
-                    error!(
+                    msg_error!(
                         "读取题面文件/展开模板 {} 失败: {:?}",
                         statement_path.display(),
                         e
@@ -312,7 +317,7 @@ pub fn main(args: RenArgs) -> Result<()> {
             let mut ast = match parse_markdown(state, &content) {
                 Ok(ast) => ast,
                 Err(e) => {
-                    error!("解析题面文件 {} 失败: {:?}", statement_path.display(), e);
+                    msg_error!("解析题面文件 {} 失败: {:?}", statement_path.display(), e);
                     problem_pb.finish_with_message("遇到错误，停止处理");
                     bail!("解析题面文件失败");
                 }
@@ -356,16 +361,18 @@ pub fn main(args: RenArgs) -> Result<()> {
                     renderqueue.push(RenderQueue::Precaution(ast));
                 }
                 Err(e) => {
-                    warn!("解析注意事项文件失败: {:?}", e);
+                    msg_warn!("解析注意事项文件失败: {:?}", e);
                 }
             }
         } else {
-            warn!("未找到注意事项文件");
+            msg_warn!("未找到注意事项文件");
         }
+
+        problem_pb.finish_and_clear();
 
         // 编译PDF
         info!("开始编译: {}", day_config.name);
-        let compile_pb = get_context().multiprogress.add(ProgressBar::new_spinner());
+        let compile_pb = gctx().multiprogress.add(ProgressBar::new_spinner());
         compile_pb.enable_steady_tick(Duration::from_millis(100));
         compile_pb.set_message(format!("编译: {}", day_config.name));
 
@@ -396,34 +403,36 @@ pub fn main(args: RenArgs) -> Result<()> {
             problem_pb.finish_with_message("渲染完成！");
         }
 
-        if let Ok(output_filename) = compile_result {
-            info!("编译成功！");
+        match compile_result {
+            Ok(output_filename) => {
+                info!("编译成功！");
 
-            let source = tmp_dir.join(&output_filename);
-            let target = if output_filename.is_file() {
-                statements_dir.join(output_filename.file_name().unwrap())
-            } else {
-                statements_dir.clone()
-            };
-            if output_filename.is_file() {
-                fs::copy(&source, &target)?;
-            } else {
-                copy_dir_recursive(&source, &target)?;
+                let source = tmp_dir.join(&output_filename);
+                let target = if output_filename.is_file() {
+                    statements_dir.join(output_filename.file_name().unwrap())
+                } else {
+                    statements_dir.clone()
+                };
+                if output_filename.is_file() {
+                    fs::copy(&source, &target)?;
+                } else {
+                    copy_dir_recursive(&source, &target)?;
+                }
+                info!("PDF已保存到: {}", target.display());
+
+                if args.keep_tmp {
+                    info!("保留临时目录: {}", tmp_dir.display());
+                } else {
+                    fs::remove_dir_all(&tmp_dir)?;
+                    info!("清理临时目录");
+                }
             }
-            info!("PDF已保存到: {}", target.display());
+            Err(e) => {
+                msg_error!("编译失败:\n{:?}", e);
 
-            if args.keep_tmp {
-                info!("保留临时目录: {}", tmp_dir.display());
-            } else {
-                fs::remove_dir_all(&tmp_dir)?;
-                info!("清理临时目录");
+                msg_info!("保留临时目录以供调试: {}", tmp_dir.display());
+                bail!("编译过程出错");
             }
-        } else {
-            let error_output = &compile_result.err().unwrap().to_string();
-            error!("编译失败:\n{}", error_output);
-
-            warn!("保留临时目录以供调试: {}", tmp_dir.display());
-            bail!("编译过程出错");
         }
 
         // 如果是特定天，处理完后就跳出循环

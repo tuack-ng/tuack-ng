@@ -37,10 +37,10 @@ pub fn dump_main(
 }
 
 pub fn main(args: DumpArgs) -> Result<()> {
-    if get_context().config.is_none() {
+    if gctx().config.is_none() {
         bail!("没有有效的配置文件");
     }
-    let config = get_context().config.clone().unwrap();
+    let config = gctx().config.clone().unwrap();
     match config.1 {
         CurrentLocation::None => bail!("此命令必须在工程下执行"),
         CurrentLocation::Problem(_, _) => bail!("此命令不能在题目下执行"),

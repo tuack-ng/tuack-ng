@@ -33,7 +33,7 @@ pub fn check_compiler(language: &Language) -> Result<()> {
                 debug!("{} 版本: {}", &compiler.executable, version);
             }
             _ => {
-                error!(
+                msg_error!(
                     "未找到 {} 命令，请确保已安装并添加到PATH",
                     &compiler.executable
                 );
@@ -59,7 +59,7 @@ pub fn check_runner(language: &Language) -> Result<()> {
                 debug!("{} 版本: {}", &runner.executable, version);
             }
             _ => {
-                error!(
+                msg_error!(
                     "未找到 {} 命令，请确保已安装并添加到PATH",
                     &runner.executable
                 );
@@ -89,10 +89,7 @@ pub fn build_compile_cmd(
         .context("文件无后缀名")?
         .to_string_lossy();
 
-    let file_type = get_context()
-        .languages
-        .get(ext.as_ref())
-        .context("未知格式文件")?;
+    let file_type = gctx().languages.get(ext.as_ref()).context("未知格式文件")?;
 
     check_compiler(file_type)?;
 
@@ -145,10 +142,7 @@ pub fn build_run_cmd(
         .context("文件无后缀名")?
         .to_string_lossy();
 
-    let file_type = get_context()
-        .languages
-        .get(ext.as_ref())
-        .context("未知格式文件")?;
+    let file_type = gctx().languages.get(ext.as_ref()).context("未知格式文件")?;
 
     check_runner(file_type)?;
 

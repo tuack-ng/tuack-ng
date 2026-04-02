@@ -37,7 +37,9 @@ pub fn load_contest_config(config_path: &Path) -> Result<ContestConfig> {
     if let Some(version) = main_json_value.get("version").and_then(|v| v.as_u64())
         && version < 3
     {
-        error!("配置文件版本过低，可能是 tuack 的配置文件。请迁移到 tuack-ng 配置文件格式再使用。");
+        msg_error!(
+            "配置文件版本过低，可能是 tuack 的配置文件。请迁移到 tuack-ng 配置文件格式再使用。"
+        );
         bail!("配置文件版本过低");
     }
 

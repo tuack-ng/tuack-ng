@@ -7,7 +7,8 @@ pub use crate::config::{
     ContestConfig, ContestDayConfig, DataItem, ExpectedScore, ProblemConfig, ProblemType,
     SampleItem, ScorePolicy, TestCase,
 };
-pub use crate::context::{CurrentLocation, get_context};
+pub use crate::context::{CurrentLocation, gctx};
+pub use crate::utils::message::*;
 
 pub use std::collections::{BTreeMap, HashMap};
 pub use std::fs;

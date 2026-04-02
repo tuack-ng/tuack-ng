@@ -40,7 +40,7 @@ fn arbiter_main_day(day: &ContestDayConfig, daynum: usize, main_dir: &Path) -> R
             && prob.subtasks.len() <= 1
             && score_per_case * prob.data.len() as u32 != 100
         {
-            warn!(
+            msg_warn!(
                 "题目 {} 的测试点数量不是 100 的约数，分数无法均分为整数。",
                 prob.name
             );
@@ -63,11 +63,11 @@ fn arbiter_main_day(day: &ContestDayConfig, daynum: usize, main_dir: &Path) -> R
                 match prob.problem_type {
                     ProblemType::Program => "SOURCE".into(),
                     ProblemType::Output => {
-                        warn!("题目 {} 是提交答案型，Arbiter 可能不支持。", prob.name);
+                        msg_warn!("题目 {} 是提交答案型，Arbiter 可能不支持。", prob.name);
                         "SOURCE".into()
                     }
                     ProblemType::Interactive => {
-                        warn!("题目 {} 是交互型，Arbiter 可能不支持。", prob.name);
+                        msg_warn!("题目 {} 是交互型，Arbiter 可能不支持。", prob.name);
                         "SOURCE".into()
                     }
                 },
@@ -117,9 +117,10 @@ fn arbiter_main_day(day: &ContestDayConfig, daynum: usize, main_dir: &Path) -> R
                     .map(|st| st.items.len())
                     .unwrap_or(1);
                 if count_in_subtask > 1 {
-                    warn!(
+                    msg_warn!(
                         "题目 {} Subtask #{} 含多个测试点，Arbiter 不支持打包评测，将均分。",
-                        prob.name, case.subtask
+                        prob.name,
+                        case.subtask
                     );
                 }
                 subtask_score / count_in_subtask as u32
@@ -146,11 +147,11 @@ fn arbiter_main_day(day: &ContestDayConfig, daynum: usize, main_dir: &Path) -> R
                 .context("执行 g++ 失败")?;
 
             if !status.success() {
-                warn!("chk 编译失败，请手动处理: {}", chk_cpp.display());
+                msg_warn!("chk 编译失败，请手动处理: {}", chk_cpp.display());
             }
         } else {
             // 从 assets 中复制默认的 arbiter_e 可执行文件（如果有）
-            let sample = get_context().assets_dirs.iter().find_map(|d| {
+            let sample = gctx().assets_dirs.iter().find_map(|d| {
                 let p = d.join("sample").join("arbiter_e.sample");
                 p.exists().then_some(p)
             });
@@ -166,7 +167,7 @@ fn arbiter_main_day(day: &ContestDayConfig, daynum: usize, main_dir: &Path) -> R
                     })?;
                 }
                 None => {
-                    warn!(
+                    msg_warn!(
                         "题目 {} 没有 chk，也没有找到默认的 arbiter_e.sample，filter 目录为空。",
                         prob.name
                     );
@@ -215,7 +216,7 @@ fn arbiter_down_day(day: &ContestDayConfig, down_dir: &Path) -> Result<()> {
                 fs::copy(&src_in, &dst)
                     .with_context(|| format!("复制样例输入失败: {}", src_in.display()))?;
             } else {
-                warn!("样例输入文件不存在: {}", src_in.display());
+                msg_warn!("样例输入文件不存在: {}", src_in.display());
             }
 
             if src_ans.exists() {
@@ -223,7 +224,7 @@ fn arbiter_down_day(day: &ContestDayConfig, down_dir: &Path) -> Result<()> {
                 fs::copy(&src_ans, &dst)
                     .with_context(|| format!("复制样例输出失败: {}", src_ans.display()))?;
             } else {
-                warn!("样例输出文件不存在: {}", src_ans.display());
+                msg_warn!("样例输出文件不存在: {}", src_ans.display());
             }
 
             // 拷贝 down/ 目录下其他不在 samples 列表里的文件（与原 Python 版一致）

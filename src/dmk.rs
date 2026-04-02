@@ -1,5 +1,5 @@
 use crate::config::ExpandedDataItem;
-use crate::context::{CurrentLocation, get_context};
+use crate::context::{CurrentLocation, gctx};
 use crate::prelude::*;
 use crate::utils::compile::{build_compile_cmd, build_run_cmd};
 use crate::utils::random::gen_rnd;
@@ -107,10 +107,7 @@ pub fn parse_test_object(s: &str, all_ids: &[u32]) -> Result<HashSet<u32>> {
 }
 
 pub fn main(args: DmkArgs) -> Result<()> {
-    let config = get_context()
-        .config
-        .as_ref()
-        .context("没有找到有效的工程")?;
+    let config = gctx().config.as_ref().context("没有找到有效的工程")?;
 
     let (current_problem, current_day) =
         if let CurrentLocation::Problem(ref day, ref prog) = config.1 {
@@ -157,8 +154,14 @@ fn gen_data(
         || compile_generator(&generator_path),
         || compile_std(&std_path, current_problem, current_day),
     );
-    result1?;
-    result2?;
+    if let Err(e) = result1 {
+        msg_error!("数据生成器编译错误: {}", e);
+        bail!(e.context("数据生成器编译失败"))
+    }
+    if let Err(e) = result2 {
+        msg_error!("标程编译错误: {}", e);
+        bail!(e.context("标程编译失败"))
+    };
 
     let data_items: Vec<Arc<ExpandedDataItem>> = match args.target {
         Target::Data => current_problem.data.to_vec(),
@@ -196,11 +199,11 @@ fn gen_data(
     )?;
 
     if data_items_to_gen.is_empty() {
-        warn!("没有需要生成的数据");
+        msg_warn!("没有需要生成的数据");
         return Ok(());
     }
 
-    let pb = get_context()
+    let pb = gctx()
         .multiprogress
         .add(ProgressBar::new(data_items_to_gen.len() as u64));
     pb.set_style(
@@ -209,6 +212,14 @@ fn gen_data(
             .unwrap()
             .progress_chars("=> "),
     );
+
+    let action = match args.action {
+        DmkCommand::Gen => "GEN".green(),
+        DmkCommand::Regen => "REGEN".green().bold(),
+        DmkCommand::Reset => "RESET".cyan().bold(),
+    };
+
+    msg_progress!("开始为题目 {} 生成数据", current_problem.name.magenta());
 
     for data_item in data_items_to_gen {
         pb.set_message(format!("生成数据点 #{}", data_item.id));
@@ -222,23 +233,68 @@ fn gen_data(
         if !matches!(args.action, DmkCommand::Gen) || !input_path.exists() {
             let mut args_map = current_problem.args.clone();
             args_map.extend(data_item.args.clone());
-            generate_input(
+
+            if let Err(e) = generate_input(
                 &generator_path,
                 &input_path,
                 &seeds,
                 data_item.id,
                 &args_map,
-            )?;
+            ) {
+                msg_item!(
+                    "FAIL".red().bold(),
+                    "测试点 {} {}",
+                    data_item.id.to_string().cyan(),
+                    "输入".bold()
+                );
+                msg_error!("{}", e);
+            } else {
+                msg_item!(
+                    action,
+                    "测试点 {} {}",
+                    data_item.id.to_string().cyan(),
+                    "输入".bold()
+                );
+            }
+        } else {
+            msg_item!(
+                "SKIP",
+                "测试点 {} {}",
+                data_item.id.to_string().cyan(),
+                "输入".bold()
+            );
         }
 
         if !matches!(args.action, DmkCommand::Gen) || !output_path.exists() {
-            generate_output(
+            if let Err(e) = generate_output(
                 &std_path,
                 &input_path,
                 &output_path,
                 &current_problem.name,
                 current_problem.file_io.unwrap_or(true),
-            )?;
+            ) {
+                msg_item!(
+                    "FAIL".red().bold(),
+                    "测试点 {} {}",
+                    data_item.id.to_string().cyan(),
+                    "输出".bold()
+                );
+                msg_error!("{}", e);
+            } else {
+                msg_item!(
+                    action,
+                    "测试点 {} {}",
+                    data_item.id.to_string().cyan(),
+                    "输出".bold()
+                );
+            }
+        } else {
+            msg_item!(
+                "SKIP",
+                "测试点 {} {}",
+                data_item.id.to_string().cyan(),
+                "输出".bold()
+            );
         }
 
         pb.inc(1);
@@ -285,7 +341,7 @@ fn compile_generator(generator_path: &std::path::Path) -> Result<()> {
 
     let tmp_dir = generator_path.parent().unwrap();
 
-    let compile_pb = get_context().multiprogress.add(ProgressBar::new_spinner());
+    let compile_pb = gctx().multiprogress.add(ProgressBar::new_spinner());
     compile_pb.enable_steady_tick(Duration::from_millis(100));
     compile_pb.set_message("编译数据生成器");
 
@@ -304,11 +360,7 @@ fn compile_generator(generator_path: &std::path::Path) -> Result<()> {
     compile_pb.finish_and_clear();
 
     if !status.status.success() {
-        error!(
-            "数据生成器编译错误: {}",
-            String::from_utf8_lossy(&status.stderr)
-        );
-        bail!("数据生成器编译失败");
+        bail!("{}", String::from_utf8_lossy(&status.stderr));
     }
 
     info!("数据生成器编译成功");
@@ -333,7 +385,7 @@ fn compile_std(
 
     let compile_cmd = build_compile_cmd(&src_path, &tmp_dir, &program_name, &day.compile)?;
 
-    let compile_pb = get_context().multiprogress.add(ProgressBar::new_spinner());
+    let compile_pb = gctx().multiprogress.add(ProgressBar::new_spinner());
     compile_pb.enable_steady_tick(Duration::from_millis(100));
     compile_pb.set_message("编译标程");
 
@@ -348,7 +400,7 @@ fn compile_std(
 
         if !status.success() {
             if let Ok(output) = cmd.output() {
-                error!("标程编译错误: {}", String::from_utf8_lossy(&output.stderr));
+                bail!("{}", String::from_utf8_lossy(&output.stderr));
             }
             bail!("标程编译失败");
         }
@@ -389,7 +441,7 @@ fn get_or_generate_seed(
     if !force && seed_file.exists() {
         let seed_str = std::fs::read_to_string(&seed_file)?;
         seeds = serde_json::from_str(&seed_str).unwrap_or_else(|e| {
-            warn!(".seed 文件无效, 重新生成: {}", e);
+            msg_warn!(".seed 文件无效, 重新生成: {}", e);
             BTreeMap::new()
         });
     }
@@ -444,8 +496,7 @@ fn generate_input(
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        error!("生成器运行失败 (测试点 {}): {}", test_id, stderr);
-        bail!("生成器运行失败");
+        bail!("生成器运行失败 (测试点 {}): {}", test_id, stderr);
     }
 
     // 写入输入文件
@@ -492,8 +543,7 @@ fn generate_output(
         let executable_path = work_dir.join(problem_name).with_extension(exe_extension);
 
         if !executable_path.exists() {
-            error!("找不到可执行文件: {}", executable_path.display());
-            bail!("找不到标程可执行文件");
+            bail!("找不到可执行文件: {}", executable_path.display());
         }
 
         debug!("使用可执行文件: {}", executable_path.display());
@@ -521,17 +571,20 @@ fn generate_output(
     let output = child.output()?;
 
     if !output.status.success() {
-        error!("标程运行失败，退出码: {}", output.status);
         if !output.stderr.is_empty() {
-            error!("错误输出: {}", String::from_utf8_lossy(&output.stderr));
+            bail!(
+                "标程运行失败，退出码: {}\n标准错误输出: {}",
+                output.status,
+                String::from_utf8_lossy(&output.stderr)
+            );
+        } else {
+            bail!("标程运行失败，退出码: {}", output.status);
         }
-        bail!("标程运行失败");
     }
 
     // 检查输出文件是否生成
     if !work_output_path.exists() {
-        error!("标程未生成输出文件: {}", work_output_path.display());
-        bail!("标程未生成输出文件");
+        bail!("标程未生成输出文件: {}", work_output_path.display());
     }
 
     // 复制输出文件到目标位置

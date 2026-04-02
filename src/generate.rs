@@ -224,18 +224,10 @@ fn gen_lfs() -> Result<()> {
     let attributes_path = find_in_scaffold("problem.gitattributes", false)?;
 
     // 统一获取配置，避免重复调用
-    let config = &get_context()
-        .config
-        .as_ref()
-        .context("没有有效的配置文件")?
-        .0;
+    let config = &gctx().config.as_ref().context("没有有效的配置文件")?.0;
 
     // 根据当前位置获取需要处理的问题列表
-    let problems_to_process = match get_context()
-        .config
-        .as_ref()
-        .context("没有有效的配置文件")?
-        .1
+    let problems_to_process = match gctx().config.as_ref().context("没有有效的配置文件")?.1
     {
         CurrentLocation::Root => {
             // 获取所有问题
@@ -267,7 +259,7 @@ fn gen_lfs() -> Result<()> {
                 .with_context(|| format!("复制文件到 {} 失败", target_path.display()))?;
             info!("已生成 .gitattributes 到 {}", target_path.display());
         } else {
-            warn!(
+            msg_warn!(
                 "目录 {} 已存在 .gitattributes, 跳过",
                 problem.path.display()
             );
@@ -301,7 +293,7 @@ fn gen_data(args: GenConfirmArgs) -> Result<()> {
         return Ok(());
     }
 
-    let config = get_context().config.clone().context("没有有效的配置")?;
+    let config = gctx().config.clone().context("没有有效的配置")?;
     for (now_day_name, day) in config.0.subconfig {
         let day_name: Option<String> = match config.1 {
             CurrentLocation::Day(ref name) => Some(name.clone()),
@@ -322,7 +314,7 @@ fn gen_data(args: GenConfirmArgs) -> Result<()> {
 
             let data_dir = problem.path.join("data");
             if !data_dir.exists() {
-                warn!("题目 {} 不存在 data 目录，跳过数据生成", problem.name);
+                msg_warn!("题目 {} 不存在 data 目录，跳过数据生成", problem.name);
                 continue;
             }
             let mut datas_entrys = Vec::<String>::new();
@@ -378,7 +370,7 @@ fn gen_sample(args: GenConfirmArgs) -> Result<()> {
         return Ok(());
     }
 
-    let config = get_context().config.clone().context("没有有效的配置")?;
+    let config = gctx().config.clone().context("没有有效的配置")?;
     for (now_day_name, day) in config.0.subconfig {
         let day_name: Option<String> = match config.1 {
             CurrentLocation::Day(ref name) => Some(name.clone()),
@@ -399,7 +391,7 @@ fn gen_sample(args: GenConfirmArgs) -> Result<()> {
 
             let data_dir = problem.path.join("sample");
             if !data_dir.exists() {
-                warn!("题目 {} 不存在 sample 目录，跳过数据生成", problem.name);
+                msg_warn!("题目 {} 不存在 sample 目录，跳过数据生成", problem.name);
                 continue;
             }
             let mut datas_entrys = Vec::<String>::new();
@@ -458,7 +450,7 @@ fn gen_code(args: GenConfirmArgs) -> Result<()> {
             }
             Ok(result)
         } else {
-            for (key, _) in get_context().languages.iter() {
+            for (key, _) in gctx().languages.iter() {
                 if let Some(ext) = path.extension()
                     && ext.to_string_lossy().as_ref() == key
                 {
@@ -475,7 +467,7 @@ fn gen_code(args: GenConfirmArgs) -> Result<()> {
         return Ok(());
     }
 
-    let config = get_context().config.clone().context("没有有效的配置")?;
+    let config = gctx().config.clone().context("没有有效的配置")?;
     for (now_day_name, day) in config.0.subconfig {
         let day_name: Option<String> = match config.1 {
             CurrentLocation::Day(ref name) => Some(name.clone()),
@@ -496,7 +488,7 @@ fn gen_code(args: GenConfirmArgs) -> Result<()> {
 
             let mut codes = find_code(&problem.path, &user_skip)?;
             if codes.is_empty() {
-                warn!("题目 {} 不存在题解文件，跳过题解生成", problem.name);
+                msg_warn!("题目 {} 不存在题解文件，跳过题解生成", problem.name);
                 continue;
             }
 
@@ -592,7 +584,7 @@ pub fn main(args: GenArgs) -> Result<()> {
 }
 
 fn find_in_scaffold(name: &str, is_dir: bool) -> Result<PathBuf> {
-    let context = crate::context::get_context();
+    let context = crate::context::gctx();
 
     for assets_dir in &context.assets_dirs {
         let path = assets_dir.join("scaffold").join(name);

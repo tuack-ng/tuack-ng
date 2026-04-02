@@ -171,8 +171,8 @@ pub fn main(day: &ContestDayConfig) -> Result<()> {
 
     fs::write(cdf_file, serde_json::to_string_pretty(&day_cdf)?)?;
 
-    warn!("受 Lemon 限制，您需要手动调整编译选项。");
-    warn!("目前设置是默认(default)，如需要请自行修改。");
+    msg_warn!("受 Lemon 限制，您需要手动调整编译选项。");
+    msg_warn!("目前设置是默认(default)，如需要请自行修改。");
 
     Ok(())
 }

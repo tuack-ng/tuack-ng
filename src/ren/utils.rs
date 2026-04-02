@@ -87,7 +87,7 @@ pub fn process_image_urls(img_src_dir: &Path, ast: &mut markdown_ppp::ast::Docum
                     url
                 }
             } else {
-                warn!(
+                msg_warn!(
                     "图片 url 不合法: {}, 不支持使用在 img/ 以外的图片, 可能会产生问题。",
                     url
                 );

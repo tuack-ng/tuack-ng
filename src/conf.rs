@@ -25,7 +25,7 @@ fn add_minutes(time: [u32; 6], minutes: i64) -> [u32; 6] {
 use crate::{
     Subcommand,
     config::save_problem_config,
-    context::{CurrentLocation, get_context},
+    context::{CurrentLocation, gctx},
 };
 use clap::Args;
 
@@ -72,7 +72,7 @@ pub struct ConfCustomArgs {
     value: Vec<String>,
 }
 fn conf_title(args: &ConfValuesArgs) -> Result<()> {
-    match get_context()
+    match gctx()
         .config
         .as_ref()
         .context("没有找到有效的工程")?
@@ -80,7 +80,7 @@ fn conf_title(args: &ConfValuesArgs) -> Result<()> {
     {
         CurrentLocation::Problem(_, _) => bail!("本命令不支持设置单个题目标题"),
         CurrentLocation::Day(ref day) => {
-            let mut day_config = get_context()
+            let mut day_config = gctx()
                 .config
                 .as_ref()
                 .context("没有找到有效的工程")?
@@ -100,7 +100,7 @@ fn conf_title(args: &ConfValuesArgs) -> Result<()> {
             Ok(())
         }
         CurrentLocation::Root => {
-            let mut config = get_context()
+            let mut config = gctx()
                 .config
                 .as_ref()
                 .context("没有找到有效的工程")?
@@ -121,7 +121,7 @@ fn conf_title(args: &ConfValuesArgs) -> Result<()> {
 }
 
 fn conf_time(args: &ConfValuesArgs) -> Result<()> {
-    match get_context()
+    match gctx()
         .config
         .as_ref()
         .context("没有找到有效的工程")?
@@ -129,7 +129,7 @@ fn conf_time(args: &ConfValuesArgs) -> Result<()> {
     {
         CurrentLocation::Problem(_, _) => bail!("本命令不支持设置单个题目时间限制"),
         CurrentLocation::Day(ref day) => {
-            let mut day_config = get_context()
+            let mut day_config = gctx()
                 .config
                 .as_ref()
                 .context("没有找到有效的工程")?
@@ -154,7 +154,7 @@ fn conf_time(args: &ConfValuesArgs) -> Result<()> {
 }
 
 fn conf_length(args: &ConfValuesArgs) -> Result<()> {
-    match get_context()
+    match gctx()
         .config
         .as_ref()
         .context("没有找到有效的工程")?
@@ -162,7 +162,7 @@ fn conf_length(args: &ConfValuesArgs) -> Result<()> {
     {
         CurrentLocation::Problem(_, _) => bail!("本命令不支持设置单个题目时间限制"),
         CurrentLocation::Root => {
-            let mut config = get_context()
+            let mut config = gctx()
                 .config
                 .as_ref()
                 .context("没有找到有效的工程")?
@@ -186,7 +186,7 @@ fn conf_length(args: &ConfValuesArgs) -> Result<()> {
 }
 
 fn conf_custom(args: &ConfCustomArgs) -> Result<()> {
-    match get_context()
+    match gctx()
         .config
         .as_ref()
         .context("没有找到有效的工程")?
@@ -194,7 +194,7 @@ fn conf_custom(args: &ConfCustomArgs) -> Result<()> {
     {
         CurrentLocation::Problem(_, _) => bail!("本命令不支持设置单个题目标题"),
         CurrentLocation::Day(ref day) => {
-            let mut day_config = get_context()
+            let mut day_config = gctx()
                 .config
                 .as_ref()
                 .context("没有找到有效的工程")?
@@ -221,7 +221,7 @@ fn conf_custom(args: &ConfCustomArgs) -> Result<()> {
             Ok(())
         }
         CurrentLocation::Root => {
-            let mut config = get_context()
+            let mut config = gctx()
                 .config
                 .as_ref()
                 .context("没有找到有效的工程")?

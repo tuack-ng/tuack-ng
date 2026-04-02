@@ -26,44 +26,68 @@ fn print_messages(messages: CheckResult, path: &Path, checker: &dyn CheckRule) {
     match messages {
         CheckResult::Untagged(num) => {
             if num > 0 {
-                warn!(
+                msg_warn!(
                     "{} 检查器在文件 {} 中检测到 {} 个问题。使用 `doc format` 来修复",
-                    checker.manifest().name,
-                    path.display(),
+                    checker.manifest().name.green(),
+                    format!(
+                        "{}",
+                        path.strip_prefix(&gctx().config.as_ref().unwrap().0.path)
+                            .unwrap()
+                            .display()
+                    )
+                    .cyan(),
                     num
                 );
             }
         }
         CheckResult::Tagged(result) => {
             if !result.is_empty() {
-                warn!(
+                msg_warn!(
                     "{} 检查器在文件 {} 中检测到 {} 个问题，下面是详细信息",
                     checker.manifest().name,
-                    path.display(),
+                    format!(
+                        "{}",
+                        path.strip_prefix(&gctx().config.as_ref().unwrap().0.path)
+                            .unwrap()
+                            .display()
+                    )
+                    .cyan(),
                     result.len()
                 );
                 for message in result {
                     if let Some(col) = message.col
                         && let Some(line) = message.line
                     {
-                        warn!(
+                        msg_warn!(
                             "在 {}:{},{} 等级 {}, 消息: {}",
-                            path.display(),
-                            col,
-                            line,
+                            format!(
+                                "{}",
+                                path.strip_prefix(&gctx().config.as_ref().unwrap().0.path)
+                                    .unwrap()
+                                    .display()
+                            )
+                            .cyan(),
+                            col.to_string().magenta(),
+                            line.to_string().magenta(),
                             match message.importance {
-                                CheckImportance::Warn => "警告",
-                                CheckImportance::Error => "错误",
+                                CheckImportance::Warn => "警告".yellow(),
+                                CheckImportance::Error => "错误".red(),
                             },
                             message.info
                         )
                     } else {
-                        warn!(
+                        msg_warn!(
                             "在 {} 等级 {}, 消息: {}",
-                            path.display(),
+                            format!(
+                                "{}",
+                                path.strip_prefix(&gctx().config.as_ref().unwrap().0.path)
+                                    .unwrap()
+                                    .display()
+                            )
+                            .cyan(),
                             match message.importance {
-                                CheckImportance::Warn => "警告",
-                                CheckImportance::Error => "错误",
+                                CheckImportance::Warn => "警告".yellow(),
+                                CheckImportance::Error => "错误".red(),
                             },
                             message.info
                         )
@@ -132,7 +156,7 @@ pub fn main(args: CheckArgs) -> Result<()> {
         return Ok(());
     }
 
-    let config = get_context().config.as_ref().context("没有可用的工程")?;
+    let config = gctx().config.as_ref().context("没有可用的工程")?;
 
     match &config.1 {
         CurrentLocation::None => bail!("没有可用的工程"),

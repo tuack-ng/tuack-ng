@@ -30,19 +30,17 @@ impl Checker for TypstChecker {
                     let version = String::from_utf8_lossy(&output.stdout);
                     debug!("Typst 版本: {}", version.trim());
                 } else {
-                    error!("Typst 命令执行失败，请检查是否已安装");
                     bail!("Typst 命令执行失败，请检查是否已安装");
                 }
             }
-            Err(_) => {
-                bail!("未找到 typst 命令，请确保已安装并添加到PATH");
+            Err(e) => {
+                bail!(anyhow!(e).context("未找到 typst 命令，请确保已安装并添加到PATH"));
             }
         }
 
         let template_required_files = ["main.typ", "utils.typ"];
         for file in template_required_files {
             if !self.template_dir.join(file).exists() {
-                error!("模板缺少必要文件: {}", file);
                 bail!("模板缺少必要文件: {}", file);
             }
             info!("文件存在: {}", file);
@@ -102,9 +100,8 @@ impl Compiler for TypstCompiler {
             info!("Typst 编译成功: {}", output_filename);
             Ok(self.tmp_dir.join(output_filename))
         } else {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            error!("Typst 编译失败: {}", stderr);
-            bail!("Typst 编译失败")
+            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+            bail!(anyhow!(stderr).context("Typst 编译失败"));
         }
     }
 }
@@ -163,7 +160,7 @@ impl TypstCompiler {
         }
 
         // 构建支持的语言列表
-        let context = crate::context::get_context();
+        let context = crate::context::gctx();
         let mut support_languages = Vec::new();
 
         for (lang_key, compile_options) in &day_config.compile {
@@ -172,7 +169,6 @@ impl TypstCompiler {
                 lang_config.language.clone()
             } else {
                 // 如果context中没有对应的语言配置，使用键名作为语言名称
-                error!("在语言配置中未找到 {}", lang_key);
                 bail!("在语言配置中未找到 {}", lang_key);
             };
 

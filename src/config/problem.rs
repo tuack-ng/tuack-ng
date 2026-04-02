@@ -129,7 +129,7 @@ impl ProblemConfig {
         for data in &self.data {
             let subtask_id = data.subtask;
             if !self.subtasks.contains_key(&subtask_id) {
-                warn!("无效的 Subtask ID #{}", &subtask_id);
+                msg_warn!("无效的 Subtask ID #{}", &subtask_id);
                 continue;
             }
             self.subtasks
@@ -275,7 +275,9 @@ pub fn load_problem_config(problemconfig_path: &Path) -> Result<ProblemConfig> {
     if let Some(version) = problem_json_value.get("version").and_then(|v| v.as_u64())
         && version < 3
     {
-        error!("配置文件版本过低，可能是 tuack 的配置文件。请迁移到 tuack-ng 配置文件格式再使用。");
+        msg_error!(
+            "配置文件版本过低，可能是 tuack 的配置文件。请迁移到 tuack-ng 配置文件格式再使用。"
+        );
         bail!("配置文件版本过低");
     }
 

@@ -6,7 +6,6 @@ use crate::generate::GenArgs;
 use crate::prelude::*;
 use crate::ren::RenArgs;
 use crate::test::TestArgs;
-use clap::ArgAction;
 use clap::{Parser, Subcommand};
 use clap_i18n_richformatter::clap_i18n;
 
@@ -29,9 +28,13 @@ mod utils;
 struct Cli {
     #[command(subcommand)]
     pub command: Commands,
-    #[arg(short, long, global = true, action = ArgAction::Count)]
+    #[arg(short, long, global = true)]
     /// 详细模式
-    verbose: u8,
+    verbose: bool,
+    #[cfg(debug_assertions)]
+    #[arg(long, global = true)]
+    /// 静默模式, 无视详细
+    silent: bool,
 }
 
 #[derive(Subcommand, Debug)]
@@ -59,7 +62,13 @@ fn tuack_ng(cli: Cli) -> Result<()> {
     if !matches!(cli.command, Commands::Gen(ref args)
        if matches!(args.target, crate::generate::Targets::Complete(_)))
     {
-        init::init(&(cli.verbose >= 1))?;
+        init::init(
+            &(if cfg!(debug_assertions) {
+                !cli.silent
+            } else {
+                cli.verbose
+            }),
+        )?;
         info!("booting up");
     }
 
@@ -82,11 +91,7 @@ fn main() -> Result<()> {
     if cfg!(debug_assertions) {
         result?;
     } else if let Err(e) = result {
-        if log::max_level() == log::LevelFilter::Off {
-            eprintln!("程序执行出错: {:#}", e);
-        } else {
-            log::error!("程序执行出错: {:#}", e);
-        }
+        msg_error!("程序执行出错: {:#}", e);
         std::process::exit(1);
     }
     Ok(())

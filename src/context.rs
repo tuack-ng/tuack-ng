@@ -23,7 +23,7 @@ pub struct Context {
     pub languages: HashMap<String, Language>,
 }
 
-static GLOBAL_CONTEXT: OnceLock<Context> = OnceLock::new();
+pub static GLOBAL_CONTEXT: OnceLock<Context> = OnceLock::new();
 
 pub fn setup_context(x: Context) -> Result<()> {
     if GLOBAL_CONTEXT.set(x).is_err() {
@@ -32,6 +32,6 @@ pub fn setup_context(x: Context) -> Result<()> {
     Ok(())
 }
 
-pub fn get_context() -> &'static Context {
+pub fn gctx() -> &'static Context {
     GLOBAL_CONTEXT.get().expect("Not initialized")
 }

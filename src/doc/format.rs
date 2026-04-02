@@ -98,7 +98,7 @@ pub fn main(args: FormatArgs) -> Result<()> {
         return Ok(());
     }
 
-    let config = get_context().config.as_ref().context("没有可用的工程")?;
+    let config = gctx().config.as_ref().context("没有可用的工程")?;
 
     match &config.1 {
         CurrentLocation::None => bail!("没有可用的工程"),

@@ -57,8 +57,5 @@ fn parse_score_value(attr_value: &Option<String>) -> Result<f64> {
             .map(|score| score.clamp(0.0, 100.0))
             .with_context(|| format!("分数解析失败: '{}'", value_str));
     }
-
-    warn!("缺失分数字段");
-    // 默认返回0分
-    Ok(0.0)
+    bail!("缺失分数字段");
 }

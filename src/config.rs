@@ -46,7 +46,7 @@ fn is_contest_config(path: &Path) -> Result<bool> {
                 return Ok(true);
             }
         } else {
-            error!(
+            msg_error!(
                 "配置文件版本过低，可能是 tuack 的配置文件。请迁移到 tuack-ng 配置文件格式再使用。"
             );
             bail!("配置文件版本过低");

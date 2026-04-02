@@ -40,7 +40,9 @@ pub fn load_day_config(dayconfig_path: &Path) -> Result<ContestDayConfig> {
     if let Some(version) = day_json_value.get("version").and_then(|v| v.as_u64())
         && version < 3
     {
-        error!("配置文件版本过低，可能是 tuack 的配置文件。请迁移到 tuack-ng 配置文件格式再使用。");
+        msg_error!(
+            "配置文件版本过低，可能是 tuack 的配置文件。请迁移到 tuack-ng 配置文件格式再使用。"
+        );
         bail!("配置文件版本过低");
     }
 
