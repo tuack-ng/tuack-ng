@@ -31,6 +31,7 @@ markdown-ppp = { git = "https://github.com/tuack-ng/markdown-ppp.git", rev = "79
 minijinja = "2.14.0"
 natord = "1.0.9"
 nom = "8.0.0"
+opener = "0.8.4"
 pretty = "0.12.5"
 quick-xml = { version = "0.39.0", features = ["serialize"] }
 rand = "0.9.2"

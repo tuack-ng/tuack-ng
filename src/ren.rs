@@ -14,6 +14,7 @@ use colored::Colorize;
 use indexmap::IndexMap;
 use markdown_ppp::ast::Document;
 use markdown_ppp::parser::*;
+use opener::open;
 use std::time::Duration;
 
 use template::render_template;
@@ -36,6 +37,10 @@ pub struct RenArgs {
     /// 保留临时目录用于调试
     #[arg(long)]
     pub keep_tmp: bool,
+
+    /// 不自动打开渲染成果
+    #[arg(short = 's')]
+    pub no_auto_open: bool,
 }
 
 pub enum RenderQueue {
@@ -418,10 +423,14 @@ pub fn main(args: RenArgs) -> Result<()> {
                 } else {
                     copy_dir_recursive(&source, &target)?;
                 }
-                info!("PDF已保存到: {}", target.display());
+                msg_info!("结果已保存到: {}", target.display());
+
+                if !args.no_auto_open {
+                    open(target)?;
+                }
 
                 if args.keep_tmp {
-                    info!("保留临时目录: {}", tmp_dir.display());
+                    msg_info!("保留临时目录: {}", tmp_dir.display());
                 } else {
                     fs::remove_dir_all(&tmp_dir)?;
                     info!("清理临时目录");
