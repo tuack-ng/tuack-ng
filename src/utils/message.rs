@@ -1,4 +1,5 @@
 #![allow(unused)]
+pub use colored;
 pub use colored::Colorize;
 
 // 核心宏：内部使用
@@ -34,10 +35,17 @@ macro_rules! msg_progress {
     ($($arg:tt)*) => {
         $crate::emsg!("{}", {
             let msg = format!($($arg)*);
-            msg.lines()
-                .map(|line| format!("{}{}", ">>> ".bold(), line))
-                .collect::<Vec<_>>()
-                .join("\n")
+            if $crate::colored::control::SHOULD_COLORIZE.should_colorize() {
+                msg.lines()
+                    .map(|line| format!("{}{}", ">>> ".bold(), line))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            } else {
+                msg.lines()
+                    .map(|line| format!(">>> {}", line))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            }
         })
     };
 }
@@ -47,10 +55,17 @@ macro_rules! msg_info {
     ($($arg:tt)*) => {
         $crate::emsg!("{}", {
             let msg = format!($($arg)*);
-            msg.lines()
-                .map(|line| format!("{}{}", " * ".green().bold(), line))
-                .collect::<Vec<_>>()
-                .join("\n")
+            if $crate::colored::control::SHOULD_COLORIZE.should_colorize() {
+                msg.lines()
+                    .map(|line| format!("{}{}", " * ".green().bold(), line))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            } else {
+                msg.lines()
+                    .map(|line| format!("[I] {}", line))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            }
         })
     };
 }
@@ -60,10 +75,17 @@ macro_rules! msg_error {
     ($($arg:tt)*) => {
         $crate::emsg!("{}", {
             let msg = format!($($arg)*);
-            msg.lines()
-                .map(|line| format!("{}{}", " * ".red().bold(), line))
-                .collect::<Vec<_>>()
-                .join("\n")
+            if $crate::colored::control::SHOULD_COLORIZE.should_colorize() {
+                msg.lines()
+                    .map(|line| format!("{}{}", " * ".red().bold(), line))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            } else {
+                msg.lines()
+                    .map(|line| format!("[E] {}", line))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            }
         })
     };
 }
@@ -73,10 +95,17 @@ macro_rules! msg_warn {
     ($($arg:tt)*) => {
         $crate::emsg!("{}", {
             let msg = format!($($arg)*);
-            msg.lines()
-                .map(|line| format!("{}{}", " * ".yellow().bold(), line))
-                .collect::<Vec<_>>()
-                .join("\n")
+            if $crate::colored::control::SHOULD_COLORIZE.should_colorize() {
+                msg.lines()
+                    .map(|line| format!("{}{}", " * ".yellow().bold(), line))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            } else {
+                msg.lines()
+                    .map(|line| format!("[W] {}", line))
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            }
         })
     };
 }
