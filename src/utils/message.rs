@@ -33,7 +33,7 @@ macro_rules! emsg {
 #[macro_export]
 macro_rules! msg_progress {
     ($($arg:tt)*) => {
-        $crate::emsg!("{}", {
+        $crate::msg!("{}", {
             let msg = format!($($arg)*);
             if $crate::colored::control::SHOULD_COLORIZE.should_colorize() {
                 msg.lines()
@@ -53,7 +53,7 @@ macro_rules! msg_progress {
 #[macro_export]
 macro_rules! msg_info {
     ($($arg:tt)*) => {
-        $crate::emsg!("{}", {
+        $crate::msg!("{}", {
             let msg = format!($($arg)*);
             if $crate::colored::control::SHOULD_COLORIZE.should_colorize() {
                 msg.lines()
@@ -73,7 +73,7 @@ macro_rules! msg_info {
 #[macro_export]
 macro_rules! msg_error {
     ($($arg:tt)*) => {
-        $crate::emsg!("{}", {
+        $crate::msg!("{}", {
             let msg = format!($($arg)*);
             if $crate::colored::control::SHOULD_COLORIZE.should_colorize() {
                 msg.lines()
@@ -93,7 +93,7 @@ macro_rules! msg_error {
 #[macro_export]
 macro_rules! msg_warn {
     ($($arg:tt)*) => {
-        $crate::emsg!("{}", {
+        $crate::msg!("{}", {
             let msg = format!($($arg)*);
             if $crate::colored::control::SHOULD_COLORIZE.should_colorize() {
                 msg.lines()
