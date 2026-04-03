@@ -62,13 +62,16 @@ fn tuack_ng(cli: Cli) -> Result<()> {
     if !matches!(cli.command, Commands::Gen(ref args)
        if matches!(args.target, crate::generate::Targets::Complete(_)))
     {
-        init::init(
-            &(if cfg!(debug_assertions) {
+        init::init(&{
+            #[cfg(debug_assertions)]
+            {
                 !cli.silent
-            } else {
+            }
+            #[cfg(not(debug_assertions))]
+            {
                 cli.verbose
-            }),
-        )?;
+            }
+        })?;
         info!("booting up");
     }
 
