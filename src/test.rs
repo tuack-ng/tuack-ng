@@ -843,7 +843,15 @@ fn compile(
     let target_path = tmp_dir;
     let program_name = problem_config.name.clone();
     let compile_args = day_config.compile.clone();
-    let compile_cmd = build_compile_cmd(src_path, target_path, &program_name, &compile_args)?;
+    let compile_cmd = match build_compile_cmd(src_path, target_path, &program_name, &compile_args) {
+        Ok(cmd) => cmd,
+        Err(e) => {
+            *problem_status = ProblemStatus::CE;
+            msg_item!("CE".yellow().bold(), "编译错误");
+            msg_error!("{}", e);
+            return Ok(());
+        }
+    };
     if let Some(mut cmd) = compile_cmd {
         let compile_status = cmd
             .current_dir(tmp_dir)

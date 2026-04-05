@@ -32,12 +32,16 @@ pub fn check_compiler(language: &Language) -> Result<()> {
                 let version = version_output.lines().next().unwrap_or("").trim();
                 debug!("{} 版本: {}", &compiler.executable, version);
             }
-            _ => {
+            Ok(output) => {
+                msg_error!("{} 命令执行失败: {:?}", &compiler.executable, output);
+                bail!("{} 命令执行失败", &compiler.executable);
+            }
+            Err(e) => {
                 msg_error!(
                     "未找到 {} 命令，请确保已安装并添加到PATH",
                     &compiler.executable
                 );
-                bail!("{} 命令执行失败", &compiler.executable);
+                bail!(anyhow!(e).context(format!("{} 命令执行失败", &compiler.executable)));
             }
         }
     }
@@ -58,12 +62,16 @@ pub fn check_runner(language: &Language) -> Result<()> {
                 let version = version_output.lines().next().unwrap_or("").trim();
                 debug!("{} 版本: {}", &runner.executable, version);
             }
-            _ => {
+            Ok(output) => {
+                msg_error!("{} 命令执行失败: {:?}", &runner.executable, output);
+                bail!("{} 命令执行失败", &runner.executable);
+            }
+            Err(e) => {
                 msg_error!(
                     "未找到 {} 命令，请确保已安装并添加到PATH",
                     &runner.executable
                 );
-                bail!("{} 命令执行失败", &runner.executable);
+                bail!(anyhow!(e).context(format!("{} 命令执行失败", &runner.executable)));
             }
         }
     }
