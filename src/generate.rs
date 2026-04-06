@@ -342,8 +342,8 @@ fn gen_data(args: GenConfirmArgs) -> Result<()> {
                 .map(|(id, name)| {
                     DataItem::Single(SingleDataItem {
                         id: id as u32 + 1,
-                        input: Optional::initialized(format!("{}.in", name)),
-                        output: Optional::initialized(format!("{}.ans", name)),
+                        input: Some(format!("{}.in", name)),
+                        output: Some(format!("{}.ans", name)),
                         score: 100 / count,
                         subtask: 0,
                         args: HashMap::new(),

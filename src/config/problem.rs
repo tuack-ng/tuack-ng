@@ -7,43 +7,64 @@ use std::sync::Arc;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct ProblemConfig {
+    /// 配置文件版本，应至少以 `3` 开始
+    /// 降低版本可能会引起迁移
     pub version: u32,
+    /// 文件夹类型，在此处应为 `problem`
     pub folder: String,
+    /// 题目类型
     #[serde(rename = "type")]
     pub problem_type: ProblemType,
+    /// 题目 (英文) 名称
     pub name: String,
+    /// 题目标题
     pub title: String,
+    /// 时间限制
     #[serde(rename = "time limit")]
     pub time_limit: f64,
+    /// 空间限制
     #[serde(rename = "memory limit")]
     pub memory_limit: ByteSize,
+    /// 是否有部分分，目前没有用途
     #[serde(rename = "partial score")]
     pub partial_score: bool,
+    /// 数据点参数 (全局部分)
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub args: HashMap<String, i64>,
+    /// 样例
     pub samples: Vec<SampleItem>,
+    /// 数据 (原始)
     #[serde(rename = "data")]
     pub orig_data: Vec<DataItem>,
+    /// Subtask 配置 (原始)
     #[serde(default, rename = "subtasks")]
     pub orig_subtasks: BTreeMap<u32, ScorePolicy>,
+    /// 测试用例
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
     pub tests: IndexMap<String, TestCase>,
-
+    /// 是否有 SPJ
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub use_chk: Option<bool>,
 
+    /// 是否有 pretest，目前没有用途
     #[serde(default, skip, rename = "use-pretest")]
     pub use_pretest: Option<bool>,
+    /// 是否是 NOI 风格
     #[serde(default, skip, rename = "noi-style")]
     pub noi_style: Option<bool>,
+    /// 是否使用文件 IO
     #[serde(default, skip, rename = "file-io")]
     pub file_io: Option<bool>,
 
+    /// 当前配置所在路径，运行时生成
     #[serde(skip)]
     pub path: PathBuf,
+    // pretest 还没加
     // pub pretest: Vec<PreItem>,
+    /// 数据
     #[serde(skip, default)]
     pub data: Vec<Arc<ExpandedDataItem>>,
+    /// Subtask 配置
     #[serde(skip, default)]
     pub subtasks: BTreeMap<u32, SubtaskItem>,
 }
@@ -61,37 +82,49 @@ pub enum ProblemType {
 
 #[derive(Debug, Clone)]
 pub struct SubtaskItem {
+    /// 数据点
     pub items: Vec<Arc<ExpandedDataItem>>,
+    /// 最大分值
     pub max_score: u32,
+    /// 评分策略
     pub policy: ScorePolicy,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TestCase {
-    pub expected: ExpectedScore, // 期望得分条件
-    pub path: String,            // 文件或文件夹路径
+    /// 期望得分条件
+    pub expected: ExpectedScore,
+    /// 文件或文件夹路径
+    pub path: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ExpectedScore {
-    Single(String),        // 单个条件，如 ">= 60"
-    Multiple(Vec<String>), // 多个条件，如 [">= 60", "< 90"]
+    /// 单个条件，如 `">= 60"`
+    Single(String),
+    /// 多个条件，如 `[">= 60", "< 90"]`
+    Multiple(Vec<String>),
 }
 
 impl ProblemConfig {
     pub fn finalize(mut self) -> Self {
-        // 初始化 data 的默认文件名
-        self.orig_data = self.orig_data.into_iter().map(|d| d.finalize()).collect();
-
         for data in &self.orig_data {
             match data {
                 DataItem::Single(item) => self.data.push(Arc::new(ExpandedDataItem {
                     id: item.id,
                     score: item.score,
                     subtask: item.subtask,
-                    input: item.input.get().unwrap().clone(),
-                    output: item.output.get().unwrap().clone(),
+                    input: item
+                        .input
+                        .clone()
+                        .unwrap_or(format!("{}.in", item.id))
+                        .clone(),
+                    output: item
+                        .output
+                        .clone()
+                        .unwrap_or(format!("{}.ans", item.id))
+                        .clone(),
                     args: item.args.clone(),
                     manual: item.manual.unwrap_or(false),
                 })),
@@ -166,19 +199,24 @@ impl ProblemConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SampleItem {
+    /// 样例编号
     pub id: u32,
+    /// 输入文件
     #[serde(
         skip_serializing_if = "Optional::should_skip",
         default = "Optional::uninitialized"
     )]
     pub input: Optional<String>,
+    /// 输出文件
     #[serde(
         skip_serializing_if = "Optional::should_skip",
         default = "Optional::uninitialized"
     )]
     pub output: Optional<String>,
+    /// 参数，会从全局参数继承
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub args: HashMap<String, i64>,
+    /// 是否为人工生成的测试点
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub manual: Option<bool>,
 }
@@ -194,64 +232,68 @@ impl SampleItem {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum DataItem {
-    Single(SingleDataItem), // 单个条件，如 ">= 60"
-    Bundle(BundleDataItem), // 多个条件，如 [">= 60", "< 90"]
+    /// 单个对象
+    Single(SingleDataItem),
+    /// 组合对象
+    Bundle(BundleDataItem),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SingleDataItem {
+    /// 测试点编号
     pub id: u32,
+    /// 测试点分值
     pub score: u32,
+    /// Subtask 编号
     #[serde(default)]
     pub subtask: u32,
-    // #[serde(skip)]
-    #[serde(
-        skip_serializing_if = "Optional::should_skip",
-        default = "Optional::uninitialized"
-    )]
-    pub input: Optional<String>,
-    #[serde(
-        skip_serializing_if = "Optional::should_skip",
-        default = "Optional::uninitialized"
-    )]
-    pub output: Optional<String>,
+    /// 输入文件
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub input: Option<String>,
+    /// 输出文件
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub output: Option<String>,
+    /// 参数，会从全局参数继承
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub args: HashMap<String, i64>,
+    /// 是否为人工生成的测试点
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub manual: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BundleDataItem {
+    /// 测试点编号
     pub id: Vec<i32>,
+    /// 测试点分值
     pub score: u32,
+    /// Subtask 编号
     #[serde(default)]
     pub subtask: u32,
+    /// 参数，会从全局参数继承
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub args: HashMap<String, i64>,
+    /// 是否为人工生成的测试点
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub manual: Option<bool>,
 }
 
 #[derive(Debug, Clone)]
 pub struct ExpandedDataItem {
+    /// 测试点编号
     pub id: u32,
+    /// 测试点分值
     pub score: u32,
+    /// Subtask 编号
     pub subtask: u32,
+    /// 输入文件
     pub input: String,
+    /// 输出文件
     pub output: String,
+    /// 参数，会从全局参数继承
     pub args: HashMap<String, i64>,
+    /// 是否为人工生成的测试点
     pub manual: bool,
-}
-
-impl DataItem {
-    pub fn finalize(mut self) -> Self {
-        if let DataItem::Single(ref mut item) = self {
-            item.input.set_default(format!("{}.in", item.id));
-            item.output.set_default(format!("{}.ans", item.id));
-        }
-        self
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Copy)]
