@@ -12,6 +12,8 @@ use clap_i18n_richformatter::clap_i18n;
 mod conf;
 mod config;
 mod context;
+#[cfg(debug_assertions)]
+mod debug;
 mod dmk;
 mod doc;
 mod dump;
@@ -54,6 +56,10 @@ enum Commands {
     Dump(DumpArgs),
     /// 文档相关
     Doc(DocArgs),
+    /// Debug (仅调试可用)
+    #[command(version)]
+    #[cfg(debug_assertions)]
+    Debug,
 }
 
 fn tuack_ng(cli: Cli) -> Result<()> {
@@ -83,6 +89,8 @@ fn tuack_ng(cli: Cli) -> Result<()> {
         Commands::Dmk(args) => dmk::main(args),
         Commands::Dump(args) => dump::main(args),
         Commands::Doc(args) => doc::main(args),
+        #[cfg(debug_assertions)]
+        Commands::Debug => debug::main(),
     }
 }
 

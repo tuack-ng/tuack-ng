@@ -109,8 +109,7 @@ pub fn main(args: RenArgs) -> Result<()> {
             let manifest_content = fs::read_to_string(&manifest_file)?;
             serde_json::from_str::<TemplateManifest>(&manifest_content)?
         } else {
-            msg_error!("找不到清单文件: {}", manifest_file.display());
-            bail!("致命错误: 找不到清单文件");
+            bail!("找不到清单文件: {}", manifest_file.display());
         }
     };
 
@@ -119,7 +118,6 @@ pub fn main(args: RenArgs) -> Result<()> {
         TargetType::Markdown => Box::new(MarkdownChecker::new(template_dir.to_path_buf())),
     };
     if let Err(e) = checker.check_compiler() {
-        msg_error!("渲染器检查未通过: \n{:?}", e);
         bail!(e.context("渲染器检查未通过"));
     }
 
@@ -232,10 +230,7 @@ pub fn main(args: RenArgs) -> Result<()> {
                         map.insert(problem_key.to_string(), problem_config);
                         map
                     })
-                    .with_context(|| {
-                        msg_error!("未找到问题: {}", problem_key);
-                        format!("未找到问题: {}", problem_key)
-                    })?
+                    .context(format!("未找到问题: {}", problem_key))?
             } else {
                 // 所有问题
                 info!("渲染所有问题（共{}个）", day_config.subconfig.len());

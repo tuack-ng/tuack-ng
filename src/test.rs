@@ -1,9 +1,11 @@
+use crate::config::ExpandedDataItem;
 use crate::config::ScorePolicy;
 use crate::prelude::*;
 use crate::test::checker::parse_result;
 use crate::utils::compile::build_compile_cmd;
 use crate::utils::compile::build_run_cmd;
 use crate::utils::duration::format_duration;
+use crate::utils::filesystem::create_or_clear_dir;
 use bytesize::ByteSize;
 use clap::Args;
 use colored::Colorize;
@@ -70,31 +72,27 @@ pub struct ProblemTestResult {
 #[command(version)]
 pub struct TestArgs {}
 
-fn create_or_clear_dir(path: &Path) -> Result<(), std::io::Error> {
-    if path.exists() {
-        fs::remove_dir_all(path)?;
-    }
-    fs::create_dir_all(path)
-}
-
 fn run_test_case(
     src_path: &Path,
     program_path: &Path,
-    problem_name: &str,
-    input_path: &Path,
-    time_limit_ms: u128,
-    memory_limit_bytes: u64,
-    file_io: bool,
+    problem_config: &ProblemConfig,
+    case: &Arc<ExpandedDataItem>,
 ) -> Result<(TestCaseStatus, Option<Duration>, Option<ByteSize>)> {
+    let problem_name = &problem_config.name;
+    let time_limit_ms = (problem_config.time_limit * 1000.0) as u128;
+    let memory_limit_bytes = problem_config.memory_limit.as_u64();
+    let file_io = problem_config.file_io.unwrap_or(true);
+    let tmp_dir = program_path.parent().unwrap();
+    let input_path = problem_config.path.join("data").join(&case.input);
+    let program_dir = program_path.parent().unwrap();
+
     use tokio::process::Command;
     use tokio::time::{Duration, Instant, sleep};
-    let program_dir = program_path.parent().unwrap();
-    let test_input_path = if file_io {
-        program_dir.join(format!("{}.in", problem_name))
-    } else {
-        program_dir.join(format!("{}.stdin", problem_name))
-    };
-    fs::copy(input_path, &test_input_path)?;
+
+    if file_io {
+        let test_input_path = program_dir.join(format!("{}.in", problem_name));
+        fs::copy(&input_path, &test_input_path)?;
+    }
 
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
@@ -113,7 +111,7 @@ fn run_test_case(
                 .stderr(Stdio::piped())
                 .spawn()?
         } else {
-            let stdin_file = std::fs::File::open(&test_input_path)?;
+            let stdin_file = std::fs::File::open(&input_path)?;
             let stdout_file =
                 std::fs::File::create(program_dir.join(format!("{}.stdout", problem_name)))?;
 
@@ -131,8 +129,7 @@ fn run_test_case(
         // 使用 Arc 和 Mutex 来在线程间共享内存使用数据
         let peak_memory = Arc::new(Mutex::new(0u64));
         let monitoring_peak_memory = Arc::clone(&peak_memory);
-
-        Ok::<(TestCaseStatus, Option<Duration>, Option<ByteSize>), anyhow::Error>(tokio::select! {
+        let result = tokio::select! {
             biased;
 
             // 内存和超时监控任务
@@ -188,7 +185,6 @@ fn run_test_case(
                 // 获取记录的峰值内存
                 let final_peak = *peak_memory.lock().unwrap();
 
-                // 记录时间和内存使用情况到日志
                 info!("测试点运行完成，使用时间: {:?}, 峰值内存: {}", elapsed_time, ByteSize(final_peak));
 
                 match exit_status {
@@ -204,38 +200,42 @@ fn run_test_case(
                     },
                 }
             }
-        })
+        };
+        Ok::<(TestCaseStatus, Option<Duration>, Option<ByteSize>), anyhow::Error>(result)
     })?;
 
-    Ok(result)
+    let case_status = match result.0 {
+        TestCaseStatus::Running => validate_output(&tmp_dir, problem_config, case)?,
+        status => status,
+    };
+
+    // Ok(result)
+    Ok((case_status, result.1, result.2))
 }
 
 fn validate_output(
     program_dir: &Path,
-    problem_name: &str,
-    answer_path: &Path,
-    file_io: bool,
-    spj: Option<PathBuf>,
+    problem_config: &ProblemConfig,
+    case: &Arc<ExpandedDataItem>,
 ) -> Result<TestCaseStatus> {
-    let output_path = if file_io {
+    let problem_name = &problem_config.name;
+    let input_path = problem_config.path.join("data").join(&case.input);
+    let output_path = if problem_config.file_io.unwrap_or(false) {
         program_dir.join(format!("{}.out", problem_name))
     } else {
         program_dir.join(format!("{}.stdout", problem_name))
     };
-    let input_path = if file_io {
-        program_dir.join(format!("{}.in", problem_name))
+    let answer_path = problem_config.path.join("data").join(&case.output);
+    let spj = if problem_config.use_chk.unwrap_or(false) {
+        Some(problem_config.path.join("data").join("chk").join("chk"))
     } else {
-        program_dir.join(format!("{}.stdin", problem_name))
+        None
     };
 
     // 检查输出文件是否存在
     if !output_path.exists() {
         return Ok(TestCaseStatus::WA);
     }
-
-    // 复制答案文件
-    let ans_path = program_dir.join(format!("{}.ans", problem_name));
-    fs::copy(answer_path, &ans_path)?;
 
     let checker_path = match spj {
         Some(spj_path) => spj_path,
@@ -260,7 +260,7 @@ fn validate_output(
     let _validate = Command::new(&checker_path)
         .arg(&input_path)
         .arg(&output_path)
-        .arg(&ans_path)
+        .arg(&answer_path)
         .arg(&res_path)
         .arg("-appes")
         .stderr(Stdio::null())
@@ -606,35 +606,12 @@ pub fn main(_: TestArgs) -> Result<()> {
                     for case in &problem_config.data {
                         case_count += 1;
 
-                        let input_path = problem_config.path.join("data").join(&case.input);
-                        let answer_path = problem_config.path.join("data").join(&case.output);
-
                         info!("运行测试点: {}", case.id);
 
-                        let run_result = run_test_case(
-                            &src_path,
-                            &program_path,
-                            &problem_config.name,
-                            &input_path,
-                            (problem_config.time_limit * 1000.0) as u128,
-                            problem_config.memory_limit.as_u64(),
-                            problem_config.file_io.unwrap_or(true),
-                        )?;
+                        let run_result =
+                            run_test_case(&src_path, &program_path, problem_config, case)?;
 
-                        let case_status = match run_result.0 {
-                            TestCaseStatus::Running => validate_output(
-                                &tmp_dir,
-                                &problem_config.name,
-                                &answer_path,
-                                problem_config.file_io.unwrap_or(true),
-                                if problem_config.use_chk.unwrap_or(false) {
-                                    Some(problem_config.path.join("data").join("chk").join("chk"))
-                                } else {
-                                    None
-                                },
-                            )?,
-                            status => status,
-                        };
+                        let case_status = run_result.0;
 
                         info!("测试点结果: {:?}", case_status);
 

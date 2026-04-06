@@ -36,6 +36,13 @@ pub fn copy_dir_recursive<P: AsRef<Path>, Q: AsRef<Path>>(src: P, dst: Q) -> Res
     Ok(())
 }
 
+pub fn create_or_clear_dir(path: &Path) -> Result<(), std::io::Error> {
+    if path.exists() {
+        fs::remove_dir_all(path)?;
+    }
+    fs::create_dir_all(path)
+}
+
 #[cfg(unix)]
 fn add_write_permission(path: &Path) -> Result<()> {
     let metadata = fs::metadata(path)?;
