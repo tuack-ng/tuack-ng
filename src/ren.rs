@@ -81,28 +81,24 @@ fn ren(
     copy_dir_recursive(fonts_dir, &tmp_font_dir)?;
 
     // 获取要渲染的问题
-    let problems_to_render: IndexMap<String, &ProblemConfig> =
-        if let Some(ref problem_key) = problem {
-            // 特定问题：直接通过键获取
-            day_config
-                .subconfig
-                .get(problem_key)
-                .map(|problem_config| {
-                    info!("渲染指定问题: {}", problem_config.name);
-                    let mut map = IndexMap::new();
-                    map.insert(problem_key.to_string(), problem_config);
-                    map
-                })
-                .context(format!("未找到问题: {}", problem_key))?
-        } else {
-            // 所有问题
+    let problems_to_render: IndexMap<String, &ProblemConfig> = match problem {
+        Some(ref problem_key) => day_config
+            .subconfig
+            .get(problem_key)
+            .map(|config| {
+                info!("渲染指定问题: {}", config.name);
+                IndexMap::from([(problem_key.to_string(), config)])
+            })
+            .context(format!("未找到问题: {}", problem_key))?,
+        None => {
             info!("渲染所有问题（共{}个）", day_config.subconfig.len());
             day_config
                 .subconfig
                 .iter()
                 .map(|(k, v)| (k.clone(), v))
                 .collect()
-        };
+        }
+    };
 
     // 添加问题级别进度条
     let problem_pb = gctx()
