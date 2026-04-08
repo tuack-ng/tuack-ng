@@ -4,11 +4,7 @@ use sha2::{Digest, Sha256};
 use std::ffi::OsStr;
 
 // 为图片分配唯一ID并复制的函数
-pub fn process_images_with_unique_ids(
-    src_dir: &Path,
-    dst_dir: &Path,
-    _problem_idx: usize,
-) -> Result<()> {
+pub fn process_images_with_unique_ids(src_dir: &Path, dst_dir: &Path) -> Result<()> {
     if !dst_dir.exists() {
         fs::create_dir_all(dst_dir)?;
     }

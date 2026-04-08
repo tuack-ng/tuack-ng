@@ -126,18 +126,7 @@ fn ren(
         day_config.clone()
     };
 
-    for (problem_key, problem_config) in problems_to_render.iter() {
-        // 计算问题索引
-        let typst_index = if problem.is_some() {
-            0
-        } else {
-            day_config
-                .subconfig
-                .keys()
-                .position(|k| k == problem_key)
-                .unwrap_or(0)
-        };
-
+    for (_problem_key, problem_config) in problems_to_render.iter() {
         problem_pb.set_message(format!("处理问题: {}", problem_config.name));
         info!("处理问题: {}", problem_config.name);
 
@@ -151,7 +140,7 @@ fn ren(
             bail!("未找到题面文件: {}", statement_path.display());
         }
 
-        // 解析题面顺便展开模板
+        // 解析题面同时展开模板
         let content = match render_template(
             &fs::read_to_string(&statement_path)?,
             problem_config,
@@ -197,7 +186,7 @@ fn ren(
                 fs::create_dir_all(&img_dst_dir)?;
             }
 
-            process_images_with_unique_ids(&img_src_dir, &img_dst_dir, typst_index)?;
+            process_images_with_unique_ids(&img_src_dir, &img_dst_dir)?;
             info!(
                 "处理图片资源: {} -> {}",
                 img_src_dir.display(),
