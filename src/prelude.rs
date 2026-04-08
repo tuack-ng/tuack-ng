@@ -15,4 +15,5 @@ pub use std::fs;
 pub use std::path::{Path, PathBuf};
 pub use std::sync::Arc;
 
+pub use indexmap::IndexMap;
 pub use serde::{Deserialize, Serialize};

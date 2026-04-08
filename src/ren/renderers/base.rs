@@ -1,6 +1,6 @@
-use crate::config::TemplateManifest;
 use crate::prelude::*;
 use crate::ren::RenderQueue;
+use crate::ren::manifest::TemplateManifest;
 
 pub trait Checker {
     fn check_compiler(&self) -> Result<()>;

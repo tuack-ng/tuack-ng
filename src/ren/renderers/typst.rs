@@ -8,9 +8,11 @@ use markdown_ppp::typst_printer::render_typst;
 use serde_json;
 use std::process::Command;
 
-use crate::config::{
-    ContestConfig, ContestDayConfig, DataJson, DateInfo, Problem, SupportLanguage, TemplateManifest,
-};
+mod datajson;
+
+use crate::config::{ContestConfig, ContestDayConfig};
+use crate::ren::manifest::TemplateManifest;
+use datajson::{DataJson, DateInfo, Problem, SupportLanguage};
 pub struct TypstChecker {
     pub template_dir: PathBuf,
 }

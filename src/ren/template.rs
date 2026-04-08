@@ -1,5 +1,5 @@
-use crate::config::TemplateManifest;
 use crate::prelude::*;
+use crate::ren::manifest::TemplateManifest;
 use anyhow::Result;
 use colored::Colorize;
 use minijinja::{Environment, Value, context};

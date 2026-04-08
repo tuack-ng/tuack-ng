@@ -13,7 +13,7 @@ mod conf;
 mod config;
 mod context;
 #[cfg(debug_assertions)]
-mod debug;
+mod develop;
 mod dmk;
 mod doc;
 mod dump;
@@ -56,10 +56,9 @@ enum Commands {
     Dump(DumpArgs),
     /// 文档相关
     Doc(DocArgs),
-    /// Debug (仅调试可用)
-    #[command(version)]
+    /// 开发工具
     #[cfg(debug_assertions)]
-    Debug,
+    Develop(develop::DevelopArgs),
 }
 
 fn tuack_ng(cli: Cli) -> Result<()> {
@@ -90,7 +89,7 @@ fn tuack_ng(cli: Cli) -> Result<()> {
         Commands::Dump(args) => dump::main(args),
         Commands::Doc(args) => doc::main(args),
         #[cfg(debug_assertions)]
-        Commands::Debug => debug::main(),
+        Commands::Develop(args) => develop::main(args),
     }
 }
 

@@ -4,17 +4,13 @@ pub const CONFIG_FILE_NAME: &str = "conf.json";
 
 pub mod contest;
 pub mod contestday;
-pub mod data;
 pub mod lang;
-pub mod models;
 pub mod problem;
 
 use crate::context::CurrentLocation;
 
 pub use self::contest::*;
 pub use self::contestday::*;
-pub use self::data::*;
-pub use self::models::*;
 pub use self::problem::*;
 
 fn find_contest_config(start_path: &Path) -> Result<PathBuf> {

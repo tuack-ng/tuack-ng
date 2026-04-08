@@ -1,6 +1,19 @@
 use crate::prelude::*;
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct DataJson {
+    pub title: String,
+    pub subtitle: String,
+    pub dayname: String,
+    pub date: DateInfo,
+    pub use_pretest: bool,
+    pub noi_style: bool,
+    pub file_io: bool,
+    pub support_languages: Vec<SupportLanguage>,
+    pub problems: Vec<Problem>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Problem {
     pub name: String,
     pub title: String,
@@ -27,34 +40,4 @@ pub struct SupportLanguage {
 pub struct DateInfo {
     pub start: [u32; 6],
     pub end: [u32; 6],
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(rename_all = "kebab-case")]
-pub enum TargetType {
-    Typst,
-    Markdown,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct TemplateManifest {
-    #[serde(default = "default_use_pretest")]
-    pub use_pretest: bool,
-    #[serde(default = "default_noi_style")]
-    pub noi_style: bool,
-    #[serde(default = "default_file_io")]
-    pub file_io: bool,
-    pub target: TargetType,
-}
-
-fn default_use_pretest() -> bool {
-    false
-}
-
-fn default_noi_style() -> bool {
-    true
-}
-
-fn default_file_io() -> bool {
-    true
 }
