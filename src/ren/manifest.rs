@@ -18,6 +18,8 @@ pub struct TemplateManifest {
     pub target: TargetType,
     #[serde(default)]
     pub filelist: IndexMap<String, String>,
+    #[serde(default)]
+    pub processor: Vec<String>,
 }
 
 fn default_use_pretest() -> bool {

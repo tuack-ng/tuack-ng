@@ -1,9 +1,11 @@
 use crate::prelude::*;
 pub mod manifest;
+pub mod processors;
 pub mod renderers;
 pub mod template;
 pub mod unwrap;
 pub mod utils;
+use crate::ren::processors::process_ast;
 use crate::ren::renderers::base::Checker;
 use crate::ren::renderers::base::Compiler;
 use crate::ren::renderers::markdown::MarkdownChecker;
@@ -181,6 +183,8 @@ fn ren(
                 bail!("解析题面文件失败");
             }
         };
+
+        ast = process_ast(&mut ast, &manifest.processor)?;
 
         let img_src_dir = problem_dir.join("img");
 
