@@ -1,9 +1,9 @@
-use super::FormatRule;
 use crate::{
-    doc::rules::{
-        CheckImportance, CheckInfo, CheckManifest, CheckResult, CheckRule, FormatManifest,
-    },
     prelude::*,
+    tuack_lib::doc::rules::{
+        CheckImportance, CheckInfo, CheckManifest, CheckResult, CheckRule, FormatManifest,
+        FormatRule,
+    },
 };
 use lazy_static::lazy_static;
 use markdown_ppp::ast::*;

@@ -1,6 +1,6 @@
 use crate::{
-    doc::rules::{CheckImportance, CheckInfo, CheckManifest, CheckResult, CheckRule},
     prelude::*,
+    tuack_lib::doc::rules::{CheckImportance, CheckInfo, CheckManifest, CheckResult, CheckRule},
 };
 use lazy_static::lazy_static;
 use markdown_ppp::{

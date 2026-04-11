@@ -3,7 +3,7 @@ use crate::ren::Compiler;
 use crate::ren::RenderQueue;
 use crate::ren::copy_dir_recursive;
 use crate::ren::manifest::TemplateManifest;
-use crate::ren::renderers::base::Checker;
+use crate::tuack_lib::ren::base::Checker;
 use markdown_ppp::printer::config::Config;
 use markdown_ppp::printer::render_markdown;
 

@@ -10,7 +10,6 @@ use clap::{Parser, Subcommand};
 use clap_i18n_richformatter::clap_i18n;
 
 mod conf;
-mod config;
 mod context;
 #[cfg(debug_assertions)]
 mod develop;
@@ -22,6 +21,7 @@ mod init;
 mod prelude;
 mod ren;
 mod test;
+mod tuack_lib;
 mod utils;
 
 #[derive(Debug, Parser)]

@@ -1,6 +1,6 @@
-use crate::config::ExpandedDataItem;
 use crate::context::{CurrentLocation, gctx};
 use crate::prelude::*;
+use crate::tuack_lib::config::ExpandedDataItem;
 use crate::utils::compile::{build_compile_cmd, build_run_cmd};
 use crate::utils::random::gen_rnd;
 use clap::Args;
@@ -132,8 +132,8 @@ pub fn main(args: DmkArgs) -> Result<()> {
 
 fn gen_data(
     args: &DmkArgs,
-    current_problem: &crate::config::ProblemConfig,
-    current_day: &crate::config::ContestDayConfig,
+    current_problem: &crate::tuack_lib::config::ProblemConfig,
+    current_day: &crate::tuack_lib::config::ContestDayConfig,
 ) -> Result<()> {
     info!("开始生成数据: {}", current_problem.name);
     let target_dir = match args.target {
@@ -318,9 +318,9 @@ fn find_generator(problem_path: &std::path::Path) -> Result<std::path::PathBuf> 
 }
 
 /// 查找标程
-fn find_std(problem: &crate::config::ProblemConfig) -> Result<std::path::PathBuf> {
+fn find_std(problem: &crate::tuack_lib::config::ProblemConfig) -> Result<std::path::PathBuf> {
     for (name, case) in &problem.tests {
-        if let crate::config::ExpectedScore::Single(str) = &case.expected
+        if let crate::tuack_lib::config::ExpectedScore::Single(str) = &case.expected
             && str.replace(' ', "") == "==100"
             && problem
                 .path
@@ -370,8 +370,8 @@ fn compile_generator(generator_path: &std::path::Path) -> Result<()> {
 /// 编译标程
 fn compile_std(
     std_path: &std::path::Path,
-    problem: &crate::config::ProblemConfig,
-    day: &crate::config::ContestDayConfig,
+    problem: &crate::tuack_lib::config::ProblemConfig,
+    day: &crate::tuack_lib::config::ContestDayConfig,
 ) -> Result<()> {
     info!("编译标程: {}", std_path.display());
 

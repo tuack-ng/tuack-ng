@@ -8,7 +8,7 @@ use log4rs::{
     encode::pattern::PatternEncoder,
 };
 
-use crate::{config::load_config, context};
+use crate::{context, tuack_lib::config::load_config};
 use chrono::Local;
 use colored::Colorize;
 use indicatif::MultiProgress;

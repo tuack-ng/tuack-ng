@@ -1,5 +1,5 @@
-use crate::config::lang::Language;
 use crate::prelude::*;
+use crate::tuack_lib::config::lang::Language;
 use std::process::Command;
 use strfmt::strfmt;
 

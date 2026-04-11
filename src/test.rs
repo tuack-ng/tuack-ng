@@ -1,7 +1,7 @@
-use crate::config::ExpandedDataItem;
-use crate::config::ScorePolicy;
 use crate::prelude::*;
 use crate::test::checker::parse_result;
+use crate::tuack_lib::config::ExpandedDataItem;
+use crate::tuack_lib::config::ScorePolicy;
 use crate::utils::compile::build_compile_cmd;
 use crate::utils::compile::build_run_cmd;
 use crate::utils::duration::format_duration;

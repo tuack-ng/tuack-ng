@@ -1,7 +1,7 @@
-use super::base::Checker;
-use super::base::Compiler;
 use crate::prelude::*;
 use crate::ren::RenderQueue;
+use crate::tuack_lib::ren::base::Checker;
+use crate::tuack_lib::ren::base::Compiler;
 use markdown_ppp::ast::Document;
 use markdown_ppp::typst_printer::config::Config;
 use markdown_ppp::typst_printer::render_typst;
@@ -10,8 +10,8 @@ use std::process::Command;
 
 mod datajson;
 
-use crate::config::{ContestConfig, ContestDayConfig};
 use crate::ren::manifest::TemplateManifest;
+use crate::tuack_lib::config::{ContestConfig, ContestDayConfig};
 use datajson::{DataJson, DateInfo, Problem, SupportLanguage};
 pub struct TypstChecker {
     pub template_dir: PathBuf,

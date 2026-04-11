@@ -1,5 +1,5 @@
-use crate::config::{CONFIG_FILE_NAME, save_day_config};
 use crate::prelude::*;
+use crate::tuack_lib::config::{CONFIG_FILE_NAME, save_day_config};
 use chrono::Datelike;
 use chrono::Timelike;
 use chrono::{Duration, NaiveDateTime};
@@ -24,8 +24,8 @@ fn add_minutes(time: [u32; 6], minutes: i64) -> [u32; 6] {
 
 use crate::{
     Subcommand,
-    config::save_problem_config,
     context::{CurrentLocation, gctx},
+    tuack_lib::config::save_problem_config,
 };
 use clap::Args;
 
@@ -72,12 +72,7 @@ pub struct ConfCustomArgs {
     value: Vec<String>,
 }
 fn conf_title(args: &ConfValuesArgs) -> Result<()> {
-    match gctx()
-        .config
-        .as_ref()
-        .context("没有找到有效的工程")?
-        .1
-    {
+    match gctx().config.as_ref().context("没有找到有效的工程")?.1 {
         CurrentLocation::Problem(_, _) => bail!("本命令不支持设置单个题目标题"),
         CurrentLocation::Day(ref day) => {
             let mut day_config = gctx()
@@ -121,12 +116,7 @@ fn conf_title(args: &ConfValuesArgs) -> Result<()> {
 }
 
 fn conf_time(args: &ConfValuesArgs) -> Result<()> {
-    match gctx()
-        .config
-        .as_ref()
-        .context("没有找到有效的工程")?
-        .1
-    {
+    match gctx().config.as_ref().context("没有找到有效的工程")?.1 {
         CurrentLocation::Problem(_, _) => bail!("本命令不支持设置单个题目时间限制"),
         CurrentLocation::Day(ref day) => {
             let mut day_config = gctx()
@@ -154,12 +144,7 @@ fn conf_time(args: &ConfValuesArgs) -> Result<()> {
 }
 
 fn conf_length(args: &ConfValuesArgs) -> Result<()> {
-    match gctx()
-        .config
-        .as_ref()
-        .context("没有找到有效的工程")?
-        .1
-    {
+    match gctx().config.as_ref().context("没有找到有效的工程")?.1 {
         CurrentLocation::Problem(_, _) => bail!("本命令不支持设置单个题目时间限制"),
         CurrentLocation::Root => {
             let mut config = gctx()
@@ -186,12 +171,7 @@ fn conf_length(args: &ConfValuesArgs) -> Result<()> {
 }
 
 fn conf_custom(args: &ConfCustomArgs) -> Result<()> {
-    match gctx()
-        .config
-        .as_ref()
-        .context("没有找到有效的工程")?
-        .1
-    {
+    match gctx().config.as_ref().context("没有找到有效的工程")?.1 {
         CurrentLocation::Problem(_, _) => bail!("本命令不支持设置单个题目标题"),
         CurrentLocation::Day(ref day) => {
             let mut day_config = gctx()
