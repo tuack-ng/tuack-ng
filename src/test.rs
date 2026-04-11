@@ -363,447 +363,361 @@ fn write_results_to_csv(results: Vec<ProblemTestResult>, problem_path: &Path) ->
     Ok(())
 }
 
-pub fn main(_: TestArgs) -> Result<()> {
-    let (config, current_location) = gctx().config.as_ref().context("找不到配置文件")?;
+pub fn test_problem(day_config: &ContestDayConfig, problem_config: &ProblemConfig) -> Result<()> {
+    // 如果使用自定义 SPJ，先编译
+    if let Some(use_chk) = problem_config.use_chk
+        && use_chk
+    {
+        let compile_pb = gctx().multiprogress.add(ProgressBar::new_spinner());
+        compile_pb.enable_steady_tick(Duration::from_millis(100));
+        compile_pb.set_message(format!("编译 {} 题目的 spj", problem_config.name));
 
-    let (skip_level, target_day_key, target_problem_key) = match current_location {
-        CurrentLocation::Problem(day_name, problem_name) => {
-            (2, Some(day_name.as_str()), Some(problem_name.as_str()))
+        let chk_path = problem_config.path.join("data").join("chk").join("chk.cpp");
+        if !chk_path.exists() {
+            msg_warn!("题目 {} 的 Checker 不存在", problem_config.name.magenta());
+            return Ok(());
         }
-        CurrentLocation::Day(day_name) => (1, Some(day_name.as_str()), None),
-        _ => (0, None, None),
-    };
 
-    // 获取要处理的天配置
-    let days_vec;
-    let days_to_process: Vec<(&String, &crate::config::ContestDayConfig)> =
-        if let Some(day_key) = target_day_key {
-            let day_config = config
-                .subconfig
-                .get(day_key)
-                .with_context(|| format!("未找到天配置: {}", day_key))?;
-            let actual_key = config
-                .subconfig
-                .keys()
-                .find(|k| k.as_str() == day_key)
-                .with_context(|| format!("未找到天配置键: {}", day_key))?;
-            days_vec = vec![(actual_key, day_config)];
-            days_vec.iter().map(|(k, v)| (*k, *v)).collect()
-        } else {
-            config.subconfig.iter().collect()
-        };
+        let compile_output = Command::new("g++")
+            .arg("-o")
+            .arg(problem_config.path.join("data").join("chk").join("chk"))
+            .arg(&chk_path)
+            .arg("-O2")
+            .arg("-std=c++23")
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .output()?;
+        if !compile_output.status.success() {
+            msg_warn!("题目 {} 的 Checker 编译失败", problem_config.name.magenta());
+            msg_warn!("{}", String::from_utf8_lossy(&compile_output.stderr));
+            return Ok(());
+        }
+        compile_pb.finish_and_clear();
+    }
 
-    let total_days = days_to_process.len();
+    // 测试进度条
+    let test_pb = gctx()
+        .multiprogress
+        .add(ProgressBar::new(problem_config.data.len() as u64));
+    test_pb.set_style(
+        indicatif::ProgressStyle::default_bar()
+            .template("  [{bar:40.magenta/blue}] {msg}")
+            .unwrap()
+            .progress_chars("=> "),
+    );
 
-    let day_pb = if skip_level >= 1 {
-        gctx().multiprogress.add(ProgressBar::new(0))
-    } else {
-        let pb = gctx()
-            .multiprogress
-            .add(ProgressBar::new(total_days as u64));
-        pb.set_style(
-            indicatif::ProgressStyle::default_bar()
-                .template("  [{bar:40.green/blue}] {msg}")
-                .unwrap()
-                .progress_chars("=> "),
+    let mut all_test_results = Vec::new();
+
+    let tester_pb = gctx()
+        .multiprogress
+        .add(ProgressBar::new(problem_config.tests.len() as u64));
+    tester_pb.set_style(
+        indicatif::ProgressStyle::default_bar()
+            .template("  [{bar:40.yellow/blue}] {msg}")
+            .unwrap()
+            .progress_chars("=> "),
+    );
+
+    let mut tester_count = 0;
+    for (test_name, test) in &problem_config.tests {
+        tester_count += 1;
+        tester_pb.set_message(format!(
+            "处理第 {}/{} 个测试者: {}",
+            tester_count,
+            problem_config.tests.len(),
+            test_name
+        ));
+
+        info!("测试 {} 的程序", test_name);
+        msg_progress!(
+            "测试题目 {} 的测试 {} 的程序",
+            problem_config.name.magenta(),
+            test_name.cyan()
         );
-        pb
-    };
 
-    let mut day_count = 0;
-    for (_day_key, day_config) in days_to_process {
-        day_count += 1;
-        if skip_level < 1 {
-            day_pb.set_message(format!("处理第 {}/{} 天", day_count, total_days));
-        }
-        info!("处理天: {}", day_config.name);
-
-        // 获取要处理的问题
-        let problems_vec;
-        let problems_to_process: Vec<(&String, &crate::config::ProblemConfig)> =
-            if let Some(problem_key) = target_problem_key {
-                let problem_config = day_config
-                    .subconfig
-                    .get(problem_key)
-                    .context(format!("未找到问题: {}", problem_key))?;
-                let actual_key = day_config
-                    .subconfig
-                    .keys()
-                    .find(|k| k.as_str() == problem_key)
-                    .context(format!("未找到问题键: {}", problem_key))?;
-                problems_vec = vec![(actual_key, problem_config)];
-                problems_vec.iter().map(|(k, v)| (*k, *v)).collect()
-            } else {
-                day_config.subconfig.iter().collect()
-            };
-
-        let problem_count_in_day = problems_to_process.len();
-
-        let problem_pb = if skip_level >= 2 {
-            gctx().multiprogress.add(ProgressBar::new(0))
+        let path = if PathBuf::from_str(&test.path)?.is_absolute() {
+            PathBuf::from_str(&test.path)?
         } else {
-            let pb = gctx()
-                .multiprogress
-                .add(ProgressBar::new(problem_count_in_day as u64));
-            pb.set_style(
-                indicatif::ProgressStyle::default_bar()
-                    .template("  [{bar:40.cyan/blue}] {msg}")
-                    .unwrap()
-                    .progress_chars("=> "),
-            );
-            pb
+            dunce::canonicalize(problem_config.path.join(&test.path))?
         };
+        info!("文件路径：{}", path.display());
 
-        let mut problem_count = 0;
-        for (_problem_key, problem_config) in problems_to_process {
-            problem_count += 1;
-            if skip_level < 2 {
-                problem_pb.set_message(format!(
-                    "处理第 {}/{} 题",
-                    problem_count, problem_count_in_day
-                ));
-            }
+        let mut problem_status;
 
-            info!("处理题目: {}", problem_config.name);
+        #[allow(unused)]
+        {
+            problem_status = ProblemStatus::Waiting;
+        }
 
-            if let Some(use_chk) = problem_config.use_chk
-                && use_chk
+        let tmp_dir = path.parent().unwrap().join("tmp");
+        create_or_clear_dir(&tmp_dir)?;
+
+        let src_path = tmp_dir.join(path.file_name().unwrap());
+        fs::copy(&path, &src_path)?;
+
+        problem_status = ProblemStatus::Compiling;
+        compile(
+            day_config,
+            problem_config,
+            &mut problem_status,
+            &tmp_dir,
+            &src_path,
+        )?;
+
+        let mut total_score: u32 = 0;
+        fs::remove_file(&src_path)?;
+
+        let mut subtask_scores: HashMap<u32, Vec<u32>> = problem_config
+            .subtasks
+            .keys()
+            .map(|id| (*id, Vec::new()))
+            .collect();
+
+        if problem_status == ProblemStatus::Compiled {
+            #[allow(unused)]
             {
-                info!("使用自定义 chk 设置: {}", use_chk);
-
-                let compile_pb = gctx().multiprogress.add(ProgressBar::new_spinner());
-                compile_pb.enable_steady_tick(Duration::from_millis(100));
-                compile_pb.set_message(format!("编译 {} 题目的 spj", problem_config.name));
-
-                let chk_path = problem_config.path.join("data").join("chk").join("chk.cpp");
-                if !chk_path.exists() {
-                    info!("chk 文件不存在，跳过测试此题目");
-                    msg_warn!("题目 {} 的 Checker 不存在", problem_config.name.magenta());
-                    continue;
-                }
-
-                let compile_output = Command::new("g++")
-                    .arg("-o")
-                    .arg(problem_config.path.join("data").join("chk").join("chk"))
-                    .arg(&chk_path)
-                    .arg("-O2")
-                    .arg("-std=c++23")
-                    .stdout(Stdio::null())
-                    .stderr(Stdio::piped())
-                    .output()?;
-                if !compile_output.status.success() {
-                    info!(
-                        "chk 编译失败，跳过测试此题目: \n{}",
-                        String::from_utf8_lossy(&compile_output.stderr)
-                    );
-                    msg_warn!("题目 {} 的 Checker 编译失败", problem_config.name.magenta());
-                    msg_warn!("{}", String::from_utf8_lossy(&compile_output.stderr));
-                    continue;
-                }
-                compile_pb.finish_and_clear();
+                problem_status = ProblemStatus::Running;
             }
+            let program_path = tmp_dir.join(&problem_config.name);
+            let mut individual_results = Vec::new();
+            let mut case_count = 0;
 
-            let test_pb = gctx()
+            let case_test_pb = gctx()
                 .multiprogress
                 .add(ProgressBar::new(problem_config.data.len() as u64));
-            test_pb.set_style(
+            case_test_pb.set_style(
                 indicatif::ProgressStyle::default_bar()
                     .template("  [{bar:40.magenta/blue}] {msg}")
                     .unwrap()
                     .progress_chars("=> "),
             );
 
-            let mut all_test_results = Vec::new();
+            for case in &problem_config.data {
+                case_count += 1;
+                info!("运行测试点: {}", case.id);
 
-            let tester_pb = gctx()
+                let run_result = run_test_case(&src_path, &program_path, problem_config, case)?;
+                let case_status = run_result.0;
+                info!("测试点结果: {:?}", case_status);
+
+                let earned_score = match case_status {
+                    TestCaseStatus::AC => case.score,
+                    TestCaseStatus::PC(partial) => {
+                        ((partial / 100.0) * (case.score as f64)).round() as u32
+                    }
+                    _ => 0,
+                };
+                subtask_scores
+                    .get_mut(&case.subtask)
+                    .context("不存在指定的 Subtask")?
+                    .push(earned_score);
+
+                individual_results.push(IndividualTestCaseResult {
+                    test_case_id: case.id,
+                    status: case_status,
+                    score: earned_score,
+                    max_score: case.score,
+                    time: match run_result.1 {
+                        Some(duration) => format_duration(duration),
+                        None => "N/A".to_string(),
+                    },
+                    memory: match run_result.2 {
+                        Some(memory) => format!("{}", memory),
+                        None => "N/A".to_string(),
+                    },
+                });
+
+                let status_str = match case_status {
+                    TestCaseStatus::AC => "AC".green(),
+                    TestCaseStatus::WA => "WA".red(),
+                    TestCaseStatus::TLE => "TLE".blue(),
+                    TestCaseStatus::MLE => "MLE".blue(),
+                    TestCaseStatus::RE => "RE".bright_blue(),
+                    TestCaseStatus::UKE => "UKE".bright_black(),
+                    TestCaseStatus::Running => unreachable!(),
+                    TestCaseStatus::CE => "CE".yellow(),
+                    TestCaseStatus::PC(score) => format!("PC {:.2} / 100", score).yellow(),
+                };
+                msg_item!(
+                    status_str.clone().bold(),
+                    "测试点 {}  | {} | {}",
+                    case.id.to_string().bold(),
+                    match run_result.1 {
+                        Some(duration) => format_duration(duration),
+                        None => "N/A".to_string(),
+                    }
+                    .bold(),
+                    match run_result.2 {
+                        Some(memory) => format!("{}", memory),
+                        None => "N/A".to_string(),
+                    }
+                    .bold()
+                );
+
+                case_test_pb.set_message(format!(
+                    "运行测试点: {}/{} | #{} {}",
+                    case_count,
+                    problem_config.data.len(),
+                    case.id,
+                    status_str
+                ));
+                case_test_pb.inc(1);
+            }
+            case_test_pb.finish_and_clear();
+
+            msg_info!("测试结果:");
+            for (id, subtask) in &problem_config.subtasks {
+                let scores = &subtask_scores[id];
+                let subtask_score = match subtask.policy {
+                    ScorePolicy::Sum => scores.iter().sum(),
+                    ScorePolicy::Max => *scores.iter().max().unwrap_or(&0),
+                    ScorePolicy::Min => *scores.iter().min().unwrap_or(&0),
+                };
+                info!(
+                    "Subtask #{} 得分 {}/{}",
+                    id, subtask_score, subtask.max_score
+                );
+                msg_info!(
+                    "Subtask {}{} 得分 {}/{}",
+                    "#".bold(),
+                    id.to_string().bold(),
+                    subtask_score.to_string().cyan(),
+                    subtask.max_score.to_string().green()
+                );
+                total_score += subtask_score;
+            }
+
+            let problem_result = ProblemTestResult {
+                tester_name: test_name.to_string(),
+                test_case_results: individual_results,
+                total_score,
+                max_possible_score: problem_config
+                    .subtasks
+                    .iter()
+                    .map(|task| task.1.max_score)
+                    .sum(),
+            };
+            msg_info!(
+                "总得分 {}/{}",
+                total_score.to_string().cyan().bold(),
+                problem_result.max_possible_score.to_string().green().bold()
+            );
+            all_test_results.push(problem_result);
+        } else {
+            let problem_result = ProblemTestResult {
+                tester_name: test_name.to_string(),
+                test_case_results: vec![IndividualTestCaseResult {
+                    test_case_id: 0,
+                    status: TestCaseStatus::CE,
+                    score: 0,
+                    max_score: problem_config.data.iter().map(|case| case.score).sum(),
+                    time: "N/A".to_string(),
+                    memory: "N/A".to_string(),
+                }],
+                total_score: 0,
+                max_possible_score: problem_config
+                    .subtasks
+                    .iter()
+                    .map(|task| task.1.max_score)
+                    .sum(),
+            };
+            msg_info!(
+                "总得分 {}/{}",
+                0.to_string().cyan().bold(),
+                problem_result.max_possible_score.to_string().green().bold()
+            );
+            all_test_results.push(problem_result);
+        }
+
+        info!(
+            "总得分: {}/{}",
+            total_score,
+            problem_config
+                .data
+                .iter()
+                .map(|case| case.score)
+                .sum::<u32>()
+        );
+
+        if check_test_case(test, total_score) {
+            info!("测试 {} 通过", test_name);
+        } else {
+            info!("测试 {} 不满足所有条件", test_name);
+            msg_warn!("{}", "不满足所有条件".bold());
+        }
+
+        tester_pb.inc(1);
+        let _ = fs::remove_dir_all(&tmp_dir);
+    }
+
+    tester_pb.finish_and_clear();
+    write_results_to_csv(all_test_results, &problem_config.path)?;
+    test_pb.finish_and_clear();
+
+    Ok(())
+}
+
+fn test_day(day_config: &ContestDayConfig) -> Result<()> {
+    let total_problems = day_config.subconfig.len();
+    let day_pb = gctx()
+        .multiprogress
+        .add(ProgressBar::new(total_problems as u64));
+    day_pb.set_style(
+        indicatif::ProgressStyle::default_bar()
+            .template("  [{bar:40.green/blue}] {msg}")
+            .unwrap()
+            .progress_chars("=> "),
+    );
+    for (idx, (_, problem_config)) in day_config.subconfig.iter().enumerate() {
+        day_pb.set_message(format!("处理第 {}/{} 题", idx + 1, total_problems));
+        test_problem(day_config, problem_config)?;
+        day_pb.inc(1);
+    }
+    day_pb.finish_with_message("当天所有题目测试完成");
+    Ok(())
+}
+
+pub fn main(_: TestArgs) -> Result<()> {
+    let (config, current_location) = gctx().config.as_ref().context("找不到配置文件")?;
+
+    match current_location {
+        CurrentLocation::Problem(day_key, prob_key) => {
+            let day_config = config
+                .subconfig
+                .get(day_key)
+                .with_context(|| format!("未找到天配置: {}", day_key))?;
+            let problem_config = day_config
+                .subconfig
+                .get(prob_key)
+                .with_context(|| format!("未找到题目配置: {}", prob_key))?;
+            test_problem(day_config, problem_config)?;
+        }
+        CurrentLocation::Day(day_key) => {
+            let day_config = config
+                .subconfig
+                .get(day_key)
+                .with_context(|| format!("未找到天配置: {}", day_key))?;
+            test_day(day_config)?;
+        }
+        CurrentLocation::Root => {
+            let total_days = config.subconfig.len();
+            let day_pb = gctx()
                 .multiprogress
-                .add(ProgressBar::new(problem_config.tests.len() as u64));
-            tester_pb.set_style(
+                .add(ProgressBar::new(total_days as u64));
+            day_pb.set_style(
                 indicatif::ProgressStyle::default_bar()
-                    .template("  [{bar:40.yellow/blue}] {msg}")
+                    .template("  [{bar:40.green/blue}] {msg}")
                     .unwrap()
                     .progress_chars("=> "),
             );
-
-            let mut tester_count = 0;
-            for (test_name, test) in &problem_config.tests {
-                tester_count += 1;
-                tester_pb.set_message(format!(
-                    "处理第 {}/{} 个测试者: {}",
-                    tester_count,
-                    problem_config.tests.len(),
-                    test_name
-                ));
-
-                info!("测试 {} 的程序", test_name);
-
-                msg_progress!(
-                    "测试题目 {} 的测试 {} 的程序",
-                    problem_config.name.magenta(),
-                    test_name.cyan()
-                );
-
-                let path = if PathBuf::from_str(&test.path)?.is_absolute() {
-                    PathBuf::from_str(&test.path)?
-                } else {
-                    dunce::canonicalize(problem_config.path.join(&test.path))?
-                };
-
-                info!("文件路径：{}", path.display());
-
-                #[allow(unused_assignments)]
-                let mut problem_status = ProblemStatus::Waiting;
-
-                let tmp_dir = path.parent().unwrap().join("tmp");
-                create_or_clear_dir(&tmp_dir)?;
-
-                let src_path = tmp_dir.join(path.file_name().unwrap());
-                fs::copy(&path, &src_path)?;
-
-                #[allow(unused_assignments)]
-                {
-                    problem_status = ProblemStatus::Compiling;
-                }
-
-                compile(
-                    day_config,
-                    problem_config,
-                    &mut problem_status,
-                    &tmp_dir,
-                    &src_path,
-                )?;
-
-                let mut total_score: u32 = 0;
-
-                fs::remove_file(&src_path)?;
-
-                let mut subtask_scores: HashMap<u32, Vec<u32>> = problem_config
-                    .subtasks
-                    .keys()
-                    .map(|id| (*id, Vec::new()))
-                    .collect();
-
-                if problem_status == ProblemStatus::Compiled {
-                    #[allow(unused_assignments)]
-                    {
-                        problem_status = ProblemStatus::Running;
-                    }
-                    let program_path = tmp_dir.join(&problem_config.name);
-
-                    let mut individual_results = Vec::new();
-                    let mut case_count = 0;
-
-                    let case_test_pb = gctx()
-                        .multiprogress
-                        .add(ProgressBar::new(problem_config.data.len() as u64));
-                    case_test_pb.set_style(
-                        indicatif::ProgressStyle::default_bar()
-                            .template("  [{bar:40.magenta/blue}] {msg}")
-                            .unwrap()
-                            .progress_chars("=> "),
-                    );
-
-                    for case in &problem_config.data {
-                        case_count += 1;
-
-                        info!("运行测试点: {}", case.id);
-
-                        let run_result =
-                            run_test_case(&src_path, &program_path, problem_config, case)?;
-
-                        let case_status = run_result.0;
-
-                        info!("测试点结果: {:?}", case_status);
-
-                        let earned_score = match case_status {
-                            TestCaseStatus::AC => case.score,
-                            TestCaseStatus::PC(partial) => {
-                                ((partial / 100.0) * (case.score as f64)).round() as u32
-                            }
-                            _ => 0,
-                        };
-                        subtask_scores
-                            .get_mut(&case.subtask)
-                            .context("不存在指定的 Subtask")?
-                            .push(earned_score);
-
-                        individual_results.push(IndividualTestCaseResult {
-                            test_case_id: case.id,
-                            status: case_status,
-                            score: earned_score,
-                            max_score: case.score,
-                            time: match run_result.1 {
-                                Some(duration) => format_duration(duration),
-                                None => "N/A".to_string(),
-                            },
-                            memory: match run_result.2 {
-                                Some(memory) => format!("{}", memory),
-                                None => "N/A".to_string(),
-                            },
-                        });
-
-                        let status_str = match case_status {
-                            TestCaseStatus::AC => "AC".green(),
-                            TestCaseStatus::WA => "WA".red(),
-                            TestCaseStatus::TLE => "TLE".blue(),
-                            TestCaseStatus::MLE => "MLE".blue(),
-                            TestCaseStatus::RE => "RE".bright_blue(),
-                            TestCaseStatus::UKE => "UKE".bright_black(),
-                            TestCaseStatus::Running => unreachable!(),
-                            TestCaseStatus::CE => "CE".yellow(),
-                            TestCaseStatus::PC(score) => format!("PC {:.2} / 100", score).yellow(),
-                        };
-                        msg_item!(
-                            status_str.clone().bold(),
-                            "测试点 {}  | {} | {}",
-                            case.id.to_string().bold(),
-                            match run_result.1 {
-                                Some(duration) => format_duration(duration),
-                                None => "N/A".to_string(),
-                            }
-                            .bold(),
-                            match run_result.2 {
-                                Some(memory) => format!("{}", memory),
-                                None => "N/A".to_string(),
-                            }
-                            .bold()
-                        );
-
-                        case_test_pb.set_message(format!(
-                            "运行测试点: {}/{} | #{} {}",
-                            case_count,
-                            problem_config.data.len(),
-                            case.id,
-                            status_str
-                        ));
-                        case_test_pb.inc(1);
-                    }
-
-                    case_test_pb.finish_and_clear();
-
-                    msg_info!("测试结果:");
-
-                    for (id, subtask) in &problem_config.subtasks {
-                        let scores = &subtask_scores[id];
-
-                        let subtask_score = match subtask.policy {
-                            ScorePolicy::Sum => scores.iter().sum(),
-                            ScorePolicy::Max => *scores.iter().max().unwrap_or(&0),
-                            ScorePolicy::Min => *scores.iter().min().unwrap_or(&0),
-                        };
-
-                        info!(
-                            "Subtask #{} 得分 {}/{}",
-                            id, subtask_score, subtask.max_score
-                        );
-
-                        msg_info!(
-                            "Subtask {}{} 得分 {}/{}",
-                            "#".bold(),
-                            id.to_string().bold(),
-                            subtask_score.to_string().cyan(),
-                            subtask.max_score.to_string().green()
-                        );
-
-                        total_score += subtask_score;
-                    }
-
-                    let problem_result = ProblemTestResult {
-                        tester_name: test_name.to_string(),
-                        test_case_results: individual_results,
-                        total_score,
-                        max_possible_score: problem_config
-                            .subtasks
-                            .iter()
-                            .map(|task| task.1.max_score)
-                            .sum(),
-                    };
-
-                    msg_info!(
-                        "总得分 {}/{}",
-                        total_score.to_string().cyan().bold(),
-                        problem_result.max_possible_score.to_string().green().bold()
-                    );
-
-                    all_test_results.push(problem_result);
-                } else {
-                    let problem_result = ProblemTestResult {
-                        tester_name: test_name.to_string(),
-                        test_case_results: vec![IndividualTestCaseResult {
-                            test_case_id: 0,
-                            status: TestCaseStatus::CE,
-                            score: 0,
-                            max_score: problem_config.data.iter().map(|case| case.score).sum(),
-                            time: "N/A".to_string(),
-                            memory: "N/A".to_string(),
-                        }],
-                        total_score: 0,
-                        max_possible_score: problem_config
-                            .subtasks
-                            .iter()
-                            .map(|task| task.1.max_score)
-                            .sum(),
-                    };
-                    msg_info!(
-                        "总得分 {}/{}",
-                        0.to_string().cyan().bold(),
-                        problem_result.max_possible_score.to_string().green().bold()
-                    );
-                    all_test_results.push(problem_result);
-                }
-
-                info!(
-                    "总得分: {}/{}",
-                    total_score,
-                    problem_config
-                        .data
-                        .iter()
-                        .map(|case| case.score)
-                        .sum::<u32>()
-                );
-
-                if check_test_case(test, total_score) {
-                    info!("测试 {} 通过", test_name);
-                } else {
-                    info!("测试 {} 不满足所有条件", test_name);
-                    msg_warn!("{}", "不满足所有条件".bold());
-                }
-
-                tester_pb.inc(1);
-
-                let _ = fs::remove_dir_all(&tmp_dir);
+            for (day_idx, (_, day_config)) in config.subconfig.iter().enumerate() {
+                day_pb.set_message(format!("处理第 {}/{} 天", day_idx + 1, total_days));
+                test_day(day_config)?; // 复用 test_day
+                day_pb.inc(1);
             }
-
-            tester_pb.finish_and_clear();
-
-            write_results_to_csv(all_test_results, &problem_config.path)?;
-
-            if skip_level == 2 {
-                test_pb.finish_with_message("测试完成！");
-            } else {
-                test_pb.finish_and_clear();
-            }
-
-            if skip_level >= 2 {
-                break;
-            }
+            day_pb.finish_with_message("所有题目测试完成");
         }
-
-        if skip_level == 1 {
-            problem_pb.finish_with_message("测试完成！");
-        } else {
-            problem_pb.finish_and_clear();
-        }
-
-        if skip_level >= 1 {
-            break;
-        }
-    }
-
-    if skip_level == 0 {
-        day_pb.finish_with_message("测试完成！");
-    } else {
-        info!("测试完成！");
+        CurrentLocation::None => bail!("此命令必须在工程下执行"),
     }
 
     Ok(())
