@@ -7,6 +7,7 @@
   "time limit": 1.0,
   "memory limit": "512 MiB",
   "partial score": false,
+  "args": {},
   "samples": [
     {
       "id": 1,
@@ -19,7 +20,24 @@
       "id": 1,
       "score": 5,
       "input": "1.in",
-      "output": "1.ans"
+      "output": "1.ans",
+      "subtask": 0,
+      "args": {},
+      "manual": false
+    },
+    {
+      "id": [
+        2,
+        3
+      ],
+      "score": 5,
+      "subtask": 0,
+      "args": {}
     }
-  ]
+  ],
+  "subtasks": {
+    "0": "sum"
+  },
+  "tests": {},
+  "use-chk": false
 }
