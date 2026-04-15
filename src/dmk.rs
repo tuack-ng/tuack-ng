@@ -2,16 +2,21 @@ use crate::context::{CurrentLocation, gctx};
 use crate::prelude::*;
 use crate::tuack_lib::config::ExpandedDataItem;
 use crate::utils::compile::{build_compile_cmd, build_run_cmd};
+use crate::utils::filesystem::create_or_clear_dir;
 use crate::utils::random::gen_rnd;
 use clap::Args;
 use clap::ValueEnum;
+use colored::ColoredString;
 use indicatif::ProgressBar;
 use rand::Rng;
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap};
 use std::fmt;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::fs;
+use tokio::process::Command;
+use tokio::sync::mpsc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum Target {
@@ -41,7 +46,7 @@ pub enum DmkCommand {
 }
 
 #[derive(Args, Debug)]
-#[command(version, about = "数据生成工具")]
+#[command(version)]
 pub struct DmkArgs {
     /// 目标类型
     #[arg(value_enum)]
@@ -56,15 +61,51 @@ pub struct DmkArgs {
     object: String,
 }
 
-/// 从字符串解析测试点ID集合
-pub fn parse_test_object(s: &str, all_ids: &[u32]) -> Result<HashSet<u32>> {
+#[derive(Debug)]
+pub enum DmkStatus {
+    /// 正在编译 Std
+    CompilingStd,
+    /// 正在编译 Dmk
+    CompilingDmk,
+    /// Std 完成编译
+    CompiledStd,
+    /// Dmk 完成编译
+    CompiledDmk,
+
+    /// 开始生成数据，并报告总数
+    StartDmk(u32),
+    /// 生成输入
+    DmkInput {
+        id: u32,
+        status: ColoredString,
+        error: Option<anyhow::Error>,
+    },
+    /// 生成输出
+    DmkOutput {
+        id: u32,
+        status: ColoredString,
+        error: Option<anyhow::Error>,
+    },
+    /// 报告生成进度
+    DmkStart(u32),
+    DmkProgress(u32),
+
+    /// 完成
+    Completed,
+}
+
+/// 从字符串解析测试点，返回匹配的 ExpandedDataItem 列表
+pub fn parse_test_object(
+    s: &str,
+    all_items: &[Arc<ExpandedDataItem>],
+) -> Result<Vec<Arc<ExpandedDataItem>>> {
     let s = s.trim().to_lowercase();
 
     if s == "all" {
-        return Ok(all_ids.iter().copied().collect());
+        return Ok(all_items.to_vec());
     }
 
-    let mut result = HashSet::new();
+    let mut result = Vec::new();
     let parts: Vec<&str> = s.split(',').map(|p| p.trim()).collect();
 
     for part in parts {
@@ -87,9 +128,10 @@ pub fn parse_test_object(s: &str, all_ids: &[u32]) -> Result<HashSet<u32>> {
                 bail!("起始ID不能大于结束ID: {}", part);
             }
 
-            for id in start..=end {
-                if all_ids.contains(&id) {
-                    result.insert(id);
+            // 遍历查找在范围内的测试点
+            for item in all_items.iter() {
+                if item.id >= start && item.id <= end {
+                    result.push(item.clone());
                 }
             }
         } else {
@@ -97,8 +139,9 @@ pub fn parse_test_object(s: &str, all_ids: &[u32]) -> Result<HashSet<u32>> {
                 .parse::<u32>()
                 .with_context(|| anyhow!("无效的测试点ID: {}", part))?;
 
-            if all_ids.contains(&id) {
-                result.insert(id);
+            // 遍历查找匹配的测试点
+            if let Some(item) = all_items.iter().find(|item| item.id == id) {
+                result.push(item.clone());
             }
         }
     }
@@ -106,7 +149,7 @@ pub fn parse_test_object(s: &str, all_ids: &[u32]) -> Result<HashSet<u32>> {
     Ok(result)
 }
 
-pub fn main(args: DmkArgs) -> Result<()> {
+pub async fn main(args: DmkArgs) -> Result<()> {
     let config = gctx().config.as_ref().context("没有找到有效的工程")?;
 
     let (current_problem, current_day) =
@@ -127,43 +170,7 @@ pub fn main(args: DmkArgs) -> Result<()> {
             bail!("本命令只能在题目目录下执行");
         };
 
-    gen_data(&args, current_problem, current_day)
-}
-
-fn gen_data(
-    args: &DmkArgs,
-    current_problem: &crate::tuack_lib::config::ProblemConfig,
-    current_day: &crate::tuack_lib::config::ContestDayConfig,
-) -> Result<()> {
-    info!("开始生成数据: {}", current_problem.name);
-    let target_dir = match args.target {
-        Target::Data => current_problem.path.join("data"),
-        Target::Sample => current_problem.path.join("sample"),
-    };
-    if !target_dir.exists() {
-        std::fs::create_dir_all(&target_dir)?;
-        info!("创建目标目录: {}", target_dir.display());
-    }
-    let generator_path = find_generator(&current_problem.path)?;
-    let std_path = find_std(current_problem)?;
-    info!("找到生成器: {}", generator_path.display());
-    info!("找到标程: {}", std_path.display());
-
-    // 并行编译生成器和标程
-    let (result1, result2) = rayon::join(
-        || compile_generator(&generator_path),
-        || compile_std(&std_path, current_problem, current_day),
-    );
-    if let Err(e) = result1 {
-        msg_error!("数据生成器编译错误: {}", e);
-        bail!(e.context("数据生成器编译失败"))
-    }
-    if let Err(e) = result2 {
-        msg_error!("标程编译错误: {}", e);
-        bail!(e.context("标程编译失败"))
-    };
-
-    let data_items: Vec<Arc<ExpandedDataItem>> = match args.target {
+    let data_items: Vec<Arc<ExpandedDataItem>> = match &args.target {
         Target::Data => current_problem.data.to_vec(),
         Target::Sample => current_problem
             .samples
@@ -185,44 +192,146 @@ fn gen_data(
     let data_items: Vec<Arc<ExpandedDataItem>> =
         data_items.into_iter().filter(|item| !item.manual).collect();
 
-    let all_ids: Vec<u32> = data_items.iter().map(|data| data.id).collect();
-    let target_ids = parse_test_object(&args.object, &all_ids)?;
-    let data_items_to_gen: Vec<Arc<ExpandedDataItem>> = data_items
-        .into_iter()
-        .filter(|item| target_ids.contains(&item.id))
-        .collect();
+    let (tx, mut rx) = mpsc::channel::<DmkStatus>(10);
+
+    let gen_handle = tokio::spawn(async move {
+        gen_data(
+            tx,
+            &args.target,
+            &args.action,
+            &parse_test_object(&args.object, &data_items)?,
+            current_problem,
+            current_day,
+        )
+        .await
+    });
+
+    let std_compile_pb = gctx().multiprogress.add(ProgressBar::new_spinner());
+    let dmk_compile_pb = gctx().multiprogress.add(ProgressBar::new_spinner());
+
+    let dmk_pb = gctx().multiprogress.add(ProgressBar::new(0));
+
+    while let Some(status) = rx.recv().await {
+        match status {
+            DmkStatus::CompilingDmk => {
+                dmk_compile_pb.enable_steady_tick(Duration::from_millis(100));
+                dmk_compile_pb.set_message("编译数据生成器");
+            }
+            DmkStatus::CompiledDmk => {
+                dmk_compile_pb.finish_and_clear();
+            }
+            DmkStatus::CompilingStd => {
+                std_compile_pb.enable_steady_tick(Duration::from_millis(100));
+                std_compile_pb.set_message("编译标程");
+            }
+            DmkStatus::CompiledStd => {
+                std_compile_pb.finish_and_clear();
+            }
+            DmkStatus::StartDmk(size) => {
+                dmk_pb.set_style(
+                    indicatif::ProgressStyle::default_bar()
+                        .template("  [{bar:40.cyan/blue}] {pos}/{len} {msg}")
+                        .unwrap()
+                        .progress_chars("=> "),
+                );
+                dmk_pb.set_length(size as u64);
+            }
+            DmkStatus::DmkInput { id, status, error } => {
+                msg_item!(status, "测试点 {} {}", id.to_string().cyan(), "输入".bold());
+                if let Some(e) = error {
+                    msg_error!("{}", e);
+                }
+            }
+            DmkStatus::DmkOutput { id, status, error } => {
+                msg_item!(status, "测试点 {} {}", id.to_string().cyan(), "输出".bold());
+                if let Some(e) = error {
+                    msg_error!("{}", e);
+                }
+            }
+            DmkStatus::DmkProgress(progress) => dmk_pb.set_position(progress as u64),
+            DmkStatus::DmkStart(progress) => {
+                dmk_pb.set_message(format!("生成数据点 #{}", progress))
+            }
+            DmkStatus::Completed => {
+                dmk_pb.finish_with_message("数据生成完成！");
+            }
+        }
+    }
+
+    gen_handle.await?
+}
+
+async fn gen_data(
+    tx: mpsc::Sender<DmkStatus>,
+    target: &Target,
+    action: &DmkCommand,
+    data_items: &Vec<Arc<ExpandedDataItem>>,
+    current_problem: &ProblemConfig,
+    current_day: &ContestDayConfig,
+) -> Result<()> {
+    info!("开始生成数据: {}", current_problem.name);
+    let target_dir = match target {
+        Target::Data => current_problem.path.join("data"),
+        Target::Sample => current_problem.path.join("sample"),
+    };
+    if !target_dir.exists() {
+        std::fs::create_dir_all(&target_dir)?;
+        info!("创建目标目录: {}", target_dir.display());
+    }
+    let generator_path = find_generator(&current_problem.path)?;
+    let std_path = find_std(current_problem)?;
+    info!("找到生成器: {}", generator_path.display());
+    info!("找到标程: {}", std_path.display());
+
+    let generator_path_clone = generator_path.clone();
+    let std_path_clone = std_path.clone();
+    let current_problem_clone = current_problem.clone();
+    let current_day_clone = current_day.clone();
+    let tx_clone1 = tx.clone();
+    let tx_clone2 = tx.clone();
+
+    let (result1, result2) = tokio::join!(
+        compile_generator(tx_clone1, &generator_path_clone),
+        compile_std(
+            tx_clone2,
+            &std_path_clone,
+            &current_problem_clone,
+            &current_day_clone
+        )
+    );
+    if let Err(e) = result1 {
+        // msg_error!("数据生成器编译错误: {}", e);
+        bail!(e.context("数据生成器编译失败"))
+    }
+
+    if let Err(e) = result2 {
+        // msg_error!("标程编译错误: {}", e);
+        bail!(e.context("标程编译失败"))
+    }
 
     let seeds = get_or_generate_seed(
         &target_dir,
-        matches!(args.action, DmkCommand::Reset),
-        &data_items_to_gen,
-    )?;
+        matches!(action, DmkCommand::Reset),
+        &data_items,
+    )
+    .await?;
 
-    if data_items_to_gen.is_empty() {
+    if data_items.is_empty() {
         msg_warn!("没有需要生成的数据");
         return Ok(());
     }
 
-    let pb = gctx()
-        .multiprogress
-        .add(ProgressBar::new(data_items_to_gen.len() as u64));
-    pb.set_style(
-        indicatif::ProgressStyle::default_bar()
-            .template("  [{bar:40.cyan/blue}] {pos}/{len} {msg}")
-            .unwrap()
-            .progress_chars("=> "),
-    );
+    tx.send(DmkStatus::StartDmk(data_items.len() as u32))
+        .await?;
 
-    let action = match args.action {
+    let action_str = match action {
         DmkCommand::Gen => "GEN".green(),
         DmkCommand::Regen => "REGEN".green().bold(),
         DmkCommand::Reset => "RESET".cyan().bold(),
     };
 
-    msg_progress!("开始为题目 {} 生成数据", current_problem.name.magenta());
-
-    for data_item in data_items_to_gen {
-        pb.set_message(format!("生成数据点 #{}", data_item.id));
+    for (id, data_item) in data_items.iter().enumerate() {
+        tx.send(DmkStatus::DmkStart(data_item.id as u32)).await?;
 
         let input_file = data_item.input.clone();
         let output_file = data_item.output.clone();
@@ -230,7 +339,7 @@ fn gen_data(
         let input_path = target_dir.join(&input_file);
         let output_path = target_dir.join(&output_file);
 
-        if !matches!(args.action, DmkCommand::Gen) || !input_path.exists() {
+        if !matches!(action, DmkCommand::Gen) || !input_path.exists() {
             let mut args_map = current_problem.args.clone();
             args_map.extend(data_item.args.clone());
 
@@ -240,74 +349,77 @@ fn gen_data(
                 &seeds,
                 data_item.id,
                 &args_map,
-            ) {
-                msg_item!(
-                    "FAIL".red().bold(),
-                    "测试点 {} {}",
-                    data_item.id.to_string().cyan(),
-                    "输入".bold()
-                );
-                msg_error!("{}", e);
+            )
+            .await
+            {
+                tx.send(DmkStatus::DmkInput {
+                    id: data_item.id as u32,
+                    status: "FAIL".red().bold(),
+                    error: Some(e),
+                })
+                .await?;
             } else {
-                msg_item!(
-                    action,
-                    "测试点 {} {}",
-                    data_item.id.to_string().cyan(),
-                    "输入".bold()
-                );
+                tx.send(DmkStatus::DmkInput {
+                    id: data_item.id as u32,
+                    status: action_str.clone(),
+                    error: None,
+                })
+                .await?;
             }
         } else {
-            msg_item!(
-                "SKIP",
-                "测试点 {} {}",
-                data_item.id.to_string().cyan(),
-                "输入".bold()
-            );
+            tx.send(DmkStatus::DmkInput {
+                id: data_item.id as u32,
+                status: "SKIP".into(),
+                error: None,
+            })
+            .await?;
         }
 
-        if !matches!(args.action, DmkCommand::Gen) || !output_path.exists() {
+        if !matches!(action, DmkCommand::Gen) || !output_path.exists() {
             if let Err(e) = generate_output(
                 &std_path,
                 &input_path,
                 &output_path,
                 &current_problem.name,
                 current_problem.file_io.unwrap_or(true),
-            ) {
-                msg_item!(
-                    "FAIL".red().bold(),
-                    "测试点 {} {}",
-                    data_item.id.to_string().cyan(),
-                    "输出".bold()
-                );
-                msg_error!("{}", e);
+            )
+            .await
+            {
+                tx.send(DmkStatus::DmkOutput {
+                    id: data_item.id as u32,
+                    status: "FAIL".red().bold(),
+                    error: Some(e),
+                })
+                .await?;
             } else {
-                msg_item!(
-                    action,
-                    "测试点 {} {}",
-                    data_item.id.to_string().cyan(),
-                    "输出".bold()
-                );
+                tx.send(DmkStatus::DmkOutput {
+                    id: data_item.id as u32,
+                    status: action_str.clone(),
+                    error: None,
+                })
+                .await?;
             }
         } else {
-            msg_item!(
-                "SKIP",
-                "测试点 {} {}",
-                data_item.id.to_string().cyan(),
-                "输出".bold()
-            );
+            tx.send(DmkStatus::DmkOutput {
+                id: data_item.id as u32,
+                status: "SKIP".into(),
+                error: None,
+            })
+            .await?;
         }
 
-        pb.inc(1);
+        tx.send(DmkStatus::DmkProgress(id as u32)).await?;
     }
 
-    pb.finish_with_message("数据生成完成！");
     let _ = std::fs::remove_dir_all(std_path.parent().unwrap().join("tmp"));
     save_seed(&target_dir, seeds)?;
+    tx.send(DmkStatus::Completed).await?;
+
     Ok(())
 }
 
 /// 查找数据生成器
-fn find_generator(problem_path: &std::path::Path) -> Result<std::path::PathBuf> {
+fn find_generator(problem_path: &Path) -> Result<PathBuf> {
     let path = problem_path.join("gen").join("gen.cpp");
 
     if path.exists() {
@@ -318,17 +430,14 @@ fn find_generator(problem_path: &std::path::Path) -> Result<std::path::PathBuf> 
 }
 
 /// 查找标程
-fn find_std(problem: &crate::tuack_lib::config::ProblemConfig) -> Result<std::path::PathBuf> {
+fn find_std(problem: &crate::tuack_lib::config::ProblemConfig) -> Result<PathBuf> {
     for (name, case) in &problem.tests {
         if let crate::tuack_lib::config::ExpectedScore::Single(str) = &case.expected
             && str.replace(' ', "") == "==100"
-            && problem
-                .path
-                .join(std::path::PathBuf::from(&case.path))
-                .exists()
+            && problem.path.join(PathBuf::from(&case.path)).exists()
         {
             info!("找到标称 {name}, 位置 {}", case.path);
-            return Ok(problem.path.join(std::path::PathBuf::from(&case.path)));
+            return Ok(problem.path.join(PathBuf::from(&case.path)));
         }
     }
 
@@ -336,14 +445,12 @@ fn find_std(problem: &crate::tuack_lib::config::ProblemConfig) -> Result<std::pa
 }
 
 /// 编译生成器
-fn compile_generator(generator_path: &std::path::Path) -> Result<()> {
+async fn compile_generator(tx: mpsc::Sender<DmkStatus>, generator_path: &Path) -> Result<()> {
     info!("编译数据生成器");
 
     let tmp_dir = generator_path.parent().unwrap();
 
-    let compile_pb = gctx().multiprogress.add(ProgressBar::new_spinner());
-    compile_pb.enable_steady_tick(Duration::from_millis(100));
-    compile_pb.set_message("编译数据生成器");
+    tx.send(DmkStatus::CompilingDmk).await?;
 
     let output_path = tmp_dir.join("gen");
 
@@ -355,21 +462,24 @@ fn compile_generator(generator_path: &std::path::Path) -> Result<()> {
         .arg("-std=c++17")
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
-        .output()?;
-
-    compile_pb.finish_and_clear();
+        .output()
+        .await?;
 
     if !status.status.success() {
         bail!("{}", String::from_utf8_lossy(&status.stderr));
     }
 
     info!("数据生成器编译成功");
+
+    tx.send(DmkStatus::CompiledDmk).await?;
+
     Ok(())
 }
 
 /// 编译标程
-fn compile_std(
-    std_path: &std::path::Path,
+async fn compile_std(
+    tx: mpsc::Sender<DmkStatus>,
+    std_path: &Path,
     problem: &crate::tuack_lib::config::ProblemConfig,
     day: &crate::tuack_lib::config::ContestDayConfig,
 ) -> Result<()> {
@@ -379,30 +489,23 @@ fn compile_std(
     create_or_clear_dir(&tmp_dir)?;
 
     let src_path = tmp_dir.join(std_path.file_name().unwrap());
-    std::fs::copy(std_path, &src_path)?;
+    fs::copy(std_path, &src_path).await?;
 
     let program_name = problem.name.clone();
 
     let compile_cmd = build_compile_cmd(&src_path, &tmp_dir, &program_name, &day.compile)?;
 
-    let compile_pb = gctx().multiprogress.add(ProgressBar::new_spinner());
-    compile_pb.enable_steady_tick(Duration::from_millis(100));
-    compile_pb.set_message("编译标程");
+    tx.send(DmkStatus::CompilingStd).await?;
 
     if let Some(mut cmd) = compile_cmd {
-        let status = cmd
+        let output = cmd
             .current_dir(&tmp_dir)
             .stdout(Stdio::null())
             .stderr(Stdio::piped())
-            .status()?;
+            .output()?;
 
-        compile_pb.finish_and_clear();
-
-        if !status.success() {
-            if let Ok(output) = cmd.output() {
-                bail!("{}", String::from_utf8_lossy(&output.stderr));
-            }
-            bail!("标程编译失败");
+        if !output.status.success() {
+            bail!("{}", String::from_utf8_lossy(&output.stderr));
         }
 
         info!("标程编译成功");
@@ -412,24 +515,17 @@ fn compile_std(
             .join(&program_name)
             .with_extension(std_path.extension().unwrap_or_default());
         std::fs::copy(&src_path, &target_path)?;
-        compile_pb.finish_and_clear();
         info!("标程准备完成");
     }
+
+    tx.send(DmkStatus::CompiledStd).await?;
 
     Ok(())
 }
 
-/// 创建或清空目录
-fn create_or_clear_dir(path: &std::path::Path) -> Result<(), std::io::Error> {
-    if path.exists() {
-        std::fs::remove_dir_all(path)?;
-    }
-    std::fs::create_dir_all(path)
-}
-
 /// 获取或生成种子
-fn get_or_generate_seed(
-    target_dir: &std::path::Path,
+async fn get_or_generate_seed(
+    target_dir: &Path,
     force: bool,
     data: &[Arc<ExpandedDataItem>],
 ) -> Result<BTreeMap<u32, u64>> {
@@ -439,7 +535,7 @@ fn get_or_generate_seed(
     let seed_file = target_dir.join(".seed");
 
     if !force && seed_file.exists() {
-        let seed_str = std::fs::read_to_string(&seed_file)?;
+        let seed_str = fs::read_to_string(&seed_file).await?;
         seeds = serde_json::from_str(&seed_str).unwrap_or_else(|e| {
             msg_warn!(".seed 文件无效, 重新生成: {}", e);
             BTreeMap::new()
@@ -455,16 +551,16 @@ fn get_or_generate_seed(
 }
 
 /// 保存种子
-fn save_seed(target_dir: &std::path::Path, seeds: BTreeMap<u32, u64>) -> Result<()> {
+fn save_seed(target_dir: &Path, seeds: BTreeMap<u32, u64>) -> Result<()> {
     let seed_file = target_dir.join(".seed");
     std::fs::write(seed_file, serde_json::to_string_pretty(&seeds)?)?;
     Ok(())
 }
 
 /// 生成输入文件
-fn generate_input(
-    generator_path: &std::path::Path,
-    input_path: &std::path::Path,
+async fn generate_input(
+    generator_path: &Path,
+    input_path: &Path,
     seeds: &BTreeMap<u32, u64>,
     test_id: u32,
     args: &HashMap<String, i64>,
@@ -492,7 +588,8 @@ fn generate_input(
         .args(&cmd_args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .output()?;
+        .output()
+        .await?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -500,17 +597,17 @@ fn generate_input(
     }
 
     // 写入输入文件
-    std::fs::write(input_path, &output.stdout)?;
+    fs::write(input_path, &output.stdout).await?;
 
     debug!("生成输入文件: {}", input_path.display(),);
     Ok(())
 }
 
 /// 使用标程生成输出文件
-fn generate_output(
-    std_path: &std::path::Path,
-    input_path: &std::path::Path,
-    output_path: &std::path::Path,
+async fn generate_output(
+    std_path: &Path,
+    input_path: &Path,
+    output_path: &Path,
     problem_name: &str,
     file_io: bool,
 ) -> Result<()> {
@@ -526,7 +623,7 @@ fn generate_output(
         work_dir.join(format!("{}.stdin", problem_name))
     };
 
-    fs::copy(input_path, &work_input_path)?;
+    fs::copy(input_path, &work_input_path).await?;
     debug!("复制输入文件到工作目录: {}", work_input_path.display());
 
     // 准备输出路径
@@ -537,7 +634,7 @@ fn generate_output(
     };
 
     let mut cmd = if let Some(cmd) = build_run_cmd(std_path, work_dir, problem_name)? {
-        cmd
+        Command::from(cmd)
     } else {
         let exe_extension = std::env::consts::EXE_EXTENSION;
         let executable_path = work_dir.join(problem_name).with_extension(exe_extension);
@@ -547,7 +644,7 @@ fn generate_output(
         }
 
         debug!("使用可执行文件: {}", executable_path.display());
-        std::process::Command::new(executable_path)
+        Command::new(executable_path)
     };
 
     // 设置IO重定向
@@ -568,7 +665,7 @@ fn generate_output(
 
     // 运行标程
     debug!("运行标程命令");
-    let output = child.output()?;
+    let output = child.output().await?;
 
     if !output.status.success() {
         if !output.stderr.is_empty() {
@@ -588,7 +685,7 @@ fn generate_output(
     }
 
     // 复制输出文件到目标位置
-    std::fs::copy(&work_output_path, output_path)?;
+    fs::copy(&work_output_path, output_path).await?;
 
     debug!("成功生成输出文件: {}", output_path.display());
 

@@ -61,7 +61,7 @@ enum Commands {
     Develop(develop::DevelopArgs),
 }
 
-fn tuack_ng(cli: Cli) -> Result<()> {
+async fn tuack_ng(cli: Cli) -> Result<()> {
     // 生成补全文件时，有可能还没有全局配置文件亦或者不合法，所以可能会失败
     // 因此，跳过初始化逻辑
     if !matches!(cli.command, Commands::Gen(ref args)
@@ -85,7 +85,7 @@ fn tuack_ng(cli: Cli) -> Result<()> {
         Commands::Gen(args) => generate::main(args),
         Commands::Test(args) => test::main(args),
         Commands::Conf(args) => conf::main(args),
-        Commands::Dmk(args) => dmk::main(args),
+        Commands::Dmk(args) => dmk::main(args).await,
         Commands::Dump(args) => dump::main(args),
         Commands::Doc(args) => doc::main(args),
         #[cfg(debug_assertions)]
@@ -93,10 +93,11 @@ fn tuack_ng(cli: Cli) -> Result<()> {
     }
 }
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     let cli = Cli::parse_i18n_or_exit();
 
-    let result = tuack_ng(cli);
+    let result = tuack_ng(cli).await;
 
     if cfg!(debug_assertions) {
         result?;
