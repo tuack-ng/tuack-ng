@@ -205,7 +205,7 @@ fn run_test_case(
     })?;
 
     let case_status = match result.0 {
-        TestCaseStatus::Running => validate_output(&tmp_dir, problem_config, case)?,
+        TestCaseStatus::Running => validate_output(tmp_dir, problem_config, case)?,
         status => status,
     };
 
