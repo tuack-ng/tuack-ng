@@ -3,7 +3,6 @@ use crate::tuack_lib::config::ExpandedDataItem;
 use crate::utils::compile::{build_compile_cmd, build_run_cmd};
 use crate::utils::filesystem::create_or_clear_dir;
 use crate::utils::random::gen_rnd;
-use colored::ColoredString;
 use rand::Rng;
 use std::collections::{BTreeMap, HashMap};
 use std::process::Stdio;
@@ -28,14 +27,14 @@ pub enum DmkStatus {
     /// 生成输入
     DmkInput {
         id: u32,
-        status: ColoredString,
-        error: Option<anyhow::Error>,
+        status: DmkResult,
+        // error: Option<anyhow::Error>,
     },
     /// 生成输出
     DmkOutput {
         id: u32,
-        status: ColoredString,
-        error: Option<anyhow::Error>,
+        status: DmkResult,
+        // error: Option<anyhow::Error>,
     },
     /// 报告生成进度
     DmkStart(u32),
@@ -43,6 +42,30 @@ pub enum DmkStatus {
 
     /// 完成
     Completed,
+}
+
+#[derive(Debug)]
+pub enum DmkResult {
+    /// 生成数据
+    Gen,
+    /// 重新生成数据
+    Regen,
+    /// 重置种子并重新生成数据
+    Reset,
+    /// 跳过
+    Skip,
+    /// 失败
+    Fail(anyhow::Error),
+}
+
+impl From<&DmkCommand> for DmkResult {
+    fn from(action: &DmkCommand) -> Self {
+        match action {
+            DmkCommand::Gen => DmkResult::Gen,
+            DmkCommand::Regen => DmkResult::Regen,
+            DmkCommand::Reset => DmkResult::Reset,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -121,12 +144,6 @@ pub async fn gen_data(
     tx.send(DmkStatus::StartDmk(data_items.len() as u32))
         .await?;
 
-    let action_str = match action {
-        DmkCommand::Gen => "GEN".green(),
-        DmkCommand::Regen => "REGEN".green().bold(),
-        DmkCommand::Reset => "RESET".cyan().bold(),
-    };
-
     for (id, data_item) in data_items.iter().enumerate() {
         tx.send(DmkStatus::DmkStart(data_item.id)).await?;
 
@@ -151,23 +168,20 @@ pub async fn gen_data(
             {
                 tx.send(DmkStatus::DmkInput {
                     id: data_item.id,
-                    status: "FAIL".red().bold(),
-                    error: Some(e),
+                    status: DmkResult::Fail(e),
                 })
                 .await?;
             } else {
                 tx.send(DmkStatus::DmkInput {
                     id: data_item.id,
-                    status: action_str.clone(),
-                    error: None,
+                    status: action.into(),
                 })
                 .await?;
             }
         } else {
             tx.send(DmkStatus::DmkInput {
                 id: data_item.id,
-                status: "SKIP".into(),
-                error: None,
+                status: DmkResult::Skip,
             })
             .await?;
         }
@@ -184,23 +198,20 @@ pub async fn gen_data(
             {
                 tx.send(DmkStatus::DmkOutput {
                     id: data_item.id,
-                    status: "FAIL".red().bold(),
-                    error: Some(e),
+                    status: DmkResult::Fail(e),
                 })
                 .await?;
             } else {
                 tx.send(DmkStatus::DmkOutput {
                     id: data_item.id,
-                    status: action_str.clone(),
-                    error: None,
+                    status: action.into(),
                 })
                 .await?;
             }
         } else {
             tx.send(DmkStatus::DmkOutput {
                 id: data_item.id,
-                status: "SKIP".into(),
-                error: None,
+                status: DmkResult::Skip,
             })
             .await?;
         }

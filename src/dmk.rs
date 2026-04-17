@@ -1,10 +1,12 @@
 use crate::context::{CurrentLocation, gctx};
 use crate::prelude::*;
 use crate::tuack_lib::config::ExpandedDataItem;
+use crate::tuack_lib::dmk::DmkResult;
 use crate::tuack_lib::dmk::DmkStatus;
 use crate::tuack_lib::dmk::gen_data;
 use clap::Args;
 use clap::ValueEnum;
+use colored::ColoredString;
 use indicatif::ProgressBar;
 use std::fmt;
 use std::sync::Arc;
@@ -24,6 +26,25 @@ impl fmt::Display for Target {
         match self {
             Target::Data => write!(f, "data"),
             Target::Sample => write!(f, "sample"),
+        }
+    }
+}
+
+impl DmkResult {
+    fn colored_status(&self) -> ColoredString {
+        match self {
+            DmkResult::Gen => "GEN".green(),
+            DmkResult::Regen => "REGEN".green().bold(),
+            DmkResult::Reset => "RESET".cyan().bold(),
+            DmkResult::Skip => "SKIP".into(),
+            DmkResult::Fail(_) => "FAIL".red().bold(),
+        }
+    }
+
+    fn error(&self) -> Option<&anyhow::Error> {
+        match self {
+            DmkResult::Fail(e) => Some(e),
+            _ => None,
         }
     }
 }
@@ -219,15 +240,25 @@ pub async fn main(args: DmkArgs) -> Result<()> {
                 );
                 dmk_pb.set_length(size as u64);
             }
-            DmkStatus::DmkInput { id, status, error } => {
-                msg_item!(status, "测试点 {} {}", id.to_string().cyan(), "输入".bold());
-                if let Some(e) = error {
+            DmkStatus::DmkInput { id, status } => {
+                msg_item!(
+                    status.colored_status(),
+                    "测试点 {} {}",
+                    id.to_string().cyan(),
+                    "输入".bold()
+                );
+                if let Some(e) = status.error() {
                     msg_error!("{}", e);
                 }
             }
-            DmkStatus::DmkOutput { id, status, error } => {
-                msg_item!(status, "测试点 {} {}", id.to_string().cyan(), "输出".bold());
-                if let Some(e) = error {
+            DmkStatus::DmkOutput { id, status } => {
+                msg_item!(
+                    status.colored_status(),
+                    "测试点 {} {}",
+                    id.to_string().cyan(),
+                    "输出".bold()
+                );
+                if let Some(e) = status.error() {
                     msg_error!("{}", e);
                 }
             }
