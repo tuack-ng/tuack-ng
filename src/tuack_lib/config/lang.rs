@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Language {
     /// 语言名称
     pub language: String,
@@ -10,7 +10,7 @@ pub struct Language {
     pub runner: Option<Runner>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Compiler {
     // e.g.: "g++"
     // e.g.: "javac"
@@ -30,7 +30,7 @@ pub struct Compiler {
     // {exe_suffix}：exe后缀名
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Runner {
     // e.g.: "python"
     // e.g.: "java"

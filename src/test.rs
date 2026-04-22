@@ -2,10 +2,8 @@ use crate::prelude::*;
 use crate::test::checker::parse_result;
 use crate::tuack_lib::config::ExpandedDataItem;
 use crate::tuack_lib::config::ScorePolicy;
-use crate::utils::compile::build_compile_cmd;
-use crate::utils::compile::build_run_cmd;
+use crate::utils::compiler::*;
 use crate::utils::duration::format_duration;
-use crate::utils::filesystem::create_or_clear_dir;
 use bytesize::ByteSize;
 use clap::Args;
 use colored::Colorize;
@@ -20,7 +18,7 @@ use std::{
     time::Duration,
 };
 use sysinfo::{Pid, ProcessesToUpdate, System};
-
+use tempfile::NamedTempFile;
 pub mod checker;
 
 // *注意*：这*不是*用于测试这个程序的测试用例的命令
@@ -72,9 +70,8 @@ pub struct ProblemTestResult {
 #[command(version)]
 pub struct TestArgs {}
 
-fn run_test_case(
-    src_path: &Path,
-    program_path: &Path,
+async fn run_test_case(
+    runner: &mut GeneralRunner,
     problem_config: &ProblemConfig,
     case: &Arc<ExpandedDataItem>,
 ) -> Result<(TestCaseStatus, Option<Duration>, Option<ByteSize>)> {
@@ -82,45 +79,22 @@ fn run_test_case(
     let time_limit_ms = (problem_config.time_limit * 1000.0) as u128;
     let memory_limit_bytes = problem_config.memory_limit.as_u64();
     let file_io = problem_config.file_io.unwrap_or(true);
-    let tmp_dir = program_path.parent().unwrap();
     let input_path = problem_config.path.join("data").join(&case.input);
-    let program_dir = program_path.parent().unwrap();
 
-    use tokio::process::Command;
     use tokio::time::{Duration, Instant, sleep};
 
     if file_io {
-        let test_input_path = program_dir.join(format!("{}.in", problem_name));
-        fs::copy(&input_path, &test_input_path)?;
+        runner.set_file_io(
+            &input_path,
+            &format!("{}.in", problem_name),
+            &format!("{}.out", problem_name),
+        )?;
+    } else {
+        runner.set_std_io(&input_path)?;
     }
 
-    let rt = tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()?;
-
-    let mut cmd = match build_run_cmd(src_path, program_dir, problem_name)? {
-        Some(cmd) => tokio::process::Command::from(cmd),
-        None => Command::new(program_path),
-    };
-
-    let result = rt.block_on(async {
-        let mut child = if file_io {
-            cmd.current_dir(program_dir)
-                .stdin(Stdio::null())
-                .stdout(Stdio::piped())
-                .stderr(Stdio::piped())
-                .spawn()?
-        } else {
-            let stdin_file = std::fs::File::open(&input_path)?;
-            let stdout_file =
-                std::fs::File::create(program_dir.join(format!("{}.stdout", problem_name)))?;
-
-            cmd.current_dir(program_dir)
-                .stdin(Stdio::from(stdin_file))
-                .stdout(Stdio::from(stdout_file))
-                .stderr(std::process::Stdio::piped())
-                .spawn()?
-        };
+    let result = async {
+        let mut child = runner.get_run_async().await?.spawn()?;
 
         let pid = child.id().unwrap() as u32;
         let start = Instant::now();
@@ -202,29 +176,23 @@ fn run_test_case(
             }
         };
         Ok::<(TestCaseStatus, Option<Duration>, Option<ByteSize>), anyhow::Error>(result)
-    })?;
+    }.await?;
 
     let case_status = match result.0 {
-        TestCaseStatus::Running => validate_output(tmp_dir, problem_config, case)?,
+        TestCaseStatus::Running => validate_output(runner, problem_config, case)?,
         status => status,
     };
 
-    // Ok(result)
     Ok((case_status, result.1, result.2))
 }
 
 fn validate_output(
-    program_dir: &Path,
+    runner: &GeneralRunner,
     problem_config: &ProblemConfig,
     case: &Arc<ExpandedDataItem>,
 ) -> Result<TestCaseStatus> {
-    let problem_name = &problem_config.name;
     let input_path = problem_config.path.join("data").join(&case.input);
-    let output_path = if problem_config.file_io.unwrap_or(false) {
-        program_dir.join(format!("{}.out", problem_name))
-    } else {
-        program_dir.join(format!("{}.stdout", problem_name))
-    };
+    let output_path = runner.get_output_path()?;
     let answer_path = problem_config.path.join("data").join(&case.output);
     let spj = if problem_config.use_chk.unwrap_or(false) {
         Some(problem_config.path.join("data").join("chk").join("chk"))
@@ -252,7 +220,7 @@ fn validate_output(
             .unwrap_or_else(|| gctx().assets_dirs[0].join("checkers").join("normal")),
     };
 
-    let res_path = program_dir.join(format!("{}.res", problem_name));
+    let res_path = NamedTempFile::with_prefix("tuack-ng-test-res-")?;
 
     debug!("{}", checker_path.display());
 
@@ -261,7 +229,7 @@ fn validate_output(
         .arg(&input_path)
         .arg(&output_path)
         .arg(&answer_path)
-        .arg(&res_path)
+        .arg(&res_path.path())
         .arg("-appes")
         .stderr(Stdio::null())
         .stdout(Stdio::null())
@@ -363,7 +331,10 @@ fn write_results_to_csv(results: Vec<ProblemTestResult>, problem_path: &Path) ->
     Ok(())
 }
 
-pub fn test_problem(day_config: &ContestDayConfig, problem_config: &ProblemConfig) -> Result<()> {
+pub async fn test_problem(
+    day_config: &ContestDayConfig,
+    problem_config: &ProblemConfig,
+) -> Result<()> {
     // 如果使用自定义 SPJ，先编译
     if let Some(use_chk) = problem_config.use_chk
         && use_chk
@@ -449,23 +420,27 @@ pub fn test_problem(day_config: &ContestDayConfig, problem_config: &ProblemConfi
             problem_status = ProblemStatus::Waiting;
         }
 
-        let tmp_dir = path.parent().unwrap().join("tmp");
-        create_or_clear_dir(&tmp_dir)?;
-
-        let src_path = tmp_dir.join(path.file_name().unwrap());
-        fs::copy(&path, &src_path)?;
-
-        problem_status = ProblemStatus::Compiling;
-        compile(
-            day_config,
-            problem_config,
-            &mut problem_status,
-            &tmp_dir,
-            &src_path,
-        )?;
+        let mut runner =
+            GeneralRunner::new(&path, &day_config.compile, problem_config.name.clone())?;
+        #[allow(unused)]
+        {
+            problem_status = ProblemStatus::Compiling;
+        }
+        match runner.prepare() {
+            Ok(_) => {
+                problem_status = ProblemStatus::Compiled;
+            }
+            Err(e) => {
+                #[allow(unused)]
+                {
+                    problem_status = ProblemStatus::CE;
+                }
+                msg_item!("CE".yellow().bold(), "编译错误");
+                msg_error!("{}", e);
+            }
+        };
 
         let mut total_score: u32 = 0;
-        fs::remove_file(&src_path)?;
 
         let mut subtask_scores: HashMap<u32, Vec<u32>> = problem_config
             .subtasks
@@ -478,7 +453,6 @@ pub fn test_problem(day_config: &ContestDayConfig, problem_config: &ProblemConfi
             {
                 problem_status = ProblemStatus::Running;
             }
-            let program_path = tmp_dir.join(&problem_config.name);
             let mut individual_results = Vec::new();
             let mut case_count = 0;
 
@@ -496,7 +470,7 @@ pub fn test_problem(day_config: &ContestDayConfig, problem_config: &ProblemConfi
                 case_count += 1;
                 info!("运行测试点: {}", case.id);
 
-                let run_result = run_test_case(&src_path, &program_path, problem_config, case)?;
+                let run_result = run_test_case(&mut runner, problem_config, case).await?;
                 let case_status = run_result.0;
                 info!("测试点结果: {:?}", case_status);
 
@@ -647,7 +621,7 @@ pub fn test_problem(day_config: &ContestDayConfig, problem_config: &ProblemConfi
         }
 
         tester_pb.inc(1);
-        let _ = fs::remove_dir_all(&tmp_dir);
+        runner.cleanup()?;
     }
 
     tester_pb.finish_and_clear();
@@ -657,7 +631,7 @@ pub fn test_problem(day_config: &ContestDayConfig, problem_config: &ProblemConfi
     Ok(())
 }
 
-fn test_day(day_config: &ContestDayConfig) -> Result<()> {
+async fn test_day(day_config: &ContestDayConfig) -> Result<()> {
     let total_problems = day_config.subconfig.len();
     let day_pb = gctx()
         .multiprogress
@@ -670,14 +644,14 @@ fn test_day(day_config: &ContestDayConfig) -> Result<()> {
     );
     for (idx, (_, problem_config)) in day_config.subconfig.iter().enumerate() {
         day_pb.set_message(format!("处理第 {}/{} 题", idx + 1, total_problems));
-        test_problem(day_config, problem_config)?;
+        test_problem(day_config, problem_config).await?;
         day_pb.inc(1);
     }
     day_pb.finish_with_message("当天所有题目测试完成");
     Ok(())
 }
 
-pub fn main(_: TestArgs) -> Result<()> {
+pub async fn main(_: TestArgs) -> Result<()> {
     let (config, current_location) = gctx().config.as_ref().context("找不到配置文件")?;
 
     match current_location {
@@ -690,14 +664,14 @@ pub fn main(_: TestArgs) -> Result<()> {
                 .subconfig
                 .get(prob_key)
                 .with_context(|| format!("未找到题目配置: {}", prob_key))?;
-            test_problem(day_config, problem_config)?;
+            test_problem(day_config, problem_config).await?;
         }
         CurrentLocation::Day(day_key) => {
             let day_config = config
                 .subconfig
                 .get(day_key)
                 .with_context(|| format!("未找到天配置: {}", day_key))?;
-            test_day(day_config)?;
+            test_day(day_config).await?;
         }
         CurrentLocation::Root => {
             let total_days = config.subconfig.len();
@@ -712,7 +686,7 @@ pub fn main(_: TestArgs) -> Result<()> {
             );
             for (day_idx, (_, day_config)) in config.subconfig.iter().enumerate() {
                 day_pb.set_message(format!("处理第 {}/{} 天", day_idx + 1, total_days));
-                test_day(day_config)?; // 复用 test_day
+                test_day(day_config).await?; // 复用 test_day
                 day_pb.inc(1);
             }
             day_pb.finish_with_message("所有题目测试完成");
@@ -721,62 +695,4 @@ pub fn main(_: TestArgs) -> Result<()> {
     }
 
     Ok(())
-}
-
-fn compile(
-    day_config: &ContestDayConfig,
-    problem_config: &ProblemConfig,
-    problem_status: &mut ProblemStatus,
-    tmp_dir: &PathBuf,
-    src_path: &PathBuf,
-) -> Result<()> {
-    info!("正在编译...");
-    let target_path = tmp_dir;
-    let program_name = problem_config.name.clone();
-    let compile_args = day_config.compile.clone();
-    let compile_cmd = match build_compile_cmd(src_path, target_path, &program_name, &compile_args) {
-        Ok(cmd) => cmd,
-        Err(e) => {
-            *problem_status = ProblemStatus::CE;
-            msg_item!("CE".yellow().bold(), "编译错误");
-            msg_error!("{}", e);
-            return Ok(());
-        }
-    };
-    if let Some(mut cmd) = compile_cmd {
-        let compile_status = cmd
-            .current_dir(tmp_dir)
-            .stdout(Stdio::null())
-            .stderr(Stdio::piped())
-            .output()?;
-        if compile_status.status.success() {
-            *problem_status = ProblemStatus::Compiled;
-            info!("编译成功");
-        } else {
-            *problem_status = ProblemStatus::CE;
-            info!("编译错误");
-            msg_item!("CE".yellow().bold(), "编译错误");
-            msg_error!("{}", String::from_utf8_lossy(&compile_status.stderr));
-        }
-        Ok(())
-    } else {
-        // 该语言无须编译
-        match fs::copy(
-            src_path,
-            target_path
-                .join(problem_config.name.clone())
-                .with_extension(src_path.extension().unwrap()),
-        ) {
-            Ok(_) => {
-                *problem_status = ProblemStatus::Compiled;
-                info!("编译成功");
-            }
-            Err(_) => {
-                *problem_status = ProblemStatus::CE;
-                info!("编译错误");
-                msg_item!("CE".yellow().bold(), "编译错误");
-            }
-        };
-        Ok(())
-    }
 }

@@ -83,7 +83,7 @@ async fn tuack_ng(cli: Cli) -> Result<()> {
     match cli.command {
         Commands::Ren(args) => ren::main(args),
         Commands::Gen(args) => generate::main(args),
-        Commands::Test(args) => test::main(args),
+        Commands::Test(args) => test::main(args).await,
         Commands::Conf(args) => conf::main(args),
         Commands::Dmk(args) => dmk::main(args).await,
         Commands::Dump(args) => dump::main(args),

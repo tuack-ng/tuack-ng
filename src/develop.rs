@@ -131,8 +131,6 @@ fn unwrap() -> Result<()> {
 }
 
 fn wrap() -> Result<()> {
-    // todo!("wrap 命令尚未实现");
-    // TODO: 实现 warp 逻辑
     let unwrapped_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("assets")
         .join("templates")

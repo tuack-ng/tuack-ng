@@ -1,7 +1,6 @@
 use crate::prelude::*;
 use crate::tuack_lib::config::ExpandedDataItem;
-use crate::utils::compile::{build_compile_cmd, build_run_cmd};
-use crate::utils::filesystem::create_or_clear_dir;
+use crate::utils::compiler::GeneralRunner;
 use crate::utils::random::gen_rnd;
 use rand::Rng;
 use std::collections::{BTreeMap, HashMap};
@@ -28,13 +27,11 @@ pub enum DmkStatus {
     DmkInput {
         id: u32,
         status: DmkResult,
-        // error: Option<anyhow::Error>,
     },
     /// 生成输出
     DmkOutput {
         id: u32,
         status: DmkResult,
-        // error: Option<anyhow::Error>,
     },
     /// 报告生成进度
     DmkStart(u32),
@@ -104,24 +101,21 @@ pub async fn gen_data(
     }
     let generator_path = find_generator(&current_problem.path)?;
     let std_path = find_std(current_problem)?;
+    let mut runner = GeneralRunner::new(
+        &std_path,
+        &current_day.compile,
+        current_problem.name.clone(),
+    )?;
     info!("找到生成器: {}", generator_path.display());
     info!("找到标程: {}", std_path.display());
 
     let generator_path_clone = generator_path.clone();
-    let std_path_clone = std_path.clone();
-    let current_problem_clone = current_problem.clone();
-    let current_day_clone = current_day.clone();
     let tx_clone1 = tx.clone();
     let tx_clone2 = tx.clone();
 
     let (result1, result2) = tokio::join!(
         compile_generator(tx_clone1, &generator_path_clone),
-        compile_std(
-            tx_clone2,
-            &std_path_clone,
-            &current_problem_clone,
-            &current_day_clone
-        )
+        compile_std(tx_clone2, &mut runner)
     );
     if let Err(e) = result1 {
         // msg_error!("数据生成器编译错误: {}", e);
@@ -188,7 +182,8 @@ pub async fn gen_data(
 
         if !matches!(action, DmkCommand::Gen) || !output_path.exists() {
             if let Err(e) = generate_output(
-                &std_path,
+                &mut runner,
+                // &std_path,
                 &input_path,
                 &output_path,
                 &current_problem.name,
@@ -287,44 +282,14 @@ async fn compile_generator(tx: mpsc::Sender<DmkStatus>, generator_path: &Path) -
 /// 编译标程
 async fn compile_std(
     tx: mpsc::Sender<DmkStatus>,
-    std_path: &Path,
-    problem: &crate::tuack_lib::config::ProblemConfig,
-    day: &crate::tuack_lib::config::ContestDayConfig,
+    // std_path: &Path,
+    runner: &mut GeneralRunner,
 ) -> Result<()> {
-    info!("编译标程: {}", std_path.display());
-
-    let tmp_dir = std_path.parent().unwrap().join("tmp");
-    create_or_clear_dir(&tmp_dir)?;
-
-    let src_path = tmp_dir.join(std_path.file_name().unwrap());
-    fs::copy(std_path, &src_path).await?;
-
-    let program_name = problem.name.clone();
-
-    let compile_cmd = build_compile_cmd(&src_path, &tmp_dir, &program_name, &day.compile)?;
+    info!("编译标程");
 
     tx.send(DmkStatus::CompilingStd).await?;
 
-    if let Some(mut cmd) = compile_cmd {
-        let output = cmd
-            .current_dir(&tmp_dir)
-            .stdout(Stdio::null())
-            .stderr(Stdio::piped())
-            .output()?;
-
-        if !output.status.success() {
-            bail!("{}", String::from_utf8_lossy(&output.stderr));
-        }
-
-        info!("标程编译成功");
-    } else {
-        // 对于无需编译的语言，复制源文件
-        let target_path = tmp_dir
-            .join(&program_name)
-            .with_extension(std_path.extension().unwrap_or_default());
-        std::fs::copy(&src_path, &target_path)?;
-        info!("标程准备完成");
-    }
+    runner.prepare_async().await?;
 
     tx.send(DmkStatus::CompiledStd).await?;
 
@@ -413,63 +378,23 @@ async fn generate_input(
 
 /// 使用标程生成输出文件
 async fn generate_output(
-    std_path: &Path,
+    runner: &mut GeneralRunner,
+    // std_path: &Path,
     input_path: &Path,
     output_path: &Path,
     problem_name: &str,
     file_io: bool,
 ) -> Result<()> {
-    let tmp_dir = std_path.parent().unwrap().join("tmp");
-
-    // 准备工作目录
-    let work_dir = &tmp_dir;
-
-    // 复制输入文件到工作目录
-    let work_input_path = if file_io {
-        work_dir.join(format!("{}.in", problem_name))
+    if file_io {
+        runner.set_file_io(
+            &input_path.to_path_buf(),
+            &format!("{}.in", problem_name),
+            &format!("{}.out", problem_name),
+        )?;
     } else {
-        work_dir.join(format!("{}.stdin", problem_name))
-    };
-
-    fs::copy(input_path, &work_input_path).await?;
-    debug!("复制输入文件到工作目录: {}", work_input_path.display());
-
-    // 准备输出路径
-    let work_output_path = if file_io {
-        work_dir.join(format!("{}.out", problem_name))
-    } else {
-        work_dir.join(format!("{}.stdout", problem_name))
-    };
-
-    let mut cmd = if let Some(cmd) = build_run_cmd(std_path, work_dir, problem_name)? {
-        Command::from(cmd)
-    } else {
-        let exe_extension = std::env::consts::EXE_EXTENSION;
-        let executable_path = work_dir.join(problem_name).with_extension(exe_extension);
-
-        if !executable_path.exists() {
-            bail!("找不到可执行文件: {}", executable_path.display());
-        }
-
-        debug!("使用可执行文件: {}", executable_path.display());
-        Command::new(executable_path)
-    };
-
-    // 设置IO重定向
-    let child = if file_io {
-        cmd.current_dir(work_dir)
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::piped())
-    } else {
-        let input_file = std::fs::File::open(&work_input_path)?;
-        let output_file = std::fs::File::create(&work_output_path)?;
-
-        cmd.current_dir(work_dir)
-            .stdin(Stdio::from(input_file))
-            .stdout(Stdio::from(output_file))
-            .stderr(Stdio::piped())
-    };
+        runner.set_std_io(&input_path.to_path_buf())?;
+    }
+    let mut child = runner.get_run_async().await?;
 
     // 运行标程
     debug!("运行标程命令");
@@ -486,6 +411,8 @@ async fn generate_output(
             bail!("标程运行失败，退出码: {}", output.status);
         }
     }
+
+    let work_output_path = runner.get_output_path()?;
 
     // 检查输出文件是否生成
     if !work_output_path.exists() {
