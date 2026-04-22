@@ -11,17 +11,13 @@ pub struct ContestConfig {
     pub title: String,
     #[serde(rename = "short title")]
     pub short_title: String,
-    #[serde(rename = "use-pretest")]
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub use_pretest: Option<bool>,
-    #[serde(rename = "noi-style")]
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub noi_style: Option<bool>,
-    #[serde(rename = "file-io")]
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub file_io: Option<bool>,
     #[serde(skip)]
-    // pub subconfig: Vec<ContestDayConfig>,
     pub subconfig: IndexMap<String, ContestDayConfig>,
     #[serde(skip)]
     pub path: PathBuf,

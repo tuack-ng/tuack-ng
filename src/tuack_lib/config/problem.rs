@@ -47,13 +47,13 @@ pub struct ProblemConfig {
     pub use_chk: Option<bool>,
 
     /// 是否有 pretest，目前没有用途
-    #[serde(default, skip, rename = "use-pretest")]
+    #[serde(default, skip)]
     pub use_pretest: Option<bool>,
     /// 是否是 NOI 风格
-    #[serde(default, skip, rename = "noi-style")]
+    #[serde(default, skip)]
     pub noi_style: Option<bool>,
     /// 是否使用文件 IO
-    #[serde(default, skip, rename = "file-io")]
+    #[serde(default, skip)]
     pub file_io: Option<bool>,
 
     /// 当前配置所在路径，运行时生成

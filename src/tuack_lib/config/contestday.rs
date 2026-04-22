@@ -14,17 +14,13 @@ pub struct ContestDayConfig {
     pub start_time: [u32; 6],
     #[serde(rename = "end time")]
     pub end_time: [u32; 6],
-    #[serde(rename = "use-pretest")]
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub use_pretest: Option<bool>,
-    #[serde(rename = "noi-style")]
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub noi_style: Option<bool>,
-    #[serde(rename = "file-io")]
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub file_io: Option<bool>,
     #[serde(skip)]
-    // pub subconfig: Vec<ProblemConfig>,
     pub subconfig: IndexMap<String, ProblemConfig>,
     #[serde(skip)]
     pub path: PathBuf,
