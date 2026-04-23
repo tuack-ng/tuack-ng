@@ -79,23 +79,21 @@ impl FormatRule for SamplesTooLarge {
                 let mut should_replace = false;
 
                 // 检查输入文件
-                if let Some(input_path) = sample.input.get() {
-                    let path = problem_config.path.join("sample").join(input_path);
-                    if let Ok((exceed, _)) = check_file_limits(&path)
-                        && exceed
-                    {
-                        should_replace = true;
-                    }
+                let input_path = sample.input_path();
+                let path = problem_config.path.join("sample").join(input_path);
+                if let Ok((exceed, _)) = check_file_limits(&path)
+                    && exceed
+                {
+                    should_replace = true;
                 }
 
                 // 检查输出文件
-                if let Some(output_path) = sample.output.get() {
-                    let path = problem_config.path.join("sample").join(output_path);
-                    if let Ok((exceed, _)) = check_file_limits(&path)
-                        && exceed
-                    {
-                        should_replace = true;
-                    }
+                let output_path = sample.output_path();
+                let path = problem_config.path.join("sample").join(output_path);
+                if let Ok((exceed, _)) = check_file_limits(&path)
+                    && exceed
+                {
+                    should_replace = true;
                 }
 
                 if should_replace {
@@ -148,31 +146,25 @@ impl CheckRule for SamplesTooLarge {
                 let mut violations = Vec::new();
 
                 // 检查输入文件
-                if let Some(input_path) = sample.input.get() {
-                    let path = problem_config.path.join("sample").join(input_path);
-                    if let Ok((exceed, violation)) = check_file_limits(&path)
-                        && exceed
-                    {
-                        violations.push(format!(
-                            "输入文件 {} ({})",
-                            input_path,
-                            violation.unwrap()
-                        ));
-                    }
+                let input_path = sample.input_path();
+                let path = problem_config.path.join("sample").join(&input_path);
+                if let Ok((exceed, violation)) = check_file_limits(&path)
+                    && exceed
+                {
+                    violations.push(format!("输入文件 {} ({})", &input_path, violation.unwrap()));
                 }
 
                 // 检查输出文件
-                if let Some(output_path) = sample.output.get() {
-                    let path = problem_config.path.join("sample").join(output_path);
-                    if let Ok((exceed, violation)) = check_file_limits(&path)
-                        && exceed
-                    {
-                        violations.push(format!(
-                            "输出文件 {} ({})",
-                            output_path,
-                            violation.unwrap()
-                        ));
-                    }
+                let output_path = sample.output_path();
+                let path = problem_config.path.join("sample").join(&output_path);
+                if let Ok((exceed, violation)) = check_file_limits(&path)
+                    && exceed
+                {
+                    violations.push(format!(
+                        "输出文件 {} ({})",
+                        &output_path,
+                        violation.unwrap()
+                    ));
                 }
 
                 if !violations.is_empty() {

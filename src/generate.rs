@@ -7,7 +7,6 @@ use crate::tuack_lib::config::save_contest_config;
 use crate::tuack_lib::config::save_day_config;
 use crate::tuack_lib::config::save_problem_config;
 use crate::utils::filesystem::copy_dir_recursive;
-use crate::utils::optional::Optional;
 use clap::Args;
 use clap::Subcommand;
 use clap_complete::Shell;
@@ -417,8 +416,8 @@ fn gen_sample(args: GenConfirmArgs) -> Result<()> {
                 .enumerate()
                 .map(|(id, name)| SampleItem {
                     id: id as u32 + 1,
-                    input: Optional::initialized(format!("{}.in", name)),
-                    output: Optional::initialized(format!("{}.ans", name)),
+                    input: Some(format!("{}.in", name)),
+                    output: Some(format!("{}.ans", name)),
                     args: HashMap::new(),
                     manual: None,
                 })

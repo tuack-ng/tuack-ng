@@ -197,16 +197,8 @@ fn arbiter_down_day(day: &ContestDayConfig, down_dir: &Path) -> Result<()> {
         for (idx, sample) in prob.samples.iter().enumerate() {
             let idx = idx + 1;
 
-            let input_name = sample
-                .input
-                .get()
-                .cloned()
-                .unwrap_or(format!("{}.in", sample.id));
-            let output_name = sample
-                .output
-                .get()
-                .cloned()
-                .unwrap_or(format!("{}.ans", sample.id));
+            let input_name = sample.input_path();
+            let output_name = sample.output_path();
 
             let src_in = prob.path.join("sample").join(&input_name);
             let src_ans = prob.path.join("sample").join(&output_name);
@@ -237,8 +229,8 @@ fn arbiter_down_day(day: &ContestDayConfig, down_dir: &Path) -> Result<()> {
                 .samples
                 .iter()
                 .flat_map(|s| {
-                    let i = s.input.get().cloned().unwrap_or(format!("{}.in", s.id));
-                    let o = s.output.get().cloned().unwrap_or(format!("{}.ans", s.id));
+                    let i = s.input_path();
+                    let o = s.output_path();
                     [i, o]
                 })
                 .collect();

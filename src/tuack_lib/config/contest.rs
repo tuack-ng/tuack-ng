@@ -3,7 +3,7 @@ use indexmap::IndexMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-pub struct ContestConfig {
+pub struct ContestConfigFile {
     pub version: u32,
     pub folder: String,
     pub name: String,
@@ -17,9 +17,37 @@ pub struct ContestConfig {
     pub noi_style: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub file_io: Option<bool>,
-    #[serde(skip)]
+}
+
+impl Into<ContestConfigFile> for ContestConfig {
+    fn into(self) -> ContestConfigFile {
+        ContestConfigFile {
+            version: self.version,
+            folder: self.folder,
+            name: self.name,
+            subdir: self.subdir,
+            title: self.title,
+            short_title: self.short_title,
+            use_pretest: self.use_pretest,
+            noi_style: self.noi_style,
+            file_io: self.file_io,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct ContestConfig {
+    pub version: u32,
+    pub folder: String,
+    pub name: String,
+    pub subdir: Vec<String>,
+    pub title: String,
+    pub short_title: String,
+    pub use_pretest: Option<bool>,
+    pub noi_style: Option<bool>,
+    pub file_io: Option<bool>,
     pub subconfig: IndexMap<String, ContestDayConfig>,
-    #[serde(skip)]
     pub path: PathBuf,
 }
 
@@ -40,27 +68,27 @@ pub fn load_contest_config(config_path: &Path) -> Result<ContestConfig> {
     }
 
     // 反序列化主配置
-    let mut config: ContestConfig = serde_json::from_str(&main_content)?;
+    let config: ContestConfigFile = serde_json::from_str(&main_content)?;
 
-    config.path = config_path.parent().unwrap().to_path_buf();
+    Ok(ContestConfig {
+        version: config.version,
+        folder: config.folder,
+        name: config.name,
+        subdir: config.subdir,
+        title: config.title,
+        short_title: config.short_title,
+        use_pretest: config.use_pretest,
+        noi_style: config.noi_style,
+        file_io: config.file_io,
 
-    config.subconfig = IndexMap::new();
-
-    Ok(config)
+        subconfig: IndexMap::new(),
+        path: config_path.parent().unwrap().to_path_buf(),
+    })
 }
 
-/// 将比赛配置序列化为JSON字符串，排除null字段
+/// 将比赛配置序列化为 JSON 字符串
 pub fn save_contest_config(config: &ContestConfig) -> Result<String> {
-    let json_value = serde_json::to_value(config)?;
-    let filtered_obj = json_value
-        .as_object()
-        .map(|obj| {
-            obj.iter()
-                .filter(|(_, v)| !v.is_null())
-                .map(|(k, v)| (k.clone(), v.clone()))
-                .collect::<serde_json::Map<_, _>>()
-        })
-        .context("Failed to convert contest config to object")?;
-    let json = serde_json::to_string_pretty(&filtered_obj)?;
+    let config_file: ContestConfigFile = config.clone().into();
+    let json = serde_json::to_string_pretty(&config_file)?;
     Ok(json)
 }

@@ -4,7 +4,6 @@ use crate::{
         CheckImportance, CheckInfo, CheckManifest, CheckResult, CheckRule, FormatManifest,
         FormatRule,
     },
-    utils::optional::Optional,
 };
 use markdown_ppp::ast::*;
 use regex::Regex;
@@ -149,8 +148,8 @@ impl SamplesShouldBeExternal {
                     output: output_code,
                     sample_item: SampleItem {
                         id: index as u32,
-                        input: Optional::uninitialized(),
-                        output: Optional::uninitialized(),
+                        input: None,
+                        output: None,
                         args: HashMap::new(),
                         manual: None,
                     },

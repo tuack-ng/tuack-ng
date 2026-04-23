@@ -50,67 +50,63 @@ fn handle_sample(
     // 输入部分
     md.push_str(&format!("## 样例 {} 输入\n\n", sample_id));
 
-    if let Some(input_file) = &sample_item.input.get() {
-        let input_path = base_path.join("sample").join(input_file);
-        if input_path.exists() {
-            match fs::read_to_string(&input_path) {
-                Ok(content) => {
-                    md.push_str("```txt\n");
-                    md.push_str(&content);
-                    if !content.ends_with('\n') {
-                        md.push('\n');
-                    }
-                    md.push_str("```\n\n");
+    let input_file = &sample_item.input_path();
+
+    let input_path = base_path.join("sample").join(input_file);
+    if input_path.exists() {
+        match fs::read_to_string(&input_path) {
+            Ok(content) => {
+                md.push_str("```txt\n");
+                md.push_str(&content);
+                if !content.ends_with('\n') {
+                    md.push('\n');
                 }
-                Err(e) => {
-                    msg_error!("读取输入文件失败: {:?} -> {}", input_path, e);
-                    return Err(minijinja::Error::new(
-                        minijinja::ErrorKind::InvalidOperation,
-                        format!("读取输入文件失败 {}", e),
-                    ));
-                }
+                md.push_str("```\n\n");
             }
-        } else {
-            return Err(minijinja::Error::new(
-                minijinja::ErrorKind::InvalidOperation,
-                format!("文件不存在 {}", input_path.display()),
-            ));
+            Err(e) => {
+                msg_error!("读取输入文件失败: {:?} -> {}", input_path, e);
+                return Err(minijinja::Error::new(
+                    minijinja::ErrorKind::InvalidOperation,
+                    format!("读取输入文件失败 {}", e),
+                ));
+            }
         }
     } else {
-        unreachable!();
+        return Err(minijinja::Error::new(
+            minijinja::ErrorKind::InvalidOperation,
+            format!("文件不存在 {}", input_path.display()),
+        ));
     }
 
     // 输出部分（修改这里）
     md.push_str(&format!("## 样例 {} 输出\n\n", sample_id));
 
-    if let Some(output_file) = &sample_item.output.get() {
-        let output_path = base_path.join("sample").join(output_file);
-        if output_path.exists() {
-            match fs::read_to_string(&output_path) {
-                Ok(content) => {
-                    md.push_str("```txt\n");
-                    md.push_str(&content);
-                    if !content.ends_with('\n') {
-                        md.push('\n');
-                    }
-                    md.push_str("```\n");
+    let output_file = &sample_item.output_path();
+
+    let output_path = base_path.join("sample").join(output_file);
+    if output_path.exists() {
+        match fs::read_to_string(&output_path) {
+            Ok(content) => {
+                md.push_str("```txt\n");
+                md.push_str(&content);
+                if !content.ends_with('\n') {
+                    md.push('\n');
                 }
-                Err(e) => {
-                    msg_error!("读取输出文件失败: {:?} -> {}", output_path, e);
-                    return Err(minijinja::Error::new(
-                        minijinja::ErrorKind::InvalidOperation,
-                        format!("读取输出文件失败 {}", e),
-                    ));
-                }
+                md.push_str("```\n");
             }
-        } else {
-            return Err(minijinja::Error::new(
-                minijinja::ErrorKind::InvalidOperation,
-                format!("输出文件不存在 {}", output_path.display()),
-            ));
+            Err(e) => {
+                msg_error!("读取输出文件失败: {:?} -> {}", output_path, e);
+                return Err(minijinja::Error::new(
+                    minijinja::ErrorKind::InvalidOperation,
+                    format!("读取输出文件失败 {}", e),
+                ));
+            }
         }
     } else {
-        unreachable!();
+        return Err(minijinja::Error::new(
+            minijinja::ErrorKind::InvalidOperation,
+            format!("输出文件不存在 {}", output_path.display()),
+        ));
     }
 
     debug!("成功生成样例 {} 的Markdown", sample_id);

@@ -53,19 +53,19 @@ impl CheckRule for SamplesNotFound {
             let mut missing_files = Vec::new();
 
             // 检查输入文件
-            if let Some(input_path) = sample.input.get() {
-                let path = problem_config.path.join("sample").join(input_path);
-                if !path.exists() {
-                    missing_files.push(format!("输入文件 {}", input_path));
-                }
+
+            let input_path = sample.input_path();
+
+            let path = problem_config.path.join("sample").join(&input_path);
+            if !path.exists() {
+                missing_files.push(format!("输入文件 {}", &input_path));
             }
 
             // 检查输出文件
-            if let Some(output_path) = sample.output.get() {
-                let path = problem_config.path.join("sample").join(output_path);
-                if !path.exists() {
-                    missing_files.push(format!("输出文件 {}", output_path));
-                }
+            let output_path = sample.output_path();
+            let path = problem_config.path.join("sample").join(&output_path);
+            if !path.exists() {
+                missing_files.push(format!("输出文件 {}", &output_path));
             }
 
             if !missing_files.is_empty() {

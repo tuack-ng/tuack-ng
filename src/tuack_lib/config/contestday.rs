@@ -3,7 +3,7 @@ use indexmap::IndexMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-pub struct ContestDayConfig {
+pub struct ContestDayConfigFile {
     pub version: u32,
     pub folder: String,
     pub name: String,
@@ -20,9 +20,40 @@ pub struct ContestDayConfig {
     pub noi_style: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub file_io: Option<bool>,
-    #[serde(skip)]
+}
+
+impl From<ContestDayConfig> for ContestDayConfigFile {
+    fn from(config: ContestDayConfig) -> Self {
+        ContestDayConfigFile {
+            version: config.version,
+            folder: config.folder,
+            name: config.name,
+            subdir: config.subdir,
+            title: config.title,
+            compile: config.compile,
+            start_time: config.start_time,
+            end_time: config.end_time,
+            use_pretest: config.use_pretest,
+            noi_style: config.noi_style,
+            file_io: config.file_io,
+        }
+    }
+}
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct ContestDayConfig {
+    pub version: u32,
+    pub folder: String,
+    pub name: String,
+    pub subdir: Vec<String>,
+    pub title: String,
+    pub compile: HashMap<String, String>,
+    pub start_time: [u32; 6],
+    pub end_time: [u32; 6],
+    pub use_pretest: Option<bool>,
+    pub noi_style: Option<bool>,
+    pub file_io: Option<bool>,
     pub subconfig: IndexMap<String, ProblemConfig>,
-    #[serde(skip)]
     pub path: PathBuf,
 }
 
@@ -42,31 +73,31 @@ pub fn load_day_config(dayconfig_path: &Path) -> Result<ContestDayConfig> {
         bail!("配置文件版本过低");
     }
 
-    let mut dayconfig: ContestDayConfig = serde_json::from_str(&day_content)?;
+    let dayconfig: ContestDayConfigFile = serde_json::from_str(&day_content)?;
 
-    dayconfig.path = dayconfig_path
-        .parent()
-        .map(|p| p.to_path_buf())
-        .context("无法获取配置文件父目录")?;
-
-    // 不处理子目录，只加载当前配置
-    dayconfig.subconfig = IndexMap::new();
-
-    Ok(dayconfig)
+    Ok(ContestDayConfig {
+        version: dayconfig.version,
+        folder: dayconfig.folder,
+        name: dayconfig.name,
+        subdir: dayconfig.subdir,
+        title: dayconfig.title,
+        compile: dayconfig.compile,
+        start_time: dayconfig.start_time,
+        end_time: dayconfig.end_time,
+        use_pretest: dayconfig.use_pretest,
+        noi_style: dayconfig.noi_style,
+        file_io: dayconfig.file_io,
+        subconfig: IndexMap::new(),
+        path: dayconfig_path
+            .parent()
+            .map(|p| p.to_path_buf())
+            .context("无法获取配置文件父目录")?,
+    })
 }
 
-/// 将比赛日配置序列化为JSON字符串，排除null字段
+/// 将比赛日配置序列化为 JSON 字符串
 pub fn save_day_config(config: &ContestDayConfig) -> Result<String> {
-    let json_value = serde_json::to_value(config)?;
-    let filtered_obj = json_value
-        .as_object()
-        .map(|obj| {
-            obj.iter()
-                .filter(|(_, v)| !v.is_null())
-                .map(|(k, v)| (k.clone(), v.clone()))
-                .collect::<serde_json::Map<_, _>>()
-        })
-        .context("Failed to convert day config to object")?;
-    let json = serde_json::to_string_pretty(&filtered_obj)?;
+    let dayconfig_file: ContestDayConfigFile = config.clone().into();
+    let json = serde_json::to_string_pretty(&dayconfig_file)?;
     Ok(json)
 }

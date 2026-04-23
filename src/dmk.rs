@@ -184,8 +184,8 @@ pub async fn main(args: DmkArgs) -> Result<()> {
                     id: item.id,
                     score: 0,
                     subtask: 0,
-                    input: item.input.get().unwrap().clone(),
-                    output: item.output.get().unwrap().clone(),
+                    input: item.input_path(),
+                    output: item.output_path(),
                     args: item.args.clone(),
                     manual: item.manual.unwrap_or(false),
                 })

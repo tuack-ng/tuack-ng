@@ -11,7 +11,6 @@ use std::process::Command;
 mod datajson;
 
 use crate::ren::manifest::TemplateManifest;
-use crate::tuack_lib::config::{ContestConfig, ContestDayConfig};
 use datajson::{DataJson, DateInfo, Problem, SupportLanguage};
 pub struct TypstChecker {
     pub template_dir: PathBuf,
