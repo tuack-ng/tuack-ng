@@ -37,6 +37,7 @@ impl DmkResult {
             DmkResult::Regen => "REGEN".green().bold(),
             DmkResult::Reset => "RESET".cyan().bold(),
             DmkResult::Skip => "SKIP".into(),
+            DmkResult::Empty => "EMPTY".magenta().bold(),
             DmkResult::Fail(_) => "FAIL".red().bold(),
         }
     }
@@ -187,14 +188,11 @@ pub async fn main(args: DmkArgs) -> Result<()> {
                     input: item.input_path(),
                     output: item.output_path(),
                     args: item.args.clone(),
-                    manual: item.manual.unwrap_or(false),
+                    dmk: item.dmk.unwrap_or(current_problem.dmk),
                 })
             })
             .collect(),
     };
-
-    let data_items: Vec<Arc<ExpandedDataItem>> =
-        data_items.into_iter().filter(|item| !item.manual).collect();
 
     let (tx, mut rx) = mpsc::channel::<DmkStatus>(10);
 

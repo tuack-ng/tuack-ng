@@ -51,6 +51,8 @@ pub enum DmkResult {
     Reset,
     /// 跳过
     Skip,
+    /// 建造空文件
+    Empty,
     /// 失败
     Fail(anyhow::Error),
 }
@@ -147,7 +149,10 @@ pub async fn gen_data(
         let input_path = target_dir.join(&input_file);
         let output_path = target_dir.join(&output_file);
 
-        if !matches!(action, DmkCommand::Gen) || !input_path.exists() {
+        let gen_input = data_item.dmk == DmkConfig::Input || data_item.dmk == DmkConfig::On;
+        let gen_output = data_item.dmk == DmkConfig::Output || data_item.dmk == DmkConfig::On;
+
+        if (!matches!(action, DmkCommand::Gen) || !input_path.exists()) && gen_input {
             let mut args_map = current_problem.args.clone();
             args_map.extend(data_item.args.clone());
 
@@ -173,14 +178,23 @@ pub async fn gen_data(
                 .await?;
             }
         } else {
-            tx.send(DmkStatus::DmkInput {
-                id: data_item.id,
-                status: DmkResult::Skip,
-            })
-            .await?;
+            if !input_path.exists() {
+                fs::write(&input_path, b"").await?;
+                tx.send(DmkStatus::DmkInput {
+                    id: data_item.id,
+                    status: DmkResult::Empty,
+                })
+                .await?;
+            } else {
+                tx.send(DmkStatus::DmkInput {
+                    id: data_item.id,
+                    status: DmkResult::Skip,
+                })
+                .await?;
+            }
         }
 
-        if !matches!(action, DmkCommand::Gen) || !output_path.exists() {
+        if (!matches!(action, DmkCommand::Gen) || !output_path.exists()) && gen_output {
             if let Err(e) = generate_output(
                 &mut runner,
                 // &std_path,
@@ -204,11 +218,20 @@ pub async fn gen_data(
                 .await?;
             }
         } else {
-            tx.send(DmkStatus::DmkOutput {
-                id: data_item.id,
-                status: DmkResult::Skip,
-            })
-            .await?;
+            if !output_path.exists() {
+                fs::write(&output_path, b"").await?;
+                tx.send(DmkStatus::DmkOutput {
+                    id: data_item.id,
+                    status: DmkResult::Empty,
+                })
+                .await?;
+            } else {
+                tx.send(DmkStatus::DmkOutput {
+                    id: data_item.id,
+                    status: DmkResult::Skip,
+                })
+                .await?;
+            }
         }
 
         tx.send(DmkStatus::DmkProgress(id as u32)).await?;

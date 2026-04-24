@@ -19,3 +19,5 @@ pub use indexmap::IndexMap;
 pub use serde::{Deserialize, Serialize};
 
 pub use crate::tuack_lib::utils::compiler::Runner;
+
+pub use crate::tuack_lib::config::DmkConfig;

@@ -1,4 +1,7 @@
 use crate::prelude::*;
+use crate::tuack_lib::config::CONFIG_VERSION;
+use crate::tuack_lib::config::migrate::base::Migrater;
+use crate::tuack_lib::config::migrate::v3::V3Migrater;
 use bytesize::ByteSize;
 use indexmap::IndexMap;
 use std::sync::Arc;
@@ -27,9 +30,12 @@ pub struct ProblemConfigFile {
     /// 是否有部分分，目前没有用途
     #[serde(rename = "partial score")]
     pub partial_score: bool,
+    /// 数据生成行为
+    pub dmk: DmkConfig,
     /// 数据点参数 (全局部分)
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub args: HashMap<String, i64>,
+
     /// 样例
     pub samples: Vec<SampleItem>,
     /// 数据 (原始)
@@ -65,6 +71,8 @@ pub struct ProblemConfig {
     pub memory_limit: ByteSize,
     /// 是否有部分分，目前没有用途
     pub partial_score: bool,
+    /// 数据生成行为
+    pub dmk: DmkConfig,
     /// 数据点参数 (全局部分)
     pub args: HashMap<String, i64>,
     /// 样例
@@ -88,10 +96,10 @@ pub struct ProblemConfig {
     /// 当前配置所在路径，运行时生成
     pub path: PathBuf,
     /// 数据
-    #[serde(skip, default)] // 这玩意传输无意义 (TODO)?
+    #[serde(skip_deserializing, default)] // 这玩意反序列化无意义 (TODO)?
     pub data: Vec<Arc<ExpandedDataItem>>,
     /// Subtask 配置
-    #[serde(skip, default)]
+    #[serde(skip_deserializing, default)] // 同上
     pub subtasks: BTreeMap<u32, SubtaskItem>,
 }
 
@@ -106,6 +114,7 @@ impl From<ProblemConfig> for ProblemConfigFile {
             time_limit: config.time_limit,
             memory_limit: config.memory_limit,
             partial_score: config.partial_score,
+            dmk: config.dmk,
             args: config.args,
             samples: config.samples,
             data: config.orig_data,
@@ -114,6 +123,19 @@ impl From<ProblemConfig> for ProblemConfigFile {
             use_chk: config.use_chk,
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Copy, Eq, PartialEq)]
+#[serde(rename_all = "kebab-case")]
+pub enum DmkConfig {
+    /// 忽略
+    Skip,
+    /// 只生成输入
+    Input,
+    /// 只生成输出
+    Output,
+    /// 启用
+    On,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -129,9 +151,9 @@ pub struct SampleItem {
     /// 参数，会从全局参数继承
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub args: HashMap<String, i64>,
-    /// 是否为人工生成的测试点
+    /// 数据生成行为
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub manual: Option<bool>,
+    pub dmk: Option<DmkConfig>,
 }
 
 impl SampleItem {
@@ -174,9 +196,9 @@ pub struct SingleDataItem {
     /// 参数，会从全局参数继承
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub args: HashMap<String, i64>,
-    /// 是否为人工生成的测试点
+    /// 数据生成行为
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub manual: Option<bool>,
+    pub dmk: Option<DmkConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -191,9 +213,9 @@ pub struct BundleDataItem {
     /// 参数，会从全局参数继承
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub args: HashMap<String, i64>,
-    /// 是否为人工生成的测试点
+    /// 数据生成行为
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub manual: Option<bool>,
+    pub dmk: Option<DmkConfig>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -210,8 +232,8 @@ pub struct ExpandedDataItem {
     pub output: String,
     /// 参数，会从全局参数继承
     pub args: HashMap<String, i64>,
-    /// 是否为人工生成的测试点
-    pub manual: bool,
+    /// 数据生成行为
+    pub dmk: DmkConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -267,16 +289,29 @@ pub enum ProblemType {
 pub fn load_problem_config(problemconfig_path: &Path) -> Result<ProblemConfig> {
     // 读取并验证问题配置文件
     let problem_content = fs::read_to_string(problemconfig_path)?;
-    let problem_json_value: serde_json::Value = serde_json::from_str(&problem_content)?;
+    let mut problem_json_value: serde_json::Value = serde_json::from_str(&problem_content)?;
+
+    let version = problem_json_value
+        .get("version")
+        .and_then(|v| v.as_u64())
+        .context("配置文件缺少版本号")?;
 
     // 检查版本
-    if let Some(version) = problem_json_value.get("version").and_then(|v| v.as_u64())
-        && version < 3
-    {
+    if version < 3 {
         msg_error!(
             "配置文件版本过低，可能是 tuack 的配置文件。请迁移到 tuack-ng 配置文件格式再使用。"
         );
         bail!("配置文件版本过低");
+    }
+
+    if version > CONFIG_VERSION {
+        msg_error!("配置文件版本过高，可能是新版本的配置文件。请检查是否有新版本。");
+        bail!("配置文件版本过高");
+    }
+
+    if version == 3 {
+        info!("正在迁移 V3 题目配置文件");
+        problem_json_value = V3Migrater::migrate_problem(problem_json_value)?;
     }
 
     // 先解析为 File 结构
@@ -300,7 +335,7 @@ pub fn load_problem_config(problemconfig_path: &Path) -> Result<ProblemConfig> {
                         .clone()
                         .unwrap_or_else(|| format!("{}.ans", item.id)),
                     args: item.args.clone(),
-                    manual: item.manual.unwrap_or(false),
+                    dmk: item.dmk.unwrap_or(problemconfig.dmk),
                 }));
             }
             DataItem::Bundle(item) => {
@@ -312,7 +347,7 @@ pub fn load_problem_config(problemconfig_path: &Path) -> Result<ProblemConfig> {
                         input: format!("{}.in", id),
                         output: format!("{}.ans", id),
                         args: item.args.clone(),
-                        manual: item.manual.unwrap_or(false),
+                        dmk: item.dmk.unwrap_or(problemconfig.dmk),
                     }));
                 }
             }
@@ -372,6 +407,7 @@ pub fn load_problem_config(problemconfig_path: &Path) -> Result<ProblemConfig> {
         time_limit: problemconfig.time_limit,
         memory_limit: problemconfig.memory_limit,
         partial_score: problemconfig.partial_score,
+        dmk: problemconfig.dmk,
         args: problemconfig.args,
         samples: problemconfig.samples,
         orig_data: problemconfig.data,

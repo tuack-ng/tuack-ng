@@ -1,4 +1,10 @@
-use crate::prelude::*;
+use crate::{
+    prelude::*,
+    tuack_lib::config::{
+        CONFIG_VERSION,
+        migrate::{base::Migrater, v3::V3Migrater},
+    },
+};
 use indexmap::IndexMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -55,20 +61,42 @@ pub struct ContestConfig {
 pub fn load_contest_config(config_path: &Path) -> Result<ContestConfig> {
     // 读取并验证主配置文件
     let main_content = fs::read_to_string(config_path)?;
-    let main_json_value: serde_json::Value = serde_json::from_str(&main_content)?;
+    let mut main_json_value: serde_json::Value = serde_json::from_str(&main_content)?;
 
     // 检查版本
-    if let Some(version) = main_json_value.get("version").and_then(|v| v.as_u64())
-        && version < 3
-    {
+
+    let version = main_json_value
+        .get("version")
+        .and_then(|v| v.as_u64())
+        .context("配置文件缺少版本号")?;
+
+    let mut migrated = false;
+
+    if version < 3 {
         msg_error!(
             "配置文件版本过低，可能是 tuack 的配置文件。请迁移到 tuack-ng 配置文件格式再使用。"
         );
         bail!("配置文件版本过低");
     }
 
+    if version > CONFIG_VERSION {
+        msg_error!("配置文件版本过高，可能是新版本的配置文件。请检查是否有新版本。");
+        bail!("配置文件版本过高");
+    }
+
+    if version == 3 {
+        info!("正在迁移 V3 比赛配置文件");
+        main_json_value = V3Migrater::migrate_contest(main_json_value)?;
+        migrated = true;
+    }
+
+    if migrated {
+        // TODO: 不应该在这里提示
+        msg_warn!("配置文件版本已经过时。使用 `tuack-ng conf migrate` 进行迁移。");
+    }
+
     // 反序列化主配置
-    let config: ContestConfigFile = serde_json::from_str(&main_content)?;
+    let config: ContestConfigFile = serde_json::from_value(main_json_value)?;
 
     Ok(ContestConfig {
         version: config.version,

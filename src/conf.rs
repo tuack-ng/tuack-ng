@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use crate::tuack_lib::config::{CONFIG_FILE_NAME, save_day_config};
+use crate::tuack_lib::config::{CONFIG_FILE_NAME, save_config, save_day_config};
 use chrono::Datelike;
 use chrono::Timelike;
 use chrono::{Duration, NaiveDateTime};
@@ -52,6 +52,9 @@ enum Targets {
     /// 设置任意字段
     #[command(version)]
     Conf(ConfCustomArgs),
+    /// 迁移配置文件
+    #[command(version)]
+    Migrate,
 }
 
 #[derive(Args, Debug)]
@@ -228,6 +231,13 @@ fn conf_custom(args: &ConfCustomArgs) -> Result<()> {
     }
 }
 
+fn conf_migrate() -> Result<()> {
+    let config = gctx().config.clone().context("没有找到有效的配置文件")?.0;
+    save_config(&config, &config.path)?;
+    msg_info!("迁移完成！");
+    Ok(())
+}
+
 pub fn main(args: ConfArgs) -> Result<()> {
     match args.target {
         Targets::Title(conf_args) => {
@@ -241,6 +251,9 @@ pub fn main(args: ConfArgs) -> Result<()> {
         }
         Targets::Conf(conf_args) => {
             conf_custom(&conf_args)?;
+        }
+        Targets::Migrate => {
+            conf_migrate()?;
         }
     }
 

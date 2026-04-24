@@ -2,9 +2,13 @@ use crate::prelude::*;
 
 pub const CONFIG_FILE_NAME: &str = "conf.json";
 
+#[allow(unused)]
+pub const CONFIG_VERSION: u64 = 4;
+
 pub mod contest;
 pub mod contestday;
 pub mod lang;
+pub mod migrate;
 pub mod problem;
 
 use crate::context::CurrentLocation;

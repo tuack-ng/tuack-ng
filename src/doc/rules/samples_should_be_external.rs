@@ -151,7 +151,7 @@ impl SamplesShouldBeExternal {
                         input: None,
                         output: None,
                         args: HashMap::new(),
-                        manual: None,
+                        dmk: None,
                     },
                 });
 
