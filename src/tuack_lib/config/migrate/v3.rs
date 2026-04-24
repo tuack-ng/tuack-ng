@@ -201,9 +201,9 @@ impl Migrater for V3Migrater {
                             args: v.args,
                             dmk: v.manual.map(|manual| {
                                 if manual {
-                                    NewDmkConfig::On
-                                } else {
                                     NewDmkConfig::Skip
+                                } else {
+                                    NewDmkConfig::On
                                 }
                             }),
                         })
@@ -229,9 +229,9 @@ impl Migrater for V3Migrater {
                                 args: val.args,
                                 dmk: val.manual.map(|manual| {
                                     if manual {
-                                        NewDmkConfig::On
-                                    } else {
                                         NewDmkConfig::Skip
+                                    } else {
+                                        NewDmkConfig::On
                                     }
                                 }),
                             }),
@@ -242,9 +242,9 @@ impl Migrater for V3Migrater {
                                 args: val.args,
                                 dmk: val.manual.map(|manual| {
                                     if manual {
-                                        NewDmkConfig::On
-                                    } else {
                                         NewDmkConfig::Skip
+                                    } else {
+                                        NewDmkConfig::On
                                     }
                                 }),
                             }),
