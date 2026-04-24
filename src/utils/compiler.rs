@@ -62,13 +62,23 @@ impl GeneralRunner {
                     ("executable".to_string(), compile.executable.clone()),
                     (
                         "output_path".to_string(),
-                        self.tmp_dir.path().to_string_lossy().to_string(),
+                        self.tmp_dir
+                            .path()
+                            .to_string_lossy()
+                            .to_string()
+                            .replace(" ", "\\ "),
                     ),
-                    ("program_name".to_string(), self.program_name.clone()),
+                    (
+                        "program_name".to_string(),
+                        self.program_name.clone().replace(" ", "\\ "),
+                    ),
                     ("args".to_string(), self.compile_args.clone()),
                     (
                         "input_path".to_string(),
-                        self.source.to_string_lossy().to_string(),
+                        self.source
+                            .to_string_lossy()
+                            .to_string()
+                            .replace(" ", "\\ "),
                     ),
                     (
                         "exe_suffix".to_string(),
@@ -91,7 +101,11 @@ impl GeneralRunner {
                     ("executable".to_string(), runner.executable.clone()),
                     (
                         "input_path".to_string(),
-                        self.tmp_dir.path().to_string_lossy().to_string(),
+                        self.tmp_dir
+                            .path()
+                            .to_string_lossy()
+                            .to_string()
+                            .replace(" ", "\\ "),
                     ),
                     ("program_name".to_string(), self.program_name.clone()),
                     (
