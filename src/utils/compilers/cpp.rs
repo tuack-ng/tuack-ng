@@ -3,11 +3,12 @@ use std::process::Stdio;
 use tempfile::TempDir;
 use tokio::process::Command as TokioCommand;
 
+use crate::prelude::*;
+use crate::tuack_lib::utils::compiler::RunnerManifest;
 use crate::utils::command::string_to_command;
-use crate::{prelude::*, tuack_lib::config::lang::Language};
-use strfmt::strfmt;
+use async_trait::async_trait;
 
-pub struct GeneralRunner {
+pub struct CppRunner {
     tmp_dir: TempDir,
     source: PathBuf,
     file_io: bool,
@@ -15,11 +16,13 @@ pub struct GeneralRunner {
     input_file_name: Option<String>,
     output_file_name: Option<String>,
     compile_args: String,
-    language: Language,
     program_name: String,
+    interactive: bool,
+    grader_path: Option<PathBuf>,
+    header_path: Option<PathBuf>,
 }
 
-impl GeneralRunner {
+impl CppRunner {
     pub fn new(
         source: impl Into<PathBuf>,
         compile_args: &HashMap<String, String>,
@@ -33,7 +36,7 @@ impl GeneralRunner {
             .context("没有后缀名")?
             .to_string_lossy()
             .into_owned();
-        Ok(GeneralRunner {
+        Ok(CppRunner {
             tmp_dir,
             source,
             file_io: false,
@@ -44,120 +47,90 @@ impl GeneralRunner {
                 .get(&ext)
                 .context("没有该语言编译选项")?
                 .to_string(),
-            language: gctx()
-                .languages
-                .get(&ext)
-                .context("未知格式文件")?
-                .to_owned(),
             program_name,
+            interactive: false,
+            grader_path: None,
+            header_path: None,
         })
     }
 
     /// 获取编译命令（同步版本）
-    fn get_compile_command(&self) -> Result<Option<StdCommand>> {
-        if let Some(ref compile) = self.language.compiler {
-            let compile_cmd = strfmt(
-                &compile.run,
-                &HashMap::from([
-                    ("executable".to_string(), compile.executable.clone()),
-                    (
-                        "output_path".to_string(),
-                        self.tmp_dir
-                            .path()
-                            .to_string_lossy()
-                            .to_string()
-                            .replace(" ", "\\ "),
-                    ),
-                    (
-                        "program_name".to_string(),
-                        self.program_name.clone().replace(" ", "\\ "),
-                    ),
-                    ("args".to_string(), self.compile_args.clone()),
-                    (
-                        "input_path".to_string(),
-                        self.source
-                            .to_string_lossy()
-                            .to_string()
-                            .replace(" ", "\\ "),
-                    ),
-                    (
-                        "exe_suffix".to_string(),
-                        std::env::consts::EXE_SUFFIX.to_string(),
-                    ),
-                ]),
-            )?;
-            Ok(Some(string_to_command(compile_cmd.as_str())?))
-        } else {
-            Ok(None)
+    fn get_compile_command(&self) -> Result<StdCommand> {
+        let exe_path = self
+            .tmp_dir
+            .path()
+            .join(format!(
+                "{}{}",
+                self.program_name,
+                std::env::consts::EXE_SUFFIX
+            ))
+            .display()
+            .to_string()
+            .replace(" ", "\\ ");
+
+        let source_path = self.source.display().to_string().replace(" ", "\\ ");
+
+        let mut cmd_str = format!("g++ -o {} {} {}", exe_path, self.compile_args, source_path);
+
+        if self.interactive {
+            let grader_path = self
+                .tmp_dir
+                .path()
+                .join("grader.cpp")
+                .display()
+                .to_string()
+                .replace(" ", "\\ ");
+            cmd_str = format!("{} {}", cmd_str, grader_path);
         }
+
+        string_to_command(&cmd_str)
     }
 
     /// 获取运行命令（同步版本）
     fn get_run_command(&self) -> Result<Option<StdCommand>> {
-        if let Some(ref runner) = self.language.runner {
-            let run_cmd = strfmt(
-                &runner.run,
-                &HashMap::from([
-                    ("executable".to_string(), runner.executable.clone()),
-                    (
-                        "input_path".to_string(),
-                        self.tmp_dir
-                            .path()
-                            .to_string_lossy()
-                            .to_string()
-                            .replace(" ", "\\ "),
-                    ),
-                    ("program_name".to_string(), self.program_name.clone()),
-                    (
-                        "exe_suffix".to_string(),
-                        std::env::consts::EXE_SUFFIX.to_string(),
-                    ),
-                ]),
-            )?;
-            Ok(Some(string_to_command(run_cmd.as_str())?))
+        let program_path = self.tmp_dir.path().join(&self.program_name);
+        if program_path.exists() {
+            Ok(Some(StdCommand::new(program_path)))
         } else {
-            let program_path = self.tmp_dir.path().join(&self.program_name);
-            if program_path.exists() {
-                Ok(Some(StdCommand::new(program_path)))
-            } else {
-                Ok(None)
-            }
+            Ok(None)
         }
     }
 }
 
-impl Runner for GeneralRunner {
+#[async_trait]
+impl Runner for CppRunner {
+    fn manifest(&self) -> RunnerManifest {
+        RunnerManifest { interactive: true }
+    }
+
     fn prepare(&mut self) -> Result<()> {
         if !self.tmp_dir.path().exists() {
             fs::create_dir_all(&self.tmp_dir)?;
         }
 
-        if let Some(mut cmd) = self.get_compile_command()? {
-            let target_path = self
-                .tmp_dir
-                .path()
-                .join(&self.program_name)
-                .with_extension(self.source.extension().unwrap());
+        let mut cmd = self.get_compile_command()?;
 
-            fs::copy(&self.source, &target_path)?;
+        let source_target_path = self
+            .tmp_dir
+            .path()
+            .join(&self.program_name)
+            .with_extension(self.source.extension().unwrap());
 
-            debug!("{cmd:#?}");
+        fs::copy(&self.source, &source_target_path)?;
 
-            let output = cmd.stdout(Stdio::null()).stderr(Stdio::piped()).output()?;
-            debug!("??");
-            if !output.status.success() {
-                bail!("编译错误: {}", String::from_utf8_lossy(&output.stderr));
-            }
-
-            fs::remove_file(&target_path)?;
-        } else {
-            let target_path = self
-                .tmp_dir
-                .path()
-                .join(self.program_name.clone())
-                .with_extension(self.source.extension().unwrap());
-            fs::copy(&self.source, target_path)?;
+        if self.interactive {
+            let grader_target_path = self.tmp_dir.path().join("grader.cpp");
+            fs::copy(&self.grader_path.as_ref().unwrap(), &grader_target_path)?;
+            let header_target_path = self.tmp_dir.path().join(format!("{}.h", self.program_name));
+            fs::copy(&self.header_path.as_ref().unwrap(), &header_target_path)?;
         }
+
+        let output = cmd.stdout(Stdio::null()).stderr(Stdio::piped()).output()?;
+        if !output.status.success() {
+            bail!("编译错误: {}", String::from_utf8_lossy(&output.stderr));
+        }
+
+        fs::remove_file(&source_target_path)?;
 
         Ok(())
     }
@@ -167,34 +140,34 @@ impl Runner for GeneralRunner {
             tokio::fs::create_dir_all(&self.tmp_dir).await?;
         }
 
-        if let Some(cmd) = self.get_compile_command()? {
-            let target_path = self
-                .tmp_dir
-                .path()
-                .join(&self.program_name)
-                .with_extension(self.source.extension().unwrap());
+        let cmd = self.get_compile_command()?;
 
-            tokio::fs::copy(&self.source, &target_path).await?;
+        let target_path = self
+            .tmp_dir
+            .path()
+            .join(&self.program_name)
+            .with_extension(self.source.extension().unwrap());
 
-            let mut tokio_cmd = TokioCommand::from(cmd);
-            let output = tokio_cmd
-                .stdout(Stdio::null())
-                .stderr(Stdio::piped())
-                .output()
-                .await?;
-            if !output.status.success() {
-                bail!("编译错误: {}", String::from_utf8_lossy(&output.stderr));
-            }
+        tokio::fs::copy(&self.source, &target_path).await?;
 
-            tokio::fs::remove_file(&target_path).await?;
-        } else {
-            let target_path = self
-                .tmp_dir
-                .path()
-                .join(self.program_name.clone())
-                .with_extension(self.source.extension().unwrap());
-            tokio::fs::copy(&self.source, target_path).await?;
+        if self.interactive {
+            let grader_target_path = self.tmp_dir.path().join("grader.cpp");
+            tokio::fs::copy(&self.grader_path.as_ref().unwrap(), &grader_target_path).await?;
+            let header_target_path = self.tmp_dir.path().join(format!("{}.h", self.program_name));
+            tokio::fs::copy(&self.header_path.as_ref().unwrap(), &header_target_path).await?;
         }
+
+        let mut tokio_cmd = TokioCommand::from(cmd);
+        let output = tokio_cmd
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .output()
+            .await?;
+        if !output.status.success() {
+            bail!("编译错误: {}", String::from_utf8_lossy(&output.stderr));
+        }
+
+        tokio::fs::remove_file(&target_path).await?;
 
         Ok(())
     }
@@ -282,6 +255,13 @@ impl Runner for GeneralRunner {
     fn set_std_io(&mut self, input_file: &PathBuf) -> Result<()> {
         self.file_io = false;
         self.input_path = Some(input_file.to_owned());
+        Ok(())
+    }
+
+    fn set_interactive(&mut self, grader_file: &PathBuf, header_file: &PathBuf) -> Result<()> {
+        self.interactive = true;
+        self.grader_path = Some(grader_file.to_owned());
+        self.header_path = Some(header_file.to_owned());
         Ok(())
     }
 

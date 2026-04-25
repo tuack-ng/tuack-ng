@@ -2,7 +2,8 @@ use crate::prelude::*;
 use crate::test::checker::parse_result;
 use crate::tuack_lib::config::ExpandedDataItem;
 use crate::tuack_lib::config::ScorePolicy;
-use crate::utils::compiler::*;
+use crate::utils::compilers::cpp::CppRunner;
+use crate::utils::compilers::general::*;
 use crate::utils::duration::format_duration;
 use bytesize::ByteSize;
 use clap::Args;
@@ -71,7 +72,7 @@ pub struct ProblemTestResult {
 pub struct TestArgs {}
 
 async fn run_test_case(
-    runner: &mut GeneralRunner,
+    runner: &mut Box<dyn Runner>,
     problem_config: &ProblemConfig,
     case: &Arc<ExpandedDataItem>,
 ) -> Result<(TestCaseStatus, Option<Duration>, Option<ByteSize>)> {
@@ -187,7 +188,7 @@ async fn run_test_case(
 }
 
 fn validate_output(
-    runner: &GeneralRunner,
+    runner: &Box<dyn Runner>,
     problem_config: &ProblemConfig,
     case: &Arc<ExpandedDataItem>,
 ) -> Result<TestCaseStatus> {
@@ -420,13 +421,60 @@ pub async fn test_problem(
             problem_status = ProblemStatus::Waiting;
         }
 
-        let mut runner =
-            GeneralRunner::new(&path, &day_config.compile, problem_config.name.clone())?;
+        let mut runner: Box<dyn Runner> = match path
+            .extension()
+            .context("文件无后缀名")?
+            .to_string_lossy()
+            .to_string()
+            .as_str()
+        {
+            "cpp" => Box::new(CppRunner::new(
+                &path,
+                &day_config.compile,
+                problem_config.name.clone(),
+            )?),
+            _ => Box::new(GeneralRunner::new(
+                &path,
+                &day_config.compile,
+                problem_config.name.clone(),
+            )?),
+        };
+
         #[allow(unused)]
         {
             problem_status = ProblemStatus::Compiling;
         }
-        match runner.prepare() {
+        match {
+            if problem_config.problem_type == ProblemType::Interactive {
+                if runner.manifest().interactive {
+                    let interactive = problem_config.interactive.as_ref().unwrap();
+
+                    let resolve_path = |path: &String| -> Result<PathBuf> {
+                        let p = PathBuf::from_str(path)?;
+                        Ok(if p.is_absolute() {
+                            p
+                        } else {
+                            dunce::canonicalize(problem_config.path.join(p))?
+                        })
+                    };
+
+                    let grader_path = resolve_path(&interactive.grader)?;
+                    let header_path = resolve_path(&interactive.header)?;
+
+                    if !grader_path.exists() {
+                        bail!("grader 不存在")
+                    }
+                    if !header_path.exists() {
+                        bail!("header 不存在")
+                    }
+
+                    runner.set_interactive(&grader_path, &header_path)?;
+                } else {
+                    bail!("该语言不支持交互")
+                }
+            }
+            runner.prepare()
+        } {
             Ok(_) => {
                 problem_status = ProblemStatus::Compiled;
             }

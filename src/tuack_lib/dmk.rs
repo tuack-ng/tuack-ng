@@ -1,10 +1,12 @@
 use crate::prelude::*;
 use crate::tuack_lib::config::ExpandedDataItem;
-use crate::utils::compiler::GeneralRunner;
+use crate::utils::compilers::cpp::CppRunner;
+use crate::utils::compilers::general::GeneralRunner;
 use crate::utils::random::gen_rnd;
 use rand::Rng;
 use std::collections::{BTreeMap, HashMap};
 use std::process::Stdio;
+use std::str::FromStr;
 use std::sync::Arc;
 use tokio::fs;
 use tokio::process::Command;
@@ -103,13 +105,60 @@ pub async fn gen_data(
     }
     let generator_path = find_generator(&current_problem.path)?;
     let std_path = find_std(current_problem)?;
-    let mut runner = GeneralRunner::new(
-        &std_path,
-        &current_day.compile,
-        current_problem.name.clone(),
-    )?;
+    // let mut runner = GeneralRunner::new(
+    //     &std_path,
+    //     &current_day.compile,
+    //     current_problem.name.clone(),
+    // )?;
+    let mut runner: Box<dyn Runner> = match std_path
+        .extension()
+        .context("文件无后缀名")?
+        .to_string_lossy()
+        .to_string()
+        .as_str()
+    {
+        "cpp" => Box::new(CppRunner::new(
+            &std_path,
+            &current_day.compile,
+            current_problem.name.clone(),
+        )?),
+        _ => Box::new(GeneralRunner::new(
+            &std_path,
+            &current_day.compile,
+            current_problem.name.clone(),
+        )?),
+    };
     info!("找到生成器: {}", generator_path.display());
     info!("找到标程: {}", std_path.display());
+
+    if current_problem.problem_type == ProblemType::Interactive {
+        if runner.manifest().interactive {
+            let interactive = current_problem.interactive.as_ref().unwrap();
+
+            let resolve_path = |path: &String| -> Result<PathBuf> {
+                let p = PathBuf::from_str(path)?;
+                Ok(if p.is_absolute() {
+                    p
+                } else {
+                    dunce::canonicalize(current_problem.path.join(p))?
+                })
+            };
+            let grader_path = match &interactive.dmk_grader {
+                Some(dmk_grader) => resolve_path(dmk_grader)?,
+                None => resolve_path(&interactive.grader)?,
+            };
+            let header_path = resolve_path(&interactive.header)?;
+
+            if !grader_path.exists() {
+                bail!("grader 不存在")
+            }
+            if !header_path.exists() {
+                bail!("header 不存在")
+            }
+
+            runner.set_interactive(&grader_path, &header_path)?;
+        }
+    }
 
     let generator_path_clone = generator_path.clone();
     let tx_clone1 = tx.clone();
@@ -306,7 +355,7 @@ async fn compile_generator(tx: mpsc::Sender<DmkStatus>, generator_path: &Path) -
 async fn compile_std(
     tx: mpsc::Sender<DmkStatus>,
     // std_path: &Path,
-    runner: &mut GeneralRunner,
+    runner: &mut Box<dyn Runner>,
 ) -> Result<()> {
     info!("编译标程");
 
@@ -401,7 +450,7 @@ async fn generate_input(
 
 /// 使用标程生成输出文件
 async fn generate_output(
-    runner: &mut GeneralRunner,
+    runner: &mut Box<dyn Runner>,
     // std_path: &Path,
     input_path: &Path,
     output_path: &Path,

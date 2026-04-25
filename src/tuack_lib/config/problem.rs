@@ -35,6 +35,9 @@ pub struct ProblemConfigFile {
     /// 数据点参数 (全局部分)
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub args: HashMap<String, i64>,
+    /// 交互
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub interactive: Option<InteractiveConfig>,
 
     /// 样例
     pub samples: Vec<SampleItem>,
@@ -75,6 +78,9 @@ pub struct ProblemConfig {
     pub dmk: DmkConfig,
     /// 数据点参数 (全局部分)
     pub args: HashMap<String, i64>,
+    /// 交互
+    pub interactive: Option<InteractiveConfig>,
+
     /// 样例
     pub samples: Vec<SampleItem>,
     /// 数据 (原始)
@@ -116,6 +122,7 @@ impl From<ProblemConfig> for ProblemConfigFile {
             partial_score: config.partial_score,
             dmk: config.dmk,
             args: config.args,
+            interactive: config.interactive,
             samples: config.samples,
             data: config.orig_data,
             subtasks: config.orig_subtasks,
@@ -274,7 +281,7 @@ pub enum ScorePolicy {
     Min,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "kebab-case")]
 pub enum ProblemType {
     /// 传统型
@@ -283,6 +290,18 @@ pub enum ProblemType {
     Output,
     /// 交互型
     Interactive,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InteractiveConfig {
+    /// 交互库路径
+    pub grader: String,
+    /// 交互库头文件路径
+    pub header: String,
+    /// 样例交互库路径
+    pub sample_grader: Option<String>,
+    /// Dmk 交互库路径
+    pub dmk_grader: Option<String>,
 }
 
 /// 加载题目配置
@@ -398,6 +417,11 @@ pub fn load_problem_config(problemconfig_path: &Path) -> Result<ProblemConfig> {
         };
     }
 
+    if problemconfig.problem_type == ProblemType::Interactive && problemconfig.interactive.is_none()
+    {
+        bail!("交互题目需要配置交互(interactive)");
+    }
+
     Ok(ProblemConfig {
         version: problemconfig.version,
         folder: problemconfig.folder,
@@ -409,6 +433,7 @@ pub fn load_problem_config(problemconfig_path: &Path) -> Result<ProblemConfig> {
         partial_score: problemconfig.partial_score,
         dmk: problemconfig.dmk,
         args: problemconfig.args,
+        interactive: problemconfig.interactive,
         samples: problemconfig.samples,
         orig_data: problemconfig.data,
         orig_subtasks: problemconfig.subtasks,

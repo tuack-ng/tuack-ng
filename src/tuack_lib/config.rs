@@ -100,7 +100,14 @@ pub fn load_config(path: &Path) -> Result<Option<(ContestConfig, CurrentLocation
 
             problemconfig.use_pretest = dayconfig.use_pretest.or(config.use_pretest);
             problemconfig.noi_style = dayconfig.noi_style.or(config.noi_style);
-            problemconfig.file_io = dayconfig.file_io.or(config.file_io);
+            problemconfig.file_io = if problemconfig.problem_type == ProblemType::Interactive {
+                // 交互强制使用 Stdio
+                Some(false)
+            } else {
+                None
+            }
+            .or(dayconfig.file_io)
+            .or(config.file_io);
 
             if canonicalize_path.starts_with(problemconfig_path.parent().unwrap()) {
                 location = CurrentLocation::Problem(

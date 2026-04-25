@@ -1,5 +1,5 @@
 pub mod command;
-pub mod compiler;
+pub mod compilers;
 pub mod duration;
 pub mod filesystem;
 pub mod message;
