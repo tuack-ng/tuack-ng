@@ -7,6 +7,7 @@ use crate::utils::compilers::general::*;
 use crate::utils::duration::format_duration;
 use bytesize::ByteSize;
 use clap::Args;
+use clap::ValueEnum;
 use colored::Colorize;
 use csv::Writer;
 use evalexpr::eval_boolean;
@@ -21,6 +22,14 @@ use std::{
 use sysinfo::{Pid, ProcessesToUpdate, System};
 use tempfile::NamedTempFile;
 pub mod checker;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum Target {
+    /// 正式测试数据
+    Data,
+    /// 样例数据
+    Sample,
+}
 
 // *注意*：这*不是*用于测试这个程序的测试用例的命令
 #[derive(Debug, PartialEq, Copy, Clone)]
@@ -69,18 +78,23 @@ pub struct ProblemTestResult {
 
 #[derive(Args, Debug)]
 #[command(version)]
-pub struct TestArgs {}
+pub struct TestArgs {
+    /// 目标类型
+    #[arg(value_enum, default_value = "data")]
+    pub target: Target,
+}
 
 async fn run_test_case(
     runner: &mut Box<dyn Runner>,
     problem_config: &ProblemConfig,
     case: &Arc<ExpandedDataItem>,
+    data_dir: &str,
 ) -> Result<(TestCaseStatus, Option<Duration>, Option<ByteSize>)> {
     let problem_name = &problem_config.name;
     let time_limit_ms = (problem_config.time_limit * 1000.0) as u128;
     let memory_limit_bytes = problem_config.memory_limit.as_u64();
     let file_io = problem_config.file_io.unwrap_or(true);
-    let input_path = problem_config.path.join("data").join(&case.input);
+    let input_path = problem_config.path.join(data_dir).join(&case.input);
 
     use tokio::time::{Duration, Instant, sleep};
 
@@ -180,7 +194,7 @@ async fn run_test_case(
     }.await?;
 
     let case_status = match result.0 {
-        TestCaseStatus::Running => validate_output(runner, problem_config, case)?,
+        TestCaseStatus::Running => validate_output(runner, problem_config, case, data_dir)?,
         status => status,
     };
 
@@ -191,10 +205,11 @@ fn validate_output(
     runner: &Box<dyn Runner>,
     problem_config: &ProblemConfig,
     case: &Arc<ExpandedDataItem>,
+    data_dir: &str,
 ) -> Result<TestCaseStatus> {
-    let input_path = problem_config.path.join("data").join(&case.input);
+    let input_path = problem_config.path.join(data_dir).join(&case.input);
     let output_path = runner.get_output_path()?;
-    let answer_path = problem_config.path.join("data").join(&case.output);
+    let answer_path = problem_config.path.join(data_dir).join(&case.output);
     let spj = if problem_config.use_chk.unwrap_or(false) {
         Some(problem_config.path.join("data").join("chk").join("chk"))
     } else {
@@ -286,10 +301,8 @@ fn check_test_case(test_case: &TestCase, actual_score: u32) -> bool {
 }
 
 // 将测试结果写入 CSV
-fn write_results_to_csv(results: Vec<ProblemTestResult>, problem_path: &Path) -> Result<()> {
-    let csv_path = problem_path.join("result.csv");
-
-    let mut wtr = Writer::from_path(&csv_path)?;
+fn write_results_to_csv(results: Vec<ProblemTestResult>, csv_path: &Path) -> Result<()> {
+    let mut wtr = Writer::from_path(csv_path)?;
 
     wtr.write_record([
         "测试者",
@@ -335,7 +348,34 @@ fn write_results_to_csv(results: Vec<ProblemTestResult>, problem_path: &Path) ->
 pub async fn test_problem(
     day_config: &ContestDayConfig,
     problem_config: &ProblemConfig,
+    target: Target,
 ) -> Result<()> {
+    let data_dir = match target {
+        Target::Data => "data",
+        Target::Sample => "sample",
+    };
+
+    let data_items: Vec<Arc<ExpandedDataItem>> = match target {
+        Target::Data => problem_config.data.to_vec(),
+        Target::Sample => problem_config
+            .samples
+            .iter()
+            .map(|item| {
+                Arc::new(ExpandedDataItem {
+                    id: item.id,
+                    score: 1,
+                    subtask: 0,
+                    input: item.input_path(),
+                    output: item.output_path(),
+                    args: item.args.clone(),
+                    dmk: item.dmk.unwrap_or(problem_config.dmk),
+                })
+            })
+            .collect(),
+    };
+
+    let is_sample = matches!(target, Target::Sample);
+
     // 如果使用自定义 SPJ，先编译
     if let Some(use_chk) = problem_config.use_chk
         && use_chk
@@ -370,7 +410,7 @@ pub async fn test_problem(
     // 测试进度条
     let test_pb = gctx()
         .multiprogress
-        .add(ProgressBar::new(problem_config.data.len() as u64));
+        .add(ProgressBar::new(data_items.len() as u64));
     test_pb.set_style(
         indicatif::ProgressStyle::default_bar()
             .template("  [{bar:40.magenta/blue}] {msg}")
@@ -506,7 +546,7 @@ pub async fn test_problem(
 
             let case_test_pb = gctx()
                 .multiprogress
-                .add(ProgressBar::new(problem_config.data.len() as u64));
+                .add(ProgressBar::new(data_items.len() as u64));
             case_test_pb.set_style(
                 indicatif::ProgressStyle::default_bar()
                     .template("  [{bar:40.magenta/blue}] {msg}")
@@ -514,11 +554,11 @@ pub async fn test_problem(
                     .progress_chars("=> "),
             );
 
-            for case in &problem_config.data {
+            for case in &data_items {
                 case_count += 1;
                 info!("运行测试点: {}", case.id);
 
-                let run_result = run_test_case(&mut runner, problem_config, case).await?;
+                let run_result = run_test_case(&mut runner, problem_config, case, data_dir).await?;
                 let case_status = run_result.0;
                 info!("测试点结果: {:?}", case_status);
 
@@ -579,7 +619,7 @@ pub async fn test_problem(
                 case_test_pb.set_message(format!(
                     "运行测试点: {}/{} | #{} {}",
                     case_count,
-                    problem_config.data.len(),
+                    data_items.len(),
                     case.id,
                     status_str
                 ));
@@ -588,60 +628,83 @@ pub async fn test_problem(
             case_test_pb.finish_and_clear();
 
             msg_info!("测试结果:");
-            for (id, subtask) in &problem_config.subtasks {
-                let scores = &subtask_scores[id];
-                let subtask_score = match subtask.policy {
-                    ScorePolicy::Sum => scores.iter().sum(),
-                    ScorePolicy::Max => *scores.iter().max().unwrap_or(&0),
-                    ScorePolicy::Min => *scores.iter().min().unwrap_or(&0),
-                };
-                info!(
-                    "Subtask #{} 得分 {}/{}",
-                    id, subtask_score, subtask.max_score
-                );
+            if is_sample {
+                total_score = individual_results.iter().map(|r| r.score).sum();
+                let max_possible = data_items.len() as u32;
                 msg_info!(
-                    "Subtask {}{} 得分 {}/{}",
-                    "#".bold(),
-                    id.to_string().bold(),
-                    subtask_score.to_string().cyan(),
-                    subtask.max_score.to_string().green()
+                    "样例得分 {}/{}",
+                    total_score.to_string().cyan().bold(),
+                    max_possible.to_string().green().bold()
                 );
-                total_score += subtask_score;
-            }
 
-            let problem_result = ProblemTestResult {
-                tester_name: test_name.to_string(),
-                test_case_results: individual_results,
-                total_score,
-                max_possible_score: problem_config
+                let problem_result = ProblemTestResult {
+                    tester_name: test_name.to_string(),
+                    test_case_results: individual_results,
+                    total_score,
+                    max_possible_score: max_possible,
+                };
+                all_test_results.push(problem_result);
+            } else {
+                for (id, subtask) in &problem_config.subtasks {
+                    let scores = &subtask_scores[id];
+                    let subtask_score = match subtask.policy {
+                        ScorePolicy::Sum => scores.iter().sum(),
+                        ScorePolicy::Max => *scores.iter().max().unwrap_or(&0),
+                        ScorePolicy::Min => *scores.iter().min().unwrap_or(&0),
+                    };
+                    info!(
+                        "Subtask #{} 得分 {}/{}",
+                        id, subtask_score, subtask.max_score
+                    );
+                    msg_info!(
+                        "Subtask {}{} 得分 {}/{}",
+                        "#".bold(),
+                        id.to_string().bold(),
+                        subtask_score.to_string().cyan(),
+                        subtask.max_score.to_string().green()
+                    );
+                    total_score += subtask_score;
+                }
+
+                let problem_result = ProblemTestResult {
+                    tester_name: test_name.to_string(),
+                    test_case_results: individual_results,
+                    total_score,
+                    max_possible_score: problem_config
+                        .subtasks
+                        .iter()
+                        .map(|task| task.1.max_score)
+                        .sum(),
+                };
+                msg_info!(
+                    "总得分 {}/{}",
+                    total_score.to_string().cyan().bold(),
+                    problem_result.max_possible_score.to_string().green().bold()
+                );
+                all_test_results.push(problem_result);
+            }
+        } else {
+            let max_possible = if is_sample {
+                data_items.len() as u32
+            } else {
+                problem_config
                     .subtasks
                     .iter()
                     .map(|task| task.1.max_score)
-                    .sum(),
+                    .sum()
             };
-            msg_info!(
-                "总得分 {}/{}",
-                total_score.to_string().cyan().bold(),
-                problem_result.max_possible_score.to_string().green().bold()
-            );
-            all_test_results.push(problem_result);
-        } else {
             let problem_result = ProblemTestResult {
                 tester_name: test_name.to_string(),
                 test_case_results: vec![IndividualTestCaseResult {
                     test_case_id: 0,
                     status: TestCaseStatus::CE,
                     score: 0,
-                    max_score: problem_config.data.iter().map(|case| case.score).sum(),
+                    max_score: data_items.iter().map(|case| case.score).sum(),
                     time: "N/A".to_string(),
                     memory: "N/A".to_string(),
                 }],
                 total_score: 0,
-                max_possible_score: problem_config
-                    .subtasks
-                    .iter()
-                    .map(|task| task.1.max_score)
-                    .sum(),
+                max_possible_score: max_possible,
             };
             msg_info!(
                 "总得分 {}/{}",
@@ -654,18 +717,16 @@ pub async fn test_problem(
         info!(
             "总得分: {}/{}",
             total_score,
-            problem_config
-                .data
-                .iter()
-                .map(|case| case.score)
-                .sum::<u32>()
+            data_items.iter().map(|case| case.score).sum::<u32>()
         );
 
-        if check_test_case(test, total_score) {
-            info!("测试 {} 通过", test_name);
-        } else {
-            info!("测试 {} 不满足所有条件", test_name);
-            msg_warn!("{}", "不满足所有条件".bold());
+        if target == Target::Data {
+            if check_test_case(test, total_score) {
+                info!("测试 {} 通过", test_name);
+            } else {
+                info!("测试 {} 不满足所有条件", test_name);
+                msg_warn!("{}", "不满足所有条件".bold());
+            }
         }
 
         tester_pb.inc(1);
@@ -673,13 +734,17 @@ pub async fn test_problem(
     }
 
     tester_pb.finish_and_clear();
-    write_results_to_csv(all_test_results, &problem_config.path)?;
+    let csv_path = problem_config.path.join(match target {
+        Target::Data => "result.csv",
+        Target::Sample => "result-sample.csv",
+    });
+    write_results_to_csv(all_test_results, &csv_path)?;
     test_pb.finish_and_clear();
 
     Ok(())
 }
 
-async fn test_day(day_config: &ContestDayConfig) -> Result<()> {
+async fn test_day(day_config: &ContestDayConfig, target: Target) -> Result<()> {
     let total_problems = day_config.subconfig.len();
     let day_pb = gctx()
         .multiprogress
@@ -692,14 +757,14 @@ async fn test_day(day_config: &ContestDayConfig) -> Result<()> {
     );
     for (idx, (_, problem_config)) in day_config.subconfig.iter().enumerate() {
         day_pb.set_message(format!("处理第 {}/{} 题", idx + 1, total_problems));
-        test_problem(day_config, problem_config).await?;
+        test_problem(day_config, problem_config, target).await?;
         day_pb.inc(1);
     }
     day_pb.finish_with_message("当天所有题目测试完成");
     Ok(())
 }
 
-pub async fn main(_: TestArgs) -> Result<()> {
+pub async fn main(args: TestArgs) -> Result<()> {
     let (config, current_location) = gctx().config.as_ref().context("找不到配置文件")?;
 
     match current_location {
@@ -712,14 +777,14 @@ pub async fn main(_: TestArgs) -> Result<()> {
                 .subconfig
                 .get(prob_key)
                 .with_context(|| format!("未找到题目配置: {}", prob_key))?;
-            test_problem(day_config, problem_config).await?;
+            test_problem(day_config, problem_config, args.target).await?;
         }
         CurrentLocation::Day(day_key) => {
             let day_config = config
                 .subconfig
                 .get(day_key)
                 .with_context(|| format!("未找到天配置: {}", day_key))?;
-            test_day(day_config).await?;
+            test_day(day_config, args.target).await?;
         }
         CurrentLocation::Root => {
             let total_days = config.subconfig.len();
@@ -734,7 +799,7 @@ pub async fn main(_: TestArgs) -> Result<()> {
             );
             for (day_idx, (_, day_config)) in config.subconfig.iter().enumerate() {
                 day_pb.set_message(format!("处理第 {}/{} 天", day_idx + 1, total_days));
-                test_day(day_config).await?; // 复用 test_day
+                test_day(day_config, args.target).await?; // 复用 test_day
                 day_pb.inc(1);
             }
             day_pb.finish_with_message("所有题目测试完成");
