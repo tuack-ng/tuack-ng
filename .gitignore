@@ -4,3 +4,4 @@
 *.pdf
 /assets/checkers/*
 !/assets/checkers/*.cpp
+/AGENTS.md
