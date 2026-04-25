@@ -211,7 +211,18 @@ fn validate_output(
     let output_path = runner.get_output_path()?;
     let answer_path = problem_config.path.join(data_dir).join(&case.output);
     let spj = if problem_config.use_chk.unwrap_or(false) {
-        Some(problem_config.path.join("data").join("chk").join("chk"))
+        let chk_dir = problem_config.path.join("data").join("chk");
+        match data_dir {
+            "sample" => {
+                let sample_chk = chk_dir.join("chk_sample");
+                if sample_chk.exists() {
+                    Some(sample_chk)
+                } else {
+                    Some(chk_dir.join("chk"))
+                }
+            }
+            _ => Some(chk_dir.join("chk")),
+        }
     } else {
         None
     };
@@ -376,35 +387,61 @@ pub async fn test_problem(
 
     let is_sample = matches!(target, Target::Sample);
 
-    // 如果使用自定义 SPJ，先编译
+    // 编译 SPJ
     if let Some(use_chk) = problem_config.use_chk
         && use_chk
     {
-        let compile_pb = gctx().multiprogress.add(ProgressBar::new_spinner());
-        compile_pb.enable_steady_tick(Duration::from_millis(100));
-        compile_pb.set_message(format!("编译 {} 题目的 spj", problem_config.name));
+        if is_sample {
+            let chk_cpp = problem_config.path.join("data").join("chk").join("chk_sample.cpp");
+            if chk_cpp.exists() {
+                let compile_pb = gctx().multiprogress.add(ProgressBar::new_spinner());
+                compile_pb.enable_steady_tick(Duration::from_millis(100));
+                compile_pb.set_message(format!("编译 {} 题目的样例 SPJ", problem_config.name));
 
-        let chk_path = problem_config.path.join("data").join("chk").join("chk.cpp");
-        if !chk_path.exists() {
-            msg_warn!("题目 {} 的 Checker 不存在", problem_config.name.magenta());
-            return Ok(());
-        }
+                let chk_bin = problem_config.path.join("data").join("chk").join("chk_sample");
+                let compile_output = Command::new("g++")
+                    .arg("-o")
+                    .arg(&chk_bin)
+                    .arg(&chk_cpp)
+                    .arg("-O2")
+                    .arg("-std=c++23")
+                    .stdout(Stdio::null())
+                    .stderr(Stdio::piped())
+                    .output()?;
+                if !compile_output.status.success() {
+                    msg_warn!("题目 {} 的样例 Checker 编译失败", problem_config.name.magenta());
+                    msg_warn!("{}", String::from_utf8_lossy(&compile_output.stderr));
+                    return Ok(());
+                }
+                compile_pb.finish_and_clear();
+            }
+        } else {
+            let compile_pb = gctx().multiprogress.add(ProgressBar::new_spinner());
+            compile_pb.enable_steady_tick(Duration::from_millis(100));
+            compile_pb.set_message(format!("编译 {} 题目的 spj", problem_config.name));
 
-        let compile_output = Command::new("g++")
-            .arg("-o")
-            .arg(problem_config.path.join("data").join("chk").join("chk"))
-            .arg(&chk_path)
-            .arg("-O2")
-            .arg("-std=c++23")
-            .stdout(Stdio::null())
-            .stderr(Stdio::piped())
-            .output()?;
-        if !compile_output.status.success() {
-            msg_warn!("题目 {} 的 Checker 编译失败", problem_config.name.magenta());
-            msg_warn!("{}", String::from_utf8_lossy(&compile_output.stderr));
-            return Ok(());
+            let chk_path = problem_config.path.join("data").join("chk").join("chk.cpp");
+            if !chk_path.exists() {
+                msg_warn!("题目 {} 的 Checker 不存在", problem_config.name.magenta());
+                return Ok(());
+            }
+
+            let compile_output = Command::new("g++")
+                .arg("-o")
+                .arg(problem_config.path.join("data").join("chk").join("chk"))
+                .arg(&chk_path)
+                .arg("-O2")
+                .arg("-std=c++23")
+                .stdout(Stdio::null())
+                .stderr(Stdio::piped())
+                .output()?;
+            if !compile_output.status.success() {
+                msg_warn!("题目 {} 的 Checker 编译失败", problem_config.name.magenta());
+                msg_warn!("{}", String::from_utf8_lossy(&compile_output.stderr));
+                return Ok(());
+            }
+            compile_pb.finish_and_clear();
         }
-        compile_pb.finish_and_clear();
     }
 
     // 测试进度条
@@ -498,7 +535,14 @@ pub async fn test_problem(
                         })
                     };
 
-                    let grader_path = resolve_path(&interactive.grader)?;
+                    let grader_path = if is_sample {
+                        match &interactive.sample_grader {
+                            Some(sg) => resolve_path(sg)?,
+                            None => resolve_path(&interactive.grader)?,
+                        }
+                    } else {
+                        resolve_path(&interactive.grader)?
+                    };
                     let header_path = resolve_path(&interactive.header)?;
 
                     if !grader_path.exists() {
