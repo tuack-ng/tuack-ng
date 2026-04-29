@@ -103,13 +103,8 @@ pub async fn gen_data(
         std::fs::create_dir_all(&target_dir)?;
         info!("创建目标目录: {}", target_dir.display());
     }
-    let generator_path = find_generator(&current_problem.path)?;
+    let generator_path = find_generator(&current_problem.path, *target)?;
     let std_path = find_std(current_problem)?;
-    // let mut runner = GeneralRunner::new(
-    //     &std_path,
-    //     &current_day.compile,
-    //     current_problem.name.clone(),
-    // )?;
     let mut runner: Box<dyn Runner> = match std_path
         .extension()
         .context("文件无后缀名")?
@@ -294,14 +289,26 @@ pub async fn gen_data(
 }
 
 /// 查找数据生成器
-fn find_generator(problem_path: &Path) -> Result<PathBuf> {
-    let path = problem_path.join("gen").join("gen.cpp");
+fn find_generator(problem_path: &Path, target: Target) -> Result<PathBuf> {
+    let gen_dir = problem_path.join("gen");
 
-    if path.exists() {
-        return Ok(path);
+    // 根据 target 优先级顺序查找
+    let candidates = match target {
+        Target::Data => vec!["gen.cpp"],
+        Target::Sample => vec!["gen_sample.cpp", "gen.cpp"],
+    };
+
+    for name in candidates {
+        let path = gen_dir.join(name);
+        if path.exists() {
+            return Ok(path);
+        }
     }
 
-    bail!("未找到数据生成器文件")
+    bail!(
+        "在 {} 目录下未找到数据生成器文件 (gen.cpp 或 gen_sample.cpp)",
+        gen_dir.display()
+    )
 }
 
 /// 查找标程
