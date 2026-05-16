@@ -305,10 +305,7 @@ fn find_generator(problem_path: &Path, target: Target) -> Result<PathBuf> {
         }
     }
 
-    bail!(
-        "在 {} 目录下未找到数据生成器文件 (gen.cpp 或 gen_sample.cpp)",
-        gen_dir.display()
-    )
+    bail!("在 {} 目录下未找到数据生成器文件", gen_dir.display())
 }
 
 /// 查找标程
