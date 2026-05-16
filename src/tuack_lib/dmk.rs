@@ -471,10 +471,11 @@ async fn generate_output(
         runner.set_std_io(&input_path.to_path_buf())?;
     }
     let mut child = runner.get_run_async().await?;
+    child.stderr(Stdio::piped());
 
     // 运行标程
     debug!("运行标程命令");
-    let output = child.output().await?;
+    let output = child.spawn()?.wait_with_output().await?;
 
     if !output.status.success() {
         if !output.stderr.is_empty() {
