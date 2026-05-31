@@ -72,17 +72,6 @@ fn ren(
     fs::create_dir(&tmp_dir)?;
     info!("创建临时目录: {}", tmp_dir.display());
 
-    // info!("复制模板文件到临时目录");
-    // copy_dir_recursive(template_dir, &tmp_dir)?;
-
-    // let tmp_font_dir = tmp_dir.join("fonts");
-    // if tmp_font_dir.exists() {
-    //     fs::remove_dir_all(&tmp_font_dir)?;
-    // }
-
-    // info!("复制字体文件到临时目录");
-    // copy_dir_recursive(fonts_dir, &tmp_font_dir)?;
-
     unwrap_template(manifest, &tmp_dir)?;
 
     let checker: Box<dyn Checker> = match manifest.target {
@@ -139,6 +128,8 @@ fn ren(
         day_config.clone()
     };
 
+    let re = regex::Regex::new(r"<!--[\s\S]*?-->").unwrap();
+
     for (_problem_key, problem_config) in problems_to_render.iter() {
         problem_pb.set_message(format!("处理问题: {}", problem_config.name));
         info!("处理问题: {}", problem_config.name);
@@ -153,9 +144,10 @@ fn ren(
             bail!("未找到题面文件: {}", statement_path.display());
         }
 
-        // 解析题面同时展开模板
+        // 解析题面同时展开模板, 移除注释
         let content = match render_template(
-            &fs::read_to_string(&statement_path)?,
+            &re.replace_all(&fs::read_to_string(&statement_path)?, "")
+                .to_string(),
             problem_config,
             &day_to_render,
             config,
@@ -334,34 +326,7 @@ pub fn main(args: RenArgs) -> Result<()> {
         }
     };
 
-    // let fonts_dir = context::gctx().assets_dirs.iter().find(|dir| {
-    //     let subdir = dir.join("templates").join("fonts");
-    //     subdir.exists() && subdir.is_dir()
-    // });
-
-    // let fonts_dir = match fonts_dir {
-    //     Some(dir) => {
-    //         info!(
-    //             "找到字体目录: {}",
-    //             dir.join("templates").join("fonts").to_string_lossy()
-    //         );
-    //         dir.join("templates").join("fonts")
-    //     }
-    //     None => {
-    //         msg_error!("没有找到字体目录");
-    //         bail!("致命错误: 没有找到模板 {}", args.target);
-    //     }
-    // };
-
     let manifest = serde_json::from_str::<TemplateManifest>(&fs::read_to_string(&manifest_file)?)?;
-
-    // let checker: Box<dyn Checker> = match manifest.target {
-    //     TargetType::Typst => Box::new(TypstChecker::new(template_dir.to_path_buf())),
-    //     TargetType::Markdown => Box::new(MarkdownChecker::new(template_dir.to_path_buf())),
-    // };
-    // if let Err(e) = checker.check_compiler() {
-    //     bail!(e.context("渲染器检查未通过"));
-    // }
 
     let statements_dir = match current_location {
         CurrentLocation::Problem(day_name, problem_name) => Path::new(&config.path)
