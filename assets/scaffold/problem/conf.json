@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "folder": "problem",
   "type": "program",
   "name": "题目英文名称",
@@ -8,6 +8,7 @@
   "memory limit": "512 MiB",
   "partial score": false,
   "args": {},
+  "dmk": "on",
   "samples": [
     {
       "id": 1,
@@ -23,7 +24,7 @@
       "output": "1.ans",
       "subtask": 0,
       "args": {},
-      "manual": false
+      "dmk": "skip"
     },
     {
       "id": [
