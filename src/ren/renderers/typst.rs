@@ -181,9 +181,15 @@ impl TypstCompiler {
         }
 
         // 创建日期信息
-        let date = DateInfo {
-            start: day_config.start_time,
-            end: day_config.end_time,
+        let date = if let Some(start_time) = day_config.start_time
+            && let Some(end_time) = day_config.end_time
+        {
+            Some(DateInfo {
+                start: start_time,
+                end: end_time,
+            })
+        } else {
+            None
         };
 
         // 从ContestConfig和ContestDayConfig中获取覆盖值

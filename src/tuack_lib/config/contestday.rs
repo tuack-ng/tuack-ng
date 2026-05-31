@@ -14,9 +14,9 @@ pub struct ContestDayConfigFile {
     pub title: String,
     pub compile: HashMap<String, String>,
     #[serde(rename = "start time")]
-    pub start_time: [u32; 6],
+    pub start_time: Option<[u32; 6]>,
     #[serde(rename = "end time")]
-    pub end_time: [u32; 6],
+    pub end_time: Option<[u32; 6]>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub use_pretest: Option<bool>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -51,8 +51,8 @@ pub struct ContestDayConfig {
     pub subdir: Vec<String>,
     pub title: String,
     pub compile: HashMap<String, String>,
-    pub start_time: [u32; 6],
-    pub end_time: [u32; 6],
+    pub start_time: Option<[u32; 6]>,
+    pub end_time: Option<[u32; 6]>,
     pub use_pretest: Option<bool>,
     pub noi_style: Option<bool>,
     pub file_io: Option<bool>,

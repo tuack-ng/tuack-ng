@@ -5,7 +5,7 @@ pub struct DataJson {
     pub title: String,
     pub subtitle: String,
     pub dayname: String,
-    pub date: DateInfo,
+    pub date: Option<DateInfo>,
     pub use_pretest: bool,
     pub noi_style: bool,
     pub file_io: bool,

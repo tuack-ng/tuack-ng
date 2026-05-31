@@ -159,10 +159,14 @@ fn conf_length(args: &ConfValuesArgs) -> Result<()> {
             if args.value.len() != config.subconfig.len() {
                 bail!("提供的时间限制数量与题目数量不匹配");
             }
-            for (i, (_day_name, day_config)) in config.subconfig.iter_mut().enumerate() {
+            for (i, (day_name, day_config)) in config.subconfig.iter_mut().enumerate() {
                 let minutes: f64 = args.value[i].clone().parse()?;
                 let minutes = (minutes * 60.0) as i64;
-                day_config.end_time = add_minutes(day_config.start_time, minutes);
+                if let Some(start_time) = day_config.start_time {
+                    day_config.end_time = Some(add_minutes(start_time, minutes));
+                } else {
+                    msg_warn!("比赛日 {} 没有配置比赛开始时间，跳过", day_name);
+                }
                 let conf_str = save_day_config(day_config)?;
                 fs::write(day_config.path.join(CONFIG_FILE_NAME), conf_str)?;
             }
