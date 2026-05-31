@@ -18,6 +18,9 @@ pub enum DevelopCommands {
     /// 显示当前配置
     #[command(version)]
     ShowConfig,
+    /// 打印诊断信息
+    #[command(version)]
+    Diagnostic,
     /// 解包操作
     #[command(version)]
     Unwrap,
@@ -38,6 +41,7 @@ fn sha256(src_path: &PathBuf) -> Result<String> {
 pub fn main(args: DevelopArgs) -> Result<()> {
     match args.command {
         DevelopCommands::ShowConfig => show_config(),
+        DevelopCommands::Diagnostic => diagnostic(),
         DevelopCommands::Unwrap => unwrap(),
         DevelopCommands::Wrap => wrap(),
     }
@@ -45,6 +49,58 @@ pub fn main(args: DevelopArgs) -> Result<()> {
 
 fn show_config() -> Result<()> {
     warn!("{:#?}", gctx().config);
+    Ok(())
+}
+
+use sysinfo::System;
+
+fn diagnostic() -> Result<()> {
+    msg!("构建时间戳     : {}", env!("VERGEN_BUILD_TIMESTAMP"));
+    msg!("构建特性开关   : {}", env!("VERGEN_CARGO_FEATURES"));
+    msg!("是否为调试构建 : {}", env!("VERGEN_CARGO_DEBUG"));
+    msg!("构建优化等级   : {}", env!("VERGEN_CARGO_OPT_LEVEL"));
+    msg!("构建平台       : {}", env!("VERGEN_CARGO_TARGET_TRIPLE"));
+    msg!("构建依赖       : {}", env!("VERGEN_CARGO_DEPENDENCIES"));
+    msg!("Rustc 版本     : {}", env!("VERGEN_RUSTC_SEMVER"));
+    msg!("Rustc 频道     : {}", env!("VERGEN_RUSTC_CHANNEL"));
+    msg!("构建机系统版本 : {}", env!("VERGEN_SYSINFO_OS_VERSION"));
+
+    let mut sys = System::new_all();
+    sys.refresh_all();
+
+    msg!("========== 运行时系统信息 ==========");
+
+    // 系统名称和版本
+    let os_name = System::name().unwrap_or_else(|| "未知".to_string());
+    let os_version = System::os_version().unwrap_or_else(|| "未知".to_string());
+    let kernel = System::kernel_long_version();
+
+    msg!("操作系统名称   : {}", os_name);
+    msg!("操作系统版本   : {}", os_version);
+    msg!("内核/版本      : {}", kernel);
+
+    // 内存信息
+    let total_memory = sys.total_memory();
+    let total_memory_gb = total_memory as f64 / 1024.0 / 1024.0 / 1024.0;
+
+    msg!(
+        "总内存         : {:.2} GB ({})",
+        total_memory_gb,
+        total_memory
+    );
+
+    // CPU 信息
+    let cpus = sys.cpus();
+    let cpu_cores = cpus.len();
+    let cpu_name = if let Some(first_cpu) = cpus.first() {
+        first_cpu.brand()
+    } else {
+        "未知"
+    };
+
+    msg!("CPU 名称       : {}", cpu_name);
+    msg!("CPU 核心数     : {} 个", cpu_cores);
+
     Ok(())
 }
 
@@ -70,17 +126,13 @@ fn collect_files(dir: &Path) -> Vec<PathBuf> {
 }
 
 fn unwrap() -> Result<()> {
-    let templates_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("assets")
-        .join("templates");
-    let store_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("assets")
-        .join("templates")
-        .join("store");
-    let unwrapped_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("assets")
-        .join("templates")
-        .join("unwrapped");
+    let templates_path = std::env::current_dir()?;
+    let unwrapped_path = templates_path.join("unwrapped");
+    let store_path = templates_path.join("store");
+
+    if !store_path.exists() {
+        bail!("store 文件夹不存在: {:?}", store_path);
+    }
 
     create_or_clear_dir(&unwrapped_path)?;
 
@@ -131,20 +183,15 @@ fn unwrap() -> Result<()> {
 }
 
 fn wrap() -> Result<()> {
-    let unwrapped_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("assets")
-        .join("templates")
-        .join("unwrapped");
-    let templates_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("assets")
-        .join("templates");
-    let store_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("assets")
-        .join("templates")
-        .join("store");
+    let templates_path = std::env::current_dir()?;
+    let unwrapped_path = templates_path.join("unwrapped");
+    let store_path = templates_path.join("store");
+
     if !unwrapped_path.exists() {
         bail!("unwrapped 文件夹不存在: {:?}", unwrapped_path);
     }
+
+    create_or_clear_dir(&store_path)?;
     for entry in fs::read_dir(&unwrapped_path)? {
         let entry = entry?;
         let entry_path = entry.path();

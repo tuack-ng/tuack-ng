@@ -25,7 +25,7 @@
     flake-utils.lib.eachDefaultSystem (
       system:
       let
-        cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
+        cargoToml = fromTOML (builtins.readFile ./Cargo.toml);
         version = cargoToml.package.version;
 
         pkgs = import nixpkgs {
@@ -40,9 +40,7 @@
         # 准备源代码
         src = lib.fileset.toSource {
           root = ./.;
-          fileset = lib.fileset.difference (lib.fileset.gitTracked ./.) (
-            lib.fileset.fileFilter (file: file.name == "build.rs") ./.
-          );
+          fileset = lib.fileset.gitTracked ./.;
         };
 
         # 编译 checkers
@@ -110,6 +108,8 @@
 
           # 使用 assets 作为构建依赖
           buildInputs = [ assets ];
+
+          VERGEN_IDEMPOTENT = 1;
 
           installPhase = ''
             runHook preInstall

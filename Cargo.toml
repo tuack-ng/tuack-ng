@@ -62,6 +62,9 @@ tokio = { version = "1.49.0", features = [
     "rt-multi-thread",
 ] }
 
+[build-dependencies]
+vergen = { version = "9.1.0", features = ["build", "cargo", "rustc", "si"] }
+
 [features]
 nix = []
 

@@ -3,7 +3,9 @@ use std::fs;
 use std::io;
 use std::path::Path;
 use std::process::Command;
+use vergen::{BuildBuilder, CargoBuilder, Emitter, RustcBuilder, SysinfoBuilder};
 
+#[allow(unused)]
 fn copy_testlib() -> io::Result<()> {
     let checkers_dir = "assets/checkers";
     let testlib_source = "vendor/testlib/testlib.h";
@@ -40,25 +42,59 @@ fn copy_testlib() -> io::Result<()> {
 }
 
 fn main() {
-    #[cfg(feature = "nix")]
-    panic!("Nix 下不应使用 build.rs");
+    #[cfg(not(feature = "nix"))]
+    {
+        // panic!("Nix 下不应使用 build.rs");
+        let checkers_dir = "assets/checkers";
+        println!("cargo:rerun-if-changed={}", checkers_dir);
 
-    let checkers_dir = "assets/checkers";
-    println!("cargo:rerun-if-changed={}", checkers_dir);
+        copy_testlib().unwrap();
 
-    copy_testlib().unwrap();
-
-    // 编译 C++ 文件
-    if let Ok(entries) = fs::read_dir(checkers_dir) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_file() && path.extension().is_some_and(|ext| ext == "cpp") {
-                compile_cpp_if_needed(&path);
+        // 编译 C++ 文件
+        if let Ok(entries) = fs::read_dir(checkers_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_file() && path.extension().is_some_and(|ext| ext == "cpp") {
+                    compile_cpp_if_needed(&path);
+                }
             }
         }
     }
+
+    let build = BuildBuilder::default()
+        .build_timestamp(true)
+        .build()
+        .unwrap();
+    let cargo = CargoBuilder::default()
+        .features(true)
+        .debug(true)
+        .opt_level(true)
+        .target_triple(true)
+        .dependencies(true)
+        .build()
+        .unwrap();
+    let rustc = RustcBuilder::default()
+        .semver(true)
+        .channel(true)
+        .build()
+        .unwrap();
+    let si = SysinfoBuilder::default().os_version(true).build().unwrap();
+
+    Emitter::default()
+        .add_instructions(&build)
+        .unwrap()
+        .add_instructions(&cargo)
+        .unwrap()
+        .add_instructions(&rustc)
+        .unwrap()
+        .add_instructions(&si)
+        .unwrap()
+        .quiet()
+        .emit()
+        .unwrap();
 }
 
+#[allow(unused)]
 fn compile_cpp_if_needed(cpp_file: &Path) {
     let exe_name = cpp_file.with_extension(env::consts::EXE_EXTENSION);
     let exe_name = exe_name.file_name().unwrap().to_string_lossy();

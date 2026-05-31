@@ -11,7 +11,6 @@ use clap_i18n_richformatter::clap_i18n;
 
 mod conf;
 mod context;
-#[cfg(debug_assertions)]
 mod develop;
 mod dmk;
 mod doc;
@@ -33,7 +32,6 @@ struct Cli {
     #[arg(short, long, global = true)]
     /// 详细模式
     verbose: bool,
-    #[cfg(debug_assertions)]
     #[arg(long, global = true)]
     /// 静默模式, 无视详细
     silent: bool,
@@ -57,7 +55,6 @@ enum Commands {
     /// 文档相关
     Doc(DocArgs),
     /// 开发工具
-    #[cfg(debug_assertions)]
     Develop(develop::DevelopArgs),
 }
 
@@ -88,7 +85,6 @@ async fn tuack_ng(cli: Cli) -> Result<()> {
         Commands::Dmk(args) => dmk::main(args).await,
         Commands::Dump(args) => dump::main(args),
         Commands::Doc(args) => doc::main(args),
-        #[cfg(debug_assertions)]
         Commands::Develop(args) => develop::main(args),
     }
 }
