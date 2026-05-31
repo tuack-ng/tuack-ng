@@ -281,9 +281,25 @@ pub fn hn(num: f64, style: Option<&str>) -> Result<String, minijinja::Error> {
 ///
 /// ## 返回值
 /// - String - 格式化后的范围字符串，以$开头和结尾
-pub fn cases(cases_vec: Vec<i32>) -> Result<String, minijinja::Error> {
+pub fn cases(value: Value) -> Result<String, minijinja::Error> {
+    let cases_vec: Vec<i32> = if let Some(i) = value.as_i64() {
+        vec![i as i32]
+    } else {
+        value
+            .try_iter()?
+            .map(|v| {
+                v.as_i64().map(|i| i as i32).ok_or_else(|| {
+                    minijinja::Error::new(
+                        minijinja::ErrorKind::InvalidOperation,
+                        "cases filter expects integers",
+                    )
+                })
+            })
+            .collect::<Result<Vec<i32>, _>>()?
+    };
+
     if cases_vec.is_empty() {
-        return Ok("$".to_string());
+        return Ok("$$".to_string());
     }
 
     let mut result = Vec::new();
@@ -372,7 +388,7 @@ pub fn render_template(
         (
             "cases",
             Value::from_function({
-                move |cases_vec: Vec<i32>| -> Result<String, minijinja::Error> { cases(cases_vec) }
+                move |value: Value| -> Result<String, minijinja::Error> { cases(value) }
             }),
         ),
     ]);
@@ -403,6 +419,9 @@ pub fn render_template(
         problem => problem,
         day => day,
         contest => contest,
+        data_cases => problem.orig_data,
+        sample_cases => problem.samples,
+
         sample => sample,
         tools => tools,
         statement => statement,
