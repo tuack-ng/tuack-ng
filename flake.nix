@@ -37,64 +37,17 @@
         craneLib = (crane.mkLib pkgs).overrideToolchain rustToolchain;
         lib = pkgs.lib;
 
-        # 准备源代码
         src = lib.fileset.toSource {
           root = ./.;
           fileset = lib.fileset.gitTracked ./.;
         };
 
-        # 编译 checkers
-        checkers =
-          pkgs.runCommand "tuack-ng-checkers"
-            {
-              nativeBuildInputs = [
-                pkgs.stdenv.cc
-                pkgs.testlib
-              ];
-            }
-            ''
-              set -e
-
-              mkdir -p $out/share/tuack-ng/checkers
-
-              # 编译所有 cpp 文件
-              for f in ${./assets/checkers}/*.cpp; do
-                name=$(basename $f .cpp)
-                $CXX -std=c++17 -O2 -I${pkgs.testlib}/include/testlib $f -o $out/share/tuack-ng/checkers/$name
-                cp $f $out/share/tuack-ng/checkers/
-              done
-            '';
-
-        # 准备 templates
-        templates = pkgs.runCommand "tuack-ng-templates" { } ''
-          mkdir -p $out/share/tuack-ng/templates
-          cp -r ${templates-src}/* $out/share/tuack-ng/templates/
-        '';
-
-        assets = pkgs.symlinkJoin {
-          name = "tuack-ng-assets";
-          paths = [
-            (pkgs.runCommand "tuack-ng-testlib" { } ''
-              mkdir -p $out/share/tuack-ng/checkers
-              ln -s ${pkgs.testlib}/include/testlib/testlib.h $out/share/tuack-ng/checkers/testlib.h
-            '')
-            checkers
-            templates
-            (pkgs.runCommand "tuack-ng-assets" { } ''
-              mkdir -p $out/share/tuack-ng/
-              cp -r ${src}/assets/* $out/share/tuack-ng/
-            '')
-          ];
-        };
-
-        # 构建依赖
         cargoArtifacts = craneLib.buildDepsOnly {
           inherit src;
           pname = "tuack-ng";
           inherit version;
         };
 
-        # 构建主程序
         tuack-ng = craneLib.buildPackage {
           inherit src cargoArtifacts;
           pname = "tuack-ng";
@@ -103,25 +56,35 @@
           cargoExtraArgs = "--locked --no-default-features --features=nix";
 
           nativeBuildInputs = with pkgs; [
+            gcc
             installShellFiles
+            testlib
           ];
 
-          # 使用 assets 作为构建依赖
-          buildInputs = [ assets ];
+          buildInputs = with pkgs; [
+            testlib
+          ];
 
+          NIX_TESTLIB_PATH = "${pkgs.testlib}/include/testlib/testlib.h";
           VERGEN_IDEMPOTENT = 1;
 
           installPhase = ''
             runHook preInstall
 
-            # 安装主程序
             mkdir -p $out/bin
             cp target/release/tuack-ng $out/bin/
 
-            # 安装资产
-            install -dm755 $out/share/
-            # cp -r ${src}/assets/ $out/share/
-            cp -r ${assets}/share/tuack-ng $out/share/ # 覆盖
+            # 安装静态资源（build.rs 已处理好 testlib.h 和 checkers 编译）
+            mkdir -p $out/share/tuack-ng
+            cp -r assets/* $out/share/tuack-ng/
+
+            # 我们使用系统的 testlib
+            ln -sf ${pkgs.testlib}/include/testlib/testlib.h $out/share/tuack-ng/checkers/testlib.h
+
+            # 安装 templates（来自独立 input，覆盖 assets/templates 的 gitlink）
+            mkdir -p $out/share/tuack-ng/templates/
+            cp -r ${templates-src}/* $out/share/tuack-ng/templates/
+            chmod -R u+w $out/share/tuack-ng/templates/
 
             # 生成 shell 补全
             $out/bin/tuack-ng gen complete bash > tuack-ng.bash
@@ -149,9 +112,6 @@
         packages = {
           default = tuack-ng;
           tuack-ng = tuack-ng;
-          checkers = checkers;
-          templates = templates;
-          assets = assets;
         };
 
         devShells.default = craneLib.devShell {
@@ -162,13 +122,11 @@
             rust-analyzer
             gcc
             typst
+            testlib
           ];
 
           shellHook = ''
-            export CHECKERS_PATH="${checkers}/share/tuack-ng/checkers"
-            export TEMPLATES_PATH="${templates}/share/tuack-ng/templates"
-            export TESTLIB_PATH="${pkgs.testlib}"
-            export ASSETS_PATH="${assets}"
+            export NIX_TESTLIB_PATH="${pkgs.testlib}/include/testlib/testlib.h"
           '';
         };
       }

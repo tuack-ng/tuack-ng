@@ -2,33 +2,33 @@ use std::env;
 use std::fs;
 use std::io;
 use std::path::Path;
+use std::path::PathBuf;
 use std::process::Command;
 use vergen::{BuildBuilder, CargoBuilder, Emitter, RustcBuilder, SysinfoBuilder};
 
 #[allow(unused)]
-fn copy_testlib() -> io::Result<()> {
+fn copy_testlib(source: PathBuf) -> io::Result<()> {
     let checkers_dir = "assets/checkers";
-    let testlib_source = "vendor/testlib/testlib.h";
     let testlib_dest = format!("{}/testlib.h", checkers_dir);
 
     println!("cargo:rerun-if-changed={}", checkers_dir);
-    println!("cargo:rerun-if-changed={}", testlib_source);
+    println!("cargo:rerun-if-changed={}", source.display());
 
     // 确保目标目录存在
     fs::create_dir_all(checkers_dir)?;
 
     // 检查源文件是否存在
-    if !Path::new(testlib_source).exists() {
+    if !source.exists() {
         return Err(io::Error::new(
             io::ErrorKind::NotFound,
-            format!("testlib.h not found at {}", testlib_source),
+            format!("testlib.h not found at {}", source.display()),
         ));
     }
 
     // 检查是否需要拷贝（文件不存在或内容不同）
     let should_copy = if Path::new(&testlib_dest).exists() {
         // 比较文件内容
-        let src_content = fs::read(testlib_source)?;
+        let src_content = fs::read(&source)?;
         let dst_content = fs::read(&testlib_dest)?;
         src_content != dst_content
     } else {
@@ -36,27 +36,29 @@ fn copy_testlib() -> io::Result<()> {
     };
 
     if should_copy {
-        fs::copy(testlib_source, &testlib_dest)?;
+        fs::copy(&source, &testlib_dest)?;
     }
     Ok(())
 }
 
 fn main() {
+    let checkers_dir = "assets/checkers";
+    println!("cargo:rerun-if-changed={}", checkers_dir);
     #[cfg(not(feature = "nix"))]
     {
-        // panic!("Nix 下不应使用 build.rs");
-        let checkers_dir = "assets/checkers";
-        println!("cargo:rerun-if-changed={}", checkers_dir);
-
-        copy_testlib().unwrap();
-
-        // 编译 C++ 文件
-        if let Ok(entries) = fs::read_dir(checkers_dir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.is_file() && path.extension().is_some_and(|ext| ext == "cpp") {
-                    compile_cpp_if_needed(&path);
-                }
+        copy_testlib("vendor/testlib/testlib.h".into()).unwrap();
+    }
+    #[cfg(feature = "nix")]
+    {
+        let testlib_path = std::env::var("NIX_TESTLIB_PATH").unwrap();
+        copy_testlib(testlib_path.into()).unwrap();
+    }
+    // 编译 C++ 文件
+    if let Ok(entries) = fs::read_dir(checkers_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_file() && path.extension().is_some_and(|ext| ext == "cpp") {
+                compile_cpp_if_needed(&path);
             }
         }
     }
@@ -127,8 +129,11 @@ fn compile_cpp_if_needed(cpp_file: &Path) {
             .arg("-O2")
             .arg(cpp_file.file_name().unwrap())
             .arg("-o")
-            .arg(exe_name.to_string())
-            .arg("-static"); // Nix 构建不通过 build.rs, 无须顾虑 `-static`
+            .arg(exe_name.to_string());
+        #[cfg(not(feature = "nix"))]
+        {
+            cmd.arg("-static"); // Nix 下 static 还是算了
+        }
 
         let status = cmd.status();
 
