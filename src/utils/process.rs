@@ -8,6 +8,7 @@ use sysinfo::{Pid, ProcessesToUpdate, System};
 use crate::prelude::*;
 use crate::tuack_lib::utils::compiler::{ResourceLimits, RunStatus};
 
+/// 已 spawn 子进程的 TLE/MLE 监控器。
 pub struct ProcessSupervisor {
     limits: ResourceLimits,
 }
@@ -17,6 +18,7 @@ impl ProcessSupervisor {
         Self { limits }
     }
 
+    /// 监控子进程，返回结束状态、用时和峰值内存。
     pub async fn supervise(
         self,
         child: &mut tokio::process::Child,
