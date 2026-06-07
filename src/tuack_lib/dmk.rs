@@ -1,16 +1,18 @@
+use std::collections::{BTreeMap, HashMap};
+use std::process::Stdio;
+use std::str::FromStr;
+use std::sync::Arc;
+
+use rand::Rng;
+use tokio::fs;
+use tokio::process::Command;
+use tokio::sync::mpsc;
+
 use crate::prelude::*;
 use crate::tuack_lib::config::ExpandedDataItem;
 use crate::utils::compilers::cpp::CppRunner;
 use crate::utils::compilers::general::GeneralRunner;
 use crate::utils::random::gen_rnd;
-use rand::Rng;
-use std::collections::{BTreeMap, HashMap};
-use std::process::Stdio;
-use std::str::FromStr;
-use std::sync::Arc;
-use tokio::fs;
-use tokio::process::Command;
-use tokio::sync::mpsc;
 
 #[derive(Debug)]
 pub enum DmkStatus {
@@ -455,49 +457,45 @@ async fn generate_input(
 /// 使用标程生成输出文件
 async fn generate_output(
     runner: &mut Box<dyn Runner>,
-    // std_path: &Path,
     input_path: &Path,
     output_path: &Path,
     problem_name: &str,
     file_io: bool,
 ) -> Result<()> {
+    let input_file = tokio::fs::File::open(input_path).await?;
+    runner.set_input(Box::new(input_file));
+
     if file_io {
-        runner.set_file_io(
-            &input_path.to_path_buf(),
-            &format!("{}.in", problem_name),
-            &format!("{}.out", problem_name),
-        )?;
+        runner.set_io_mode(IoMode::File {
+            input_name: format!("{}.in", problem_name),
+            output_name: format!("{}.out", problem_name),
+        });
     } else {
-        runner.set_std_io(&input_path.to_path_buf())?;
+        runner.set_io_mode(IoMode::Stdio);
     }
-    let mut child = runner.get_run_async().await?;
-    child.stderr(Stdio::piped());
 
-    // 运行标程
-    debug!("运行标程命令");
-    let output = child.spawn()?.wait_with_output().await?;
+    runner.set_limits(ResourceLimits::unlimited());
 
-    if !output.status.success() {
-        if !output.stderr.is_empty() {
+    let result = runner.execute().await?;
+
+    match result.status {
+        RunStatus::Success => {}
+        _ if !result.stderr.is_empty() => {
             bail!(
-                "标程运行失败，退出码: {}\n标准错误输出: {}",
-                output.status,
-                String::from_utf8_lossy(&output.stderr)
+                "标程运行失败\n标准错误输出: {}",
+                String::from_utf8_lossy(&result.stderr)
             );
-        } else {
-            bail!("标程运行失败，退出码: {}", output.status);
+        }
+        _ => {
+            bail!("标程运行失败");
         }
     }
 
-    let work_output_path = runner.get_output_path()?;
-
-    // 检查输出文件是否生成
-    if !work_output_path.exists() {
-        bail!("标程未生成输出文件: {}", work_output_path.display());
+    if result.output.is_empty() {
+        bail!("标程未生成输出");
     }
 
-    // 复制输出文件到目标位置
-    fs::copy(&work_output_path, output_path).await?;
+    tokio::fs::write(output_path, &result.output).await?;
 
     debug!("成功生成输出文件: {}", output_path.display());
 

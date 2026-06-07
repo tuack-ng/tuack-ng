@@ -1,24 +1,26 @@
 use std::process::Command as StdCommand;
 use std::process::Stdio;
 use tempfile::TempDir;
+use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio::process::Command as TokioCommand;
 
-use crate::tuack_lib::utils::compiler::RunnerManifest;
+use crate::prelude::*;
+use crate::tuack_lib::config::lang::Language;
+use crate::tuack_lib::utils::compiler::{IoMode, ResourceLimits, RunResult, RunnerManifest};
 use crate::utils::command::string_to_command;
-use crate::{prelude::*, tuack_lib::config::lang::Language};
+use crate::utils::process::ProcessSupervisor;
 use async_trait::async_trait;
 use strfmt::strfmt;
 
 pub struct GeneralRunner {
     tmp_dir: TempDir,
     source: PathBuf,
-    file_io: bool,
-    input_path: Option<PathBuf>,
-    input_file_name: Option<String>,
-    output_file_name: Option<String>,
     compile_args: String,
     language: Language,
     program_name: String,
+    limits: Option<ResourceLimits>,
+    input: Option<Box<dyn AsyncRead + Send + Unpin>>,
+    io_mode: IoMode,
 }
 
 impl GeneralRunner {
@@ -38,10 +40,6 @@ impl GeneralRunner {
         Ok(GeneralRunner {
             tmp_dir,
             source,
-            file_io: false,
-            input_path: None,
-            input_file_name: None,
-            output_file_name: None,
             compile_args: compile_args
                 .get(&ext)
                 .context("没有该语言编译选项")?
@@ -52,10 +50,12 @@ impl GeneralRunner {
                 .context("未知格式文件")?
                 .to_owned(),
             program_name,
+            limits: None,
+            input: None,
+            io_mode: IoMode::Stdio,
         })
     }
 
-    /// 获取编译命令（同步版本）
     fn get_compile_command(&self) -> Result<Option<StdCommand>> {
         if let Some(ref compile) = self.language.compiler {
             let compile_cmd = strfmt(
@@ -94,8 +94,7 @@ impl GeneralRunner {
         }
     }
 
-    /// 获取运行命令（同步版本）
-    fn get_run_command(&self) -> Result<Option<StdCommand>> {
+    fn get_run_base_command(&self) -> Result<StdCommand> {
         if let Some(ref runner) = self.language.runner {
             let run_cmd = strfmt(
                 &runner.run,
@@ -116,14 +115,13 @@ impl GeneralRunner {
                     ),
                 ]),
             )?;
-            Ok(Some(string_to_command(run_cmd.as_str())?))
+            Ok(string_to_command(run_cmd.as_str())?)
         } else {
             let program_path = self.tmp_dir.path().join(&self.program_name);
-            if program_path.exists() {
-                Ok(Some(StdCommand::new(program_path)))
-            } else {
-                Ok(None)
+            if !program_path.exists() {
+                bail!("可执行文件不存在: {}", program_path.display());
             }
+            Ok(StdCommand::new(program_path))
         }
     }
 }
@@ -206,106 +204,79 @@ impl Runner for GeneralRunner {
         Ok(())
     }
 
-    fn get_run(&mut self) -> Result<StdCommand> {
-        let mut cmd = self.get_run_command()?.context("无法获取运行命令")?;
-        cmd.current_dir(&self.tmp_dir);
-
-        Ok(if self.file_io {
-            let input_path = self
-                .tmp_dir
-                .path()
-                .join(self.input_file_name.as_ref().context("未指定输入文件名")?);
-            fs::copy(
-                self.input_path.as_ref().context("未指定输入文件")?,
-                input_path,
-            )?;
-
-            cmd.stdin(Stdio::null())
-                .stdout(Stdio::null())
-                .stderr(Stdio::null());
-            cmd
-        } else {
-            let output_path = self
-                .tmp_dir
-                .path()
-                .join(&self.program_name)
-                .with_extension("stdout");
-            cmd.stdin(Stdio::from(std::fs::File::open(
-                self.input_path.as_ref().unwrap(),
-            )?))
-            .stdout(Stdio::from(std::fs::File::create(output_path)?))
-            .stderr(Stdio::null());
-            cmd
-        })
+    fn set_limits(&mut self, limits: ResourceLimits) {
+        self.limits = Some(limits);
     }
 
-    async fn get_run_async(&mut self) -> Result<TokioCommand> {
-        let mut cmd = TokioCommand::from(self.get_run_command()?.context("无法获取运行命令")?);
-        cmd.current_dir(&self.tmp_dir);
-
-        Ok(if self.file_io {
-            let input_path = self
-                .tmp_dir
-                .path()
-                .join(self.input_file_name.as_ref().context("未指定输入文件名")?);
-            tokio::fs::copy(
-                self.input_path.as_ref().context("未指定输入文件")?,
-                input_path,
-            )
-            .await?;
-
-            cmd.stdin(Stdio::null())
-                .stdout(Stdio::null())
-                .stderr(Stdio::null());
-            cmd
-        } else {
-            let output_path = self
-                .tmp_dir
-                .path()
-                .join(&self.program_name)
-                .with_extension("stdout");
-            cmd.stdin(Stdio::from(std::fs::File::open(
-                self.input_path.as_ref().context("未指定输入文件")?,
-            )?))
-            .stdout(Stdio::from(std::fs::File::create(output_path)?))
-            .stderr(Stdio::null());
-            cmd
-        })
+    fn set_input(&mut self, input: Box<dyn AsyncRead + Send + Unpin>) {
+        self.input = Some(input);
     }
 
-    fn set_file_io(
-        &mut self,
-        input_file: &PathBuf,
-        input_name: &String,
-        output_name: &String,
-    ) -> Result<()> {
-        self.input_file_name = Some(input_name.to_owned());
-        self.output_file_name = Some(output_name.to_owned());
-        self.input_path = Some(input_file.to_owned());
-        self.file_io = true;
-        Ok(())
-    }
-
-    fn set_std_io(&mut self, input_file: &PathBuf) -> Result<()> {
-        self.file_io = false;
-        self.input_path = Some(input_file.to_owned());
-        Ok(())
+    fn set_io_mode(&mut self, io_mode: IoMode) {
+        self.io_mode = io_mode;
     }
 
     fn set_interactive(&mut self, _grader_file: &PathBuf, _header_file: &PathBuf) -> Result<()> {
         unreachable!("通用运行器不支持交互");
     }
 
-    fn get_output_path(&self) -> Result<PathBuf> {
-        Ok(if self.file_io {
-            self.tmp_dir
-                .path()
-                .join(self.output_file_name.as_ref().context("未指定输出文件名")?)
-        } else {
-            self.tmp_dir
-                .path()
-                .join(&self.program_name)
-                .with_extension("stdout")
+    async fn execute(&mut self) -> Result<RunResult> {
+        let limits = self.limits.take().unwrap_or(ResourceLimits::unlimited());
+
+        let mut input_buf = Vec::new();
+        if let Some(ref mut reader) = self.input {
+            reader.read_to_end(&mut input_buf).await?;
+        }
+
+        let mut cmd = self.get_run_base_command()?;
+        cmd.current_dir(&self.tmp_dir);
+
+        match &self.io_mode {
+            IoMode::Stdio => {
+                let stdin_path = self.tmp_dir.path().join("pipe_stdin");
+                let stdout_path = self.tmp_dir.path().join("pipe_stdout");
+                std::fs::write(&stdin_path, &input_buf)?;
+                let stdin_file = std::fs::File::open(&stdin_path)?;
+                let stdout_file = std::fs::File::create(&stdout_path)?;
+                cmd.stdin(Stdio::from(stdin_file));
+                cmd.stdout(Stdio::from(stdout_file));
+            }
+            IoMode::File { input_name, .. } => {
+                let input_path = self.tmp_dir.path().join(input_name);
+                std::fs::write(&input_path, &input_buf)?;
+                cmd.stdin(Stdio::null());
+                cmd.stdout(Stdio::null());
+            }
+        }
+        cmd.stderr(Stdio::piped());
+
+        let mut tokio_cmd = TokioCommand::from(cmd);
+        let mut child = tokio_cmd.spawn()?;
+
+        let (status, time, memory) = ProcessSupervisor::new(limits).supervise(&mut child).await?;
+
+        let mut stderr = Vec::new();
+        if let Some(mut err) = child.stderr.take() {
+            let _ = err.read_to_end(&mut stderr).await;
+        }
+
+        let output = match &self.io_mode {
+            IoMode::Stdio => tokio::fs::read(self.tmp_dir.path().join("pipe_stdout"))
+                .await
+                .unwrap_or_default(),
+            IoMode::File { output_name, .. } => {
+                tokio::fs::read(self.tmp_dir.path().join(output_name))
+                    .await
+                    .unwrap_or_default()
+            }
+        };
+
+        Ok(RunResult {
+            status,
+            time,
+            memory,
+            output,
+            stderr,
         })
     }
 

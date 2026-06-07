@@ -1,25 +1,26 @@
 use std::process::Command as StdCommand;
 use std::process::Stdio;
 use tempfile::TempDir;
+use tokio::io::{AsyncRead, AsyncReadExt};
 use tokio::process::Command as TokioCommand;
 
 use crate::prelude::*;
-use crate::tuack_lib::utils::compiler::RunnerManifest;
+use crate::tuack_lib::utils::compiler::{IoMode, ResourceLimits, RunResult, RunnerManifest};
 use crate::utils::command::string_to_command;
+use crate::utils::process::ProcessSupervisor;
 use async_trait::async_trait;
 
 pub struct CppRunner {
     tmp_dir: TempDir,
     source: PathBuf,
-    file_io: bool,
-    input_path: Option<PathBuf>,
-    input_file_name: Option<String>,
-    output_file_name: Option<String>,
     compile_args: String,
     program_name: String,
     interactive: bool,
     grader_path: Option<PathBuf>,
     header_path: Option<PathBuf>,
+    limits: Option<ResourceLimits>,
+    input: Option<Box<dyn AsyncRead + Send + Unpin>>,
+    io_mode: IoMode,
 }
 
 impl CppRunner {
@@ -39,10 +40,6 @@ impl CppRunner {
         Ok(CppRunner {
             tmp_dir,
             source,
-            file_io: false,
-            input_path: None,
-            input_file_name: None,
-            output_file_name: None,
             compile_args: compile_args
                 .get(&ext)
                 .context("没有该语言编译选项")?
@@ -51,10 +48,12 @@ impl CppRunner {
             interactive: false,
             grader_path: None,
             header_path: None,
+            limits: None,
+            input: None,
+            io_mode: IoMode::Stdio,
         })
     }
 
-    /// 获取编译命令（同步版本）
     fn get_compile_command(&self) -> Result<StdCommand> {
         let exe_path = self
             .tmp_dir
@@ -85,16 +84,6 @@ impl CppRunner {
 
         string_to_command(&cmd_str)
     }
-
-    /// 获取运行命令（同步版本）
-    fn get_run_command(&self) -> Result<Option<StdCommand>> {
-        let program_path = self.tmp_dir.path().join(&self.program_name);
-        if program_path.exists() {
-            Ok(Some(StdCommand::new(program_path)))
-        } else {
-            Ok(None)
-        }
-    }
 }
 
 #[async_trait]
@@ -120,9 +109,9 @@ impl Runner for CppRunner {
 
         if self.interactive {
             let grader_target_path = self.tmp_dir.path().join("grader.cpp");
-            fs::copy(&self.grader_path.as_ref().unwrap(), &grader_target_path)?;
+            fs::copy(self.grader_path.as_ref().unwrap(), &grader_target_path)?;
             let header_target_path = self.tmp_dir.path().join(format!("{}.h", self.program_name));
-            fs::copy(&self.header_path.as_ref().unwrap(), &header_target_path)?;
+            fs::copy(self.header_path.as_ref().unwrap(), &header_target_path)?;
         }
 
         let output = cmd.stdout(Stdio::null()).stderr(Stdio::piped()).output()?;
@@ -152,9 +141,9 @@ impl Runner for CppRunner {
 
         if self.interactive {
             let grader_target_path = self.tmp_dir.path().join("grader.cpp");
-            tokio::fs::copy(&self.grader_path.as_ref().unwrap(), &grader_target_path).await?;
+            tokio::fs::copy(self.grader_path.as_ref().unwrap(), &grader_target_path).await?;
             let header_target_path = self.tmp_dir.path().join(format!("{}.h", self.program_name));
-            tokio::fs::copy(&self.header_path.as_ref().unwrap(), &header_target_path).await?;
+            tokio::fs::copy(self.header_path.as_ref().unwrap(), &header_target_path).await?;
         }
 
         let mut tokio_cmd = TokioCommand::from(cmd);
@@ -172,90 +161,16 @@ impl Runner for CppRunner {
         Ok(())
     }
 
-    fn get_run(&mut self) -> Result<StdCommand> {
-        let mut cmd = self.get_run_command()?.context("无法获取运行命令")?;
-        cmd.current_dir(&self.tmp_dir);
-
-        Ok(if self.file_io {
-            let input_path = self
-                .tmp_dir
-                .path()
-                .join(self.input_file_name.as_ref().context("未指定输入文件名")?);
-            fs::copy(
-                self.input_path.as_ref().context("未指定输入文件")?,
-                input_path,
-            )?;
-
-            cmd.stdin(Stdio::null())
-                .stdout(Stdio::null())
-                .stderr(Stdio::null());
-            cmd
-        } else {
-            let output_path = self
-                .tmp_dir
-                .path()
-                .join(&self.program_name)
-                .with_extension("stdout");
-            cmd.stdin(Stdio::from(std::fs::File::open(
-                self.input_path.as_ref().unwrap(),
-            )?))
-            .stdout(Stdio::from(std::fs::File::create(output_path)?))
-            .stderr(Stdio::null());
-            cmd
-        })
+    fn set_limits(&mut self, limits: ResourceLimits) {
+        self.limits = Some(limits);
     }
 
-    async fn get_run_async(&mut self) -> Result<TokioCommand> {
-        let mut cmd = TokioCommand::from(self.get_run_command()?.context("无法获取运行命令")?);
-        cmd.current_dir(&self.tmp_dir);
-
-        Ok(if self.file_io {
-            let input_path = self
-                .tmp_dir
-                .path()
-                .join(self.input_file_name.as_ref().context("未指定输入文件名")?);
-            tokio::fs::copy(
-                self.input_path.as_ref().context("未指定输入文件")?,
-                input_path,
-            )
-            .await?;
-
-            cmd.stdin(Stdio::null())
-                .stdout(Stdio::null())
-                .stderr(Stdio::null());
-            cmd
-        } else {
-            let output_path = self
-                .tmp_dir
-                .path()
-                .join(&self.program_name)
-                .with_extension("stdout");
-            cmd.stdin(Stdio::from(std::fs::File::open(
-                self.input_path.as_ref().context("未指定输入文件")?,
-            )?))
-            .stdout(Stdio::from(std::fs::File::create(output_path)?))
-            .stderr(Stdio::null());
-            cmd
-        })
+    fn set_input(&mut self, input: Box<dyn AsyncRead + Send + Unpin>) {
+        self.input = Some(input);
     }
 
-    fn set_file_io(
-        &mut self,
-        input_file: &PathBuf,
-        input_name: &String,
-        output_name: &String,
-    ) -> Result<()> {
-        self.input_file_name = Some(input_name.to_owned());
-        self.output_file_name = Some(output_name.to_owned());
-        self.input_path = Some(input_file.to_owned());
-        self.file_io = true;
-        Ok(())
-    }
-
-    fn set_std_io(&mut self, input_file: &PathBuf) -> Result<()> {
-        self.file_io = false;
-        self.input_path = Some(input_file.to_owned());
-        Ok(())
+    fn set_io_mode(&mut self, io_mode: IoMode) {
+        self.io_mode = io_mode;
     }
 
     fn set_interactive(&mut self, grader_file: &PathBuf, header_file: &PathBuf) -> Result<()> {
@@ -265,16 +180,71 @@ impl Runner for CppRunner {
         Ok(())
     }
 
-    fn get_output_path(&self) -> Result<PathBuf> {
-        Ok(if self.file_io {
-            self.tmp_dir
-                .path()
-                .join(self.output_file_name.as_ref().context("未指定输出文件名")?)
-        } else {
-            self.tmp_dir
-                .path()
-                .join(&self.program_name)
-                .with_extension("stdout")
+    async fn execute(&mut self) -> Result<RunResult> {
+        let limits = self.limits.take().unwrap_or(ResourceLimits::unlimited());
+
+        let mut input_buf = Vec::new();
+        if let Some(ref mut reader) = self.input {
+            reader.read_to_end(&mut input_buf).await?;
+        }
+
+        let program_path = self.tmp_dir.path().join(&self.program_name);
+        if !program_path.exists() {
+            bail!("可执行文件不存在: {}", program_path.display());
+        }
+
+        let mut cmd = StdCommand::new(&program_path);
+        cmd.current_dir(&self.tmp_dir);
+
+        // 根据 IO 模式设置 stdin/stdout
+        match &self.io_mode {
+            IoMode::Stdio => {
+                let stdin_path = self.tmp_dir.path().join("pipe_stdin");
+                let stdout_path = self.tmp_dir.path().join("pipe_stdout");
+                std::fs::write(&stdin_path, &input_buf)?;
+                let stdin_file = std::fs::File::open(&stdin_path)?;
+                let stdout_file = std::fs::File::create(&stdout_path)?;
+                cmd.stdin(Stdio::from(stdin_file));
+                cmd.stdout(Stdio::from(stdout_file));
+            }
+            IoMode::File { input_name, .. } => {
+                let input_path = self.tmp_dir.path().join(input_name);
+                std::fs::write(&input_path, &input_buf)?;
+                cmd.stdin(Stdio::null());
+                cmd.stdout(Stdio::null());
+            }
+        }
+        cmd.stderr(Stdio::piped());
+
+        let mut tokio_cmd = TokioCommand::from(cmd);
+        let mut child = tokio_cmd.spawn()?;
+
+        let (status, time, memory) = ProcessSupervisor::new(limits).supervise(&mut child).await?;
+
+        // 读取 stderr
+        let mut stderr = Vec::new();
+        if let Some(mut err) = child.stderr.take() {
+            let _ = err.read_to_end(&mut stderr).await;
+        }
+
+        // 读取 output
+        let output = match &self.io_mode {
+            IoMode::Stdio => tokio::fs::read(self.tmp_dir.path().join("pipe_stdout"))
+                .await
+                .unwrap_or_default(),
+            IoMode::File { output_name, .. } => {
+                tokio::fs::read(self.tmp_dir.path().join(output_name))
+                    .await
+                    .unwrap_or_default()
+            }
+        };
+
+        Ok(RunResult {
+            status,
+            time,
+            memory,
+            output,
+            stderr,
         })
     }
 

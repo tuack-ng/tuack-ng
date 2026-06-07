@@ -1,3 +1,15 @@
+use std::process::{Command, Stdio};
+use std::str::FromStr;
+use std::time::Duration;
+
+use bytesize::ByteSize;
+use clap::{Args, ValueEnum};
+use colored::Colorize;
+use csv::Writer;
+use evalexpr::eval_boolean;
+use indicatif::ProgressBar;
+use tempfile::NamedTempFile;
+
 use crate::prelude::*;
 use crate::test::checker::parse_result;
 use crate::tuack_lib::config::ExpandedDataItem;
@@ -5,22 +17,7 @@ use crate::tuack_lib::config::ScorePolicy;
 use crate::utils::compilers::cpp::CppRunner;
 use crate::utils::compilers::general::*;
 use crate::utils::duration::format_duration;
-use bytesize::ByteSize;
-use clap::Args;
-use clap::ValueEnum;
-use colored::Colorize;
-use csv::Writer;
-use evalexpr::eval_boolean;
-use indicatif::ProgressBar;
-use std::cmp::max;
-use std::sync::{Arc, Mutex};
-use std::{
-    process::{Command, Stdio},
-    str::FromStr,
-    time::Duration,
-};
-use sysinfo::{Pid, ProcessesToUpdate, System};
-use tempfile::NamedTempFile;
+
 pub mod checker;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
@@ -91,125 +88,58 @@ async fn run_test_case(
     data_dir: &str,
 ) -> Result<(TestCaseStatus, Option<Duration>, Option<ByteSize>)> {
     let problem_name = &problem_config.name;
-    let time_limit_ms = (problem_config.time_limit * 1000.0) as u128;
-    let memory_limit_bytes = problem_config.memory_limit.as_u64();
     let file_io = problem_config.file_io.unwrap_or(true);
     let input_path = problem_config.path.join(data_dir).join(&case.input);
 
-    use tokio::time::{Duration, Instant, sleep};
+    let input_file = tokio::fs::File::open(&input_path).await?;
+    runner.set_input(Box::new(input_file));
 
     if file_io {
-        runner.set_file_io(
-            &input_path,
-            &format!("{}.in", problem_name),
-            &format!("{}.out", problem_name),
-        )?;
+        runner.set_io_mode(IoMode::File {
+            input_name: format!("{}.in", problem_name),
+            output_name: format!("{}.out", problem_name),
+        });
     } else {
-        runner.set_std_io(&input_path)?;
+        runner.set_io_mode(IoMode::Stdio);
     }
 
-    let result = async {
-        let mut child = runner.get_run_async().await?.spawn()?;
+    runner.set_limits(ResourceLimits::new(
+        Duration::from_secs_f64(problem_config.time_limit),
+        problem_config.memory_limit.as_u64(),
+    ));
 
-        let pid = child.id().unwrap() as u32;
-        let start = Instant::now();
-        let time_limit = Duration::from_millis(time_limit_ms as u64);
+    let run_result = runner.execute().await?;
 
-        // 使用 Arc 和 Mutex 来在线程间共享内存使用数据
-        let peak_memory = Arc::new(Mutex::new(0u64));
-        let monitoring_peak_memory = Arc::clone(&peak_memory);
-        let result = tokio::select! {
-            biased;
-
-            // 内存和超时监控任务
-            _ = async move {
-                let mut sys = System::new();
-                let sys_pid = Pid::from_u32(pid);
-
-                loop {
-                    // 定期检查
-                    sleep(Duration::from_millis(10)).await;
-
-                    // 检查超时
-                    if start.elapsed() > time_limit+Duration::from_millis(200) {
-                        return;
-                    }
-
-                    // 检查内存
-                    sys.refresh_processes(ProcessesToUpdate::Some(&[sys_pid]), false);
-                    if let Some(process) = sys.process(sys_pid) {
-                        let memory = process.memory();
-                        let mut peak = monitoring_peak_memory.lock().unwrap();
-
-                        *peak = max(*peak,memory);
-                        if memory > memory_limit_bytes {
-                            return;
-                        }
-                    } else {
-                        // 进程已结束
-                        return;
-                    }
-                }
-            } => {
-                // 内存超限或超时
-                let _ = child.kill().await;
-
-                // 获取记录的峰值内存
-                let final_peak = *peak_memory.lock().unwrap();
-
-                // 需要区分是超时还是MLE
-                if start.elapsed() > time_limit {
-                    info!("测试点超时");
-                    (TestCaseStatus::TLE,None,None)
-                } else {
-                    info!("测试点内存超限，峰值内存: {} bytes", ByteSize(final_peak));
-                    (TestCaseStatus::MLE,None,None)
-                }
-            }
-
-            // 等待进程结束
-            exit_status = child.wait() => {
-                let elapsed_time = start.elapsed();
-
-                // 获取记录的峰值内存
-                let final_peak = *peak_memory.lock().unwrap();
-
-                info!("测试点运行完成，使用时间: {:?}, 峰值内存: {}", elapsed_time, ByteSize(final_peak));
-
-                match exit_status {
-                    Ok(status) if status.success() => {
-                        (TestCaseStatus::Running,Some(elapsed_time),Some(ByteSize(final_peak)))
-                    },
-                    Ok(_) => {
-                        (TestCaseStatus::RE,Some(elapsed_time),Some(ByteSize(final_peak)))
-                    },
-                    Err(e) => {
-                        msg_error!("测试点运行出现内部错误: {}", e);
-                        (TestCaseStatus::UKE,None,None)
-                    },
-                }
-            }
-        };
-        Ok::<(TestCaseStatus, Option<Duration>, Option<ByteSize>), anyhow::Error>(result)
-    }.await?;
-
-    let case_status = match result.0 {
-        TestCaseStatus::Running => validate_output(runner, problem_config, case, data_dir)?,
-        status => status,
+    let case_status = match run_result.status {
+        RunStatus::Success => validate_output(&run_result.output, problem_config, case, data_dir)?,
+        RunStatus::NonZeroExit(_) => TestCaseStatus::RE,
+        RunStatus::TimeLimitExceeded => TestCaseStatus::TLE,
+        RunStatus::MemoryLimitExceeded => TestCaseStatus::MLE,
+        RunStatus::InternalError(_) => TestCaseStatus::UKE,
     };
 
-    Ok((case_status, result.1, result.2))
+    Ok((
+        case_status,
+        run_result.time,
+        run_result.memory.map(ByteSize),
+    ))
 }
 
 fn validate_output(
-    runner: &Box<dyn Runner>,
+    output: &[u8],
     problem_config: &ProblemConfig,
     case: &Arc<ExpandedDataItem>,
     data_dir: &str,
 ) -> Result<TestCaseStatus> {
+    use std::process::{Command, Stdio};
+
     let input_path = problem_config.path.join(data_dir).join(&case.input);
-    let output_path = runner.get_output_path()?;
     let answer_path = problem_config.path.join(data_dir).join(&case.output);
+
+    if output.is_empty() {
+        return Ok(TestCaseStatus::WA);
+    }
+
     let spj = if problem_config.use_chk.unwrap_or(false) {
         let chk_dir = problem_config.path.join("data").join("chk");
         match data_dir {
@@ -227,14 +157,8 @@ fn validate_output(
         None
     };
 
-    // 检查输出文件是否存在
-    if !output_path.exists() {
-        return Ok(TestCaseStatus::WA);
-    }
-
     let checker_path = match spj {
         Some(spj_path) => spj_path,
-        // 查找第一个存在的 checker 文件
         None => gctx()
             .assets_dirs
             .iter()
@@ -248,15 +172,14 @@ fn validate_output(
     };
 
     let res_path = NamedTempFile::with_prefix("tuack-ng-test-res-")?;
+    let output_path = NamedTempFile::with_prefix("tuack-ng-test-out-")?;
+    fs::write(&output_path, output)?;
 
-    debug!("{}", checker_path.display());
-
-    // 使用校验器验证
     let _validate = Command::new(&checker_path)
         .arg(&input_path)
-        .arg(&output_path)
+        .arg(output_path.path())
         .arg(&answer_path)
-        .arg(&res_path.path())
+        .arg(res_path.path())
         .arg("-appes")
         .stderr(Stdio::null())
         .stdout(Stdio::null())
@@ -392,13 +315,21 @@ pub async fn test_problem(
         && use_chk
     {
         if is_sample {
-            let chk_cpp = problem_config.path.join("data").join("chk").join("chk_sample.cpp");
+            let chk_cpp = problem_config
+                .path
+                .join("data")
+                .join("chk")
+                .join("chk_sample.cpp");
             if chk_cpp.exists() {
                 let compile_pb = gctx().multiprogress.add(ProgressBar::new_spinner());
                 compile_pb.enable_steady_tick(Duration::from_millis(100));
                 compile_pb.set_message(format!("编译 {} 题目的样例 SPJ", problem_config.name));
 
-                let chk_bin = problem_config.path.join("data").join("chk").join("chk_sample");
+                let chk_bin = problem_config
+                    .path
+                    .join("data")
+                    .join("chk")
+                    .join("chk_sample");
                 let compile_output = Command::new("g++")
                     .arg("-o")
                     .arg(&chk_bin)
@@ -409,7 +340,10 @@ pub async fn test_problem(
                     .stderr(Stdio::piped())
                     .output()?;
                 if !compile_output.status.success() {
-                    msg_warn!("题目 {} 的样例 Checker 编译失败", problem_config.name.magenta());
+                    msg_warn!(
+                        "题目 {} 的样例 Checker 编译失败",
+                        problem_config.name.magenta()
+                    );
                     msg_warn!("{}", String::from_utf8_lossy(&compile_output.stderr));
                     return Ok(());
                 }

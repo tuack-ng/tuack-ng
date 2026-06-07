@@ -68,22 +68,19 @@
           NIX_TESTLIB_PATH = "${pkgs.testlib}/include/testlib/testlib.h";
           VERGEN_IDEMPOTENT = 1;
 
-          installPhase = ''
-            runHook preInstall
-
-            mkdir -p $out/bin
-            cp target/release/tuack-ng $out/bin/
-
-            # 安装静态资源（build.rs 已处理好 testlib.h 和 checkers 编译）
+          postInstall = ''
+            # 安装静态资源
             mkdir -p $out/share/tuack-ng
             cp -r assets/* $out/share/tuack-ng/
 
             # 我们使用系统的 testlib
-            ln -sf ${pkgs.testlib}/include/testlib/testlib.h $out/share/tuack-ng/checkers/testlib.h
+            ln -sf ${pkgs.testlib}/include/testlib/testlib.h \
+              $out/share/tuack-ng/checkers/testlib.h
 
-            # 安装 templates（来自独立 input，覆盖 assets/templates 的 gitlink）
-            mkdir -p $out/share/tuack-ng/templates/
-            cp -r ${templates-src}/* $out/share/tuack-ng/templates/
+            # 安装 templates
+            mkdir -p $out/share/tuack-ng/templates
+            cp -r ${templates-src}/* \
+              $out/share/tuack-ng/templates/
             chmod -R u+w $out/share/tuack-ng/templates/
 
             # 生成 shell 补全
@@ -95,8 +92,6 @@
               --bash tuack-ng.bash \
               --fish tuack-ng.fish \
               --zsh _tuack-ng
-
-            runHook postInstall
           '';
 
           meta = with pkgs.lib; {
@@ -127,6 +122,8 @@
 
           shellHook = ''
             export NIX_TESTLIB_PATH="${pkgs.testlib}/include/testlib/testlib.h"
+
+            export RUST_SRC_PATH="${rustToolchain}/lib/rustlib/src/rust/library"
           '';
         };
       }
