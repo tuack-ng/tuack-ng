@@ -6,7 +6,6 @@ use std::sync::Arc;
 use rand::Rng;
 use tokio::fs;
 use tokio::process::Command;
-use tokio::sync::mpsc;
 
 use crate::prelude::*;
 use crate::tuack_lib::config::ExpandedDataItem;
@@ -14,35 +13,48 @@ use crate::utils::compilers::cpp::CppRunner;
 use crate::utils::compilers::general::GeneralRunner;
 use crate::utils::random::gen_rnd;
 
-#[derive(Debug)]
-pub enum DmkStatus {
-    /// 正在编译 Std
-    CompilingStd,
+/// 数据生成报告器接口
+/// [`dmk()`] 接收一个实现了此 trait 的对象
+pub trait DmkReporter: Send + Sync {
     /// 正在编译 Dmk
-    CompilingDmk,
-    /// Std 完成编译
-    CompiledStd,
-    /// Dmk 完成编译
-    CompiledDmk,
-
-    /// 开始生成数据，并报告总数
-    StartDmk(u32),
-    /// 生成输入
-    DmkInput {
-        id: u32,
-        status: DmkResult,
-    },
-    /// 生成输出
-    DmkOutput {
-        id: u32,
-        status: DmkResult,
-    },
-    /// 报告生成进度
-    DmkStart(u32),
-    DmkProgress(u32),
-
-    /// 完成
-    Completed,
+    fn compiling_dmk(&self);
+    /// 完成编译 Dmk
+    fn compiled_dmk(&self);
+    /// 正在编译 Std
+    fn compiling_std(&self);
+    /// 完成编译 Std
+    fn compiled_std(&self);
+    /// 开始生成数据
+    ///
+    /// # 参数
+    /// - `size`: 需要生成的总数
+    fn start_dmk(&self, size: u32);
+    /// 开始生成数据点
+    ///
+    /// # 参数
+    /// - `id`: 数据点编号
+    fn start_item(&self, id: u32);
+    /// 生成数据点的输入
+    ///
+    /// # 参数
+    /// - `id`: 数据点编号
+    /// - `status`: 数据点生成结果
+    fn generate_input(&self, id: u32, status: &DmkResult);
+    /// 生成数据点的输出
+    ///
+    /// # 参数
+    /// - `id`: 数据点编号
+    /// - `status`: 数据点生成结果
+    fn generate_output(&self, id: u32, status: &DmkResult);
+    /// 数据点生成进度
+    ///
+    /// # 参数
+    /// - `position`: 进度，相对于 [`start_dmk()`] 的 `id` 而言。
+    ///
+    /// [`start_dmk()`]: Self::start_dmk
+    fn progress(&self, position: u32);
+    /// 生成完成
+    fn completed(&self);
 }
 
 #[derive(Debug)]
@@ -88,11 +100,11 @@ pub enum Target {
     Sample,
 }
 
-pub async fn gen_data(
-    tx: mpsc::Sender<DmkStatus>,
+pub async fn dmk(
+    reporter: &dyn DmkReporter,
     target: &Target,
     action: &DmkCommand,
-    data_items: &Vec<Arc<ExpandedDataItem>>,
+    data_items: &[Arc<ExpandedDataItem>],
     current_problem: &ProblemConfig,
     current_day: &ContestDayConfig,
 ) -> Result<()> {
@@ -158,12 +170,10 @@ pub async fn gen_data(
     }
 
     let generator_path_clone = generator_path.clone();
-    let tx_clone1 = tx.clone();
-    let tx_clone2 = tx.clone();
 
     let (result1, result2) = tokio::join!(
-        compile_generator(tx_clone1, &generator_path_clone),
-        compile_std(tx_clone2, &mut runner)
+        compile_generator(reporter, &generator_path_clone),
+        compile_std(reporter, &mut runner)
     );
     if let Err(e) = result1 {
         // msg_error!("数据生成器编译错误: {}", e);
@@ -183,11 +193,10 @@ pub async fn gen_data(
         return Ok(());
     }
 
-    tx.send(DmkStatus::StartDmk(data_items.len() as u32))
-        .await?;
+    reporter.start_dmk(data_items.len() as u32);
 
     for (id, data_item) in data_items.iter().enumerate() {
-        tx.send(DmkStatus::DmkStart(data_item.id)).await?;
+        reporter.start_item(data_item.id);
 
         let input_file = data_item.input.clone();
         let output_file = data_item.output.clone();
@@ -211,32 +220,16 @@ pub async fn gen_data(
             )
             .await
             {
-                tx.send(DmkStatus::DmkInput {
-                    id: data_item.id,
-                    status: DmkResult::Fail(e),
-                })
-                .await?;
+                reporter.generate_input(data_item.id, &DmkResult::Fail(e));
             } else {
-                tx.send(DmkStatus::DmkInput {
-                    id: data_item.id,
-                    status: action.into(),
-                })
-                .await?;
+                reporter.generate_input(data_item.id, &action.into());
             }
         } else {
             if !input_path.exists() {
                 fs::write(&input_path, b"").await?;
-                tx.send(DmkStatus::DmkInput {
-                    id: data_item.id,
-                    status: DmkResult::Empty,
-                })
-                .await?;
+                reporter.generate_input(data_item.id, &DmkResult::Empty);
             } else {
-                tx.send(DmkStatus::DmkInput {
-                    id: data_item.id,
-                    status: DmkResult::Skip,
-                })
-                .await?;
+                reporter.generate_input(data_item.id, &DmkResult::Skip);
             }
         }
 
@@ -251,41 +244,25 @@ pub async fn gen_data(
             )
             .await
             {
-                tx.send(DmkStatus::DmkOutput {
-                    id: data_item.id,
-                    status: DmkResult::Fail(e),
-                })
-                .await?;
+                reporter.generate_output(data_item.id, &DmkResult::Fail(e));
             } else {
-                tx.send(DmkStatus::DmkOutput {
-                    id: data_item.id,
-                    status: action.into(),
-                })
-                .await?;
+                reporter.generate_output(data_item.id, &action.into());
             }
         } else {
             if !output_path.exists() {
                 fs::write(&output_path, b"").await?;
-                tx.send(DmkStatus::DmkOutput {
-                    id: data_item.id,
-                    status: DmkResult::Empty,
-                })
-                .await?;
+                reporter.generate_output(data_item.id, &DmkResult::Empty);
             } else {
-                tx.send(DmkStatus::DmkOutput {
-                    id: data_item.id,
-                    status: DmkResult::Skip,
-                })
-                .await?;
+                reporter.generate_output(data_item.id, &DmkResult::Skip);
             }
         }
 
-        tx.send(DmkStatus::DmkProgress(id as u32)).await?;
+        reporter.progress(id as u32);
     }
 
     let _ = std::fs::remove_dir_all(std_path.parent().unwrap().join("tmp"));
     save_seed(&target_dir, seeds)?;
-    tx.send(DmkStatus::Completed).await?;
+    reporter.completed();
 
     Ok(())
 }
@@ -326,12 +303,12 @@ fn find_std(problem: &crate::tuack_lib::config::ProblemConfig) -> Result<PathBuf
 }
 
 /// 编译生成器
-async fn compile_generator(tx: mpsc::Sender<DmkStatus>, generator_path: &Path) -> Result<()> {
+async fn compile_generator(reporter: &dyn DmkReporter, generator_path: &Path) -> Result<()> {
     info!("编译数据生成器");
 
     let tmp_dir = generator_path.parent().unwrap();
 
-    tx.send(DmkStatus::CompilingDmk).await?;
+    reporter.compiling_dmk();
 
     let output_path = tmp_dir.join("gen");
 
@@ -352,24 +329,24 @@ async fn compile_generator(tx: mpsc::Sender<DmkStatus>, generator_path: &Path) -
 
     info!("数据生成器编译成功");
 
-    tx.send(DmkStatus::CompiledDmk).await?;
+    reporter.compiled_dmk();
 
     Ok(())
 }
 
 /// 编译标程
 async fn compile_std(
-    tx: mpsc::Sender<DmkStatus>,
+    reporter: &dyn DmkReporter,
     // std_path: &Path,
     runner: &mut Box<dyn Runner>,
 ) -> Result<()> {
     info!("编译标程");
 
-    tx.send(DmkStatus::CompilingStd).await?;
+    reporter.compiling_std();
 
     runner.prepare_async().await?;
 
-    tx.send(DmkStatus::CompiledStd).await?;
+    reporter.compiled_std();
 
     Ok(())
 }

@@ -1,9 +1,7 @@
 use crate::context::{CurrentLocation, gctx};
 use crate::prelude::*;
 use crate::tuack_lib::config::ExpandedDataItem;
-use crate::tuack_lib::dmk::DmkResult;
-use crate::tuack_lib::dmk::DmkStatus;
-use crate::tuack_lib::dmk::gen_data;
+use crate::tuack_lib::dmk::{DmkReporter, DmkResult, dmk};
 use clap::Args;
 use clap::ValueEnum;
 use colored::ColoredString;
@@ -11,7 +9,6 @@ use indicatif::ProgressBar;
 use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::mpsc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum Target {
@@ -47,6 +44,90 @@ impl DmkResult {
             DmkResult::Fail(e) => Some(e),
             _ => None,
         }
+    }
+}
+
+struct CliDmkReporter {
+    std_compile_pb: ProgressBar,
+    dmk_compile_pb: ProgressBar,
+    dmk_pb: ProgressBar,
+}
+
+impl CliDmkReporter {
+    fn new() -> Self {
+        Self {
+            std_compile_pb: gctx().multiprogress.add(ProgressBar::new_spinner()),
+            dmk_compile_pb: gctx().multiprogress.add(ProgressBar::new_spinner()),
+            dmk_pb: gctx().multiprogress.add(ProgressBar::new(0)),
+        }
+    }
+}
+
+impl DmkReporter for CliDmkReporter {
+    fn compiling_dmk(&self) {
+        self.dmk_compile_pb
+            .enable_steady_tick(Duration::from_millis(100));
+        self.dmk_compile_pb.set_message("编译数据生成器");
+    }
+
+    fn compiled_dmk(&self) {
+        self.dmk_compile_pb.finish_and_clear();
+    }
+
+    fn compiling_std(&self) {
+        self.std_compile_pb
+            .enable_steady_tick(Duration::from_millis(100));
+        self.std_compile_pb.set_message("编译标程");
+    }
+
+    fn compiled_std(&self) {
+        self.std_compile_pb.finish_and_clear();
+    }
+
+    fn start_dmk(&self, size: u32) {
+        self.dmk_pb.set_style(
+            indicatif::ProgressStyle::default_bar()
+                .template("  [{bar:40.cyan/blue}] {pos}/{len} {msg}")
+                .unwrap()
+                .progress_chars("=> "),
+        );
+        self.dmk_pb.set_length(size as u64);
+    }
+
+    fn start_item(&self, id: u32) {
+        self.dmk_pb.set_message(format!("生成数据点 #{}", id));
+    }
+
+    fn generate_input(&self, id: u32, status: &DmkResult) {
+        msg_item!(
+            status.colored_status(),
+            "测试点 {} {}",
+            id.to_string().cyan(),
+            "输入".bold()
+        );
+        if let Some(e) = status.error() {
+            msg_error!("{}", e);
+        }
+    }
+
+    fn generate_output(&self, id: u32, status: &DmkResult) {
+        msg_item!(
+            status.colored_status(),
+            "测试点 {} {}",
+            id.to_string().cyan(),
+            "输出".bold()
+        );
+        if let Some(e) = status.error() {
+            msg_error!("{}", e);
+        }
+    }
+
+    fn progress(&self, position: u32) {
+        self.dmk_pb.set_position(position as u64);
+    }
+
+    fn completed(&self) {
+        self.dmk_pb.finish_with_message("数据生成完成！");
     }
 }
 
@@ -194,81 +275,15 @@ pub async fn main(args: DmkArgs) -> Result<()> {
             .collect(),
     };
 
-    let (tx, mut rx) = mpsc::channel::<DmkStatus>(10);
+    let reporter = CliDmkReporter::new();
 
-    let gen_handle = tokio::spawn(async move {
-        gen_data(
-            tx,
-            &args.target.into(),
-            &args.action.into(),
-            &parse_test_object(&args.object, &data_items)?,
-            current_problem,
-            current_day,
-        )
-        .await
-    });
-
-    let std_compile_pb = gctx().multiprogress.add(ProgressBar::new_spinner());
-    let dmk_compile_pb = gctx().multiprogress.add(ProgressBar::new_spinner());
-
-    let dmk_pb = gctx().multiprogress.add(ProgressBar::new(0));
-
-    while let Some(status) = rx.recv().await {
-        match status {
-            DmkStatus::CompilingDmk => {
-                dmk_compile_pb.enable_steady_tick(Duration::from_millis(100));
-                dmk_compile_pb.set_message("编译数据生成器");
-            }
-            DmkStatus::CompiledDmk => {
-                dmk_compile_pb.finish_and_clear();
-            }
-            DmkStatus::CompilingStd => {
-                std_compile_pb.enable_steady_tick(Duration::from_millis(100));
-                std_compile_pb.set_message("编译标程");
-            }
-            DmkStatus::CompiledStd => {
-                std_compile_pb.finish_and_clear();
-            }
-            DmkStatus::StartDmk(size) => {
-                dmk_pb.set_style(
-                    indicatif::ProgressStyle::default_bar()
-                        .template("  [{bar:40.cyan/blue}] {pos}/{len} {msg}")
-                        .unwrap()
-                        .progress_chars("=> "),
-                );
-                dmk_pb.set_length(size as u64);
-            }
-            DmkStatus::DmkInput { id, status } => {
-                msg_item!(
-                    status.colored_status(),
-                    "测试点 {} {}",
-                    id.to_string().cyan(),
-                    "输入".bold()
-                );
-                if let Some(e) = status.error() {
-                    msg_error!("{}", e);
-                }
-            }
-            DmkStatus::DmkOutput { id, status } => {
-                msg_item!(
-                    status.colored_status(),
-                    "测试点 {} {}",
-                    id.to_string().cyan(),
-                    "输出".bold()
-                );
-                if let Some(e) = status.error() {
-                    msg_error!("{}", e);
-                }
-            }
-            DmkStatus::DmkProgress(progress) => dmk_pb.set_position(progress as u64),
-            DmkStatus::DmkStart(progress) => {
-                dmk_pb.set_message(format!("生成数据点 #{}", progress))
-            }
-            DmkStatus::Completed => {
-                dmk_pb.finish_with_message("数据生成完成！");
-            }
-        }
-    }
-
-    gen_handle.await?
+    dmk(
+        &reporter,
+        &args.target.into(),
+        &args.action.into(),
+        &parse_test_object(&args.object, &data_items)?,
+        current_problem,
+        current_day,
+    )
+    .await
 }
