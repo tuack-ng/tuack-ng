@@ -17,8 +17,17 @@ build-release:
     @cargo build --release
 
 # 运行
+[no-cd]
 run +args="":
     @cargo run -- {{ args }}
+
+[working-directory("assets/templates")]
+unwrap:
+    @cargo run -- develop unwrap
+
+[working-directory("assets/templates")]
+wrap:
+    @cargo run -- develop wrap
 
 # NixOS 底下 build.rs 编译 checkers 炸时使用的东西（笑）
 # 但是使用 flake.nix 时不应该使用

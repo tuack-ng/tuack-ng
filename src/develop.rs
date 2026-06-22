@@ -165,7 +165,7 @@ fn unwrap() -> Result<()> {
                 if source_file.exists() {
                     fs::copy(&source_file, &target_file)?;
                 } else {
-                    bail!("store 中找不到文件: {} (sha256: {})", relative_path, sha256);
+                    bail!("store 中找不到文件: {} (名称: {})", relative_path, sha256);
                 }
             }
 
@@ -217,7 +217,13 @@ fn wrap() -> Result<()> {
             let filelist = collect_files(&entry_path);
 
             for file in filelist {
-                let sha256 = sha256(&file)?;
+                let sha256 = format!(
+                    "{}{}",
+                    &sha256(&file)?,
+                    file.extension()
+                        .map(|ext| format!(".{}", ext.to_string_lossy()))
+                        .unwrap_or_default()
+                );
                 manifest.filelist.insert(
                     file.strip_prefix(&entry_path)?.display().to_string(),
                     sha256.clone(),
