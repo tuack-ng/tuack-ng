@@ -91,8 +91,8 @@ async fn run_test_case(
     let file_io = problem_config.file_io.unwrap_or(true);
     let input_path = problem_config.path.join(data_dir).join(&case.input);
 
-    let input_file = tokio::fs::File::open(&input_path).await?;
-    runner.set_input(Box::new(input_file));
+    let input_bytes = tokio::fs::read(&input_path).await?;
+    runner.set_input(input_bytes);
 
     if file_io {
         runner.set_io_mode(IoMode::File {

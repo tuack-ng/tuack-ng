@@ -1,7 +1,7 @@
 use std::process::Command as StdCommand;
 use std::process::Stdio;
 use tempfile::TempDir;
-use tokio::io::{AsyncRead, AsyncReadExt};
+use tokio::io::AsyncReadExt;
 use tokio::process::Command as TokioCommand;
 
 use crate::prelude::*;
@@ -19,7 +19,7 @@ pub struct GeneralRunner {
     language: Language,
     program_name: String,
     limits: Option<ResourceLimits>,
-    input: Option<Box<dyn AsyncRead + Send + Unpin>>,
+    input: Option<Vec<u8>>,
     io_mode: IoMode,
 }
 
@@ -208,7 +208,7 @@ impl Runner for GeneralRunner {
         self.limits = Some(limits);
     }
 
-    fn set_input(&mut self, input: Box<dyn AsyncRead + Send + Unpin>) {
+    fn set_input(&mut self, input: Vec<u8>) {
         self.input = Some(input);
     }
 
@@ -223,10 +223,7 @@ impl Runner for GeneralRunner {
     async fn execute(&mut self) -> Result<RunResult> {
         let limits = self.limits.take().unwrap_or(ResourceLimits::unlimited());
 
-        let mut input_buf = Vec::new();
-        if let Some(ref mut reader) = self.input {
-            reader.read_to_end(&mut input_buf).await?;
-        }
+        let input_buf = self.input.take().unwrap_or_default();
 
         let mut cmd = self.get_run_base_command()?;
         cmd.current_dir(&self.tmp_dir);

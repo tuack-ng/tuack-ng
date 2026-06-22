@@ -1,6 +1,5 @@
 use async_trait::async_trait;
 use std::time::Duration;
-use tokio::io::AsyncRead;
 
 use crate::prelude::*;
 
@@ -89,7 +88,7 @@ pub trait Runner: Send {
     /// 设置运行限制
     fn set_limits(&mut self, limits: ResourceLimits);
     /// 设置输入
-    fn set_input(&mut self, input: Box<dyn AsyncRead + Send + Unpin>);
+    fn set_input(&mut self, input: Vec<u8>);
     /// 设置 IO 模式
     fn set_io_mode(&mut self, io_mode: IoMode);
     /// 设置交互
