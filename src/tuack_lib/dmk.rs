@@ -8,7 +8,7 @@ use tokio::fs;
 use tokio::process::Command;
 
 use crate::prelude::*;
-use crate::tuack_lib::config::ExpandedDataItem;
+use crate::config::ExpandedDataItem;
 use crate::utils::compilers::cpp::CppRunner;
 use crate::utils::compilers::general::GeneralRunner;
 use crate::utils::random::gen_rnd;
@@ -288,9 +288,9 @@ fn find_generator(problem_path: &Path, target: Target) -> Result<PathBuf> {
 }
 
 /// 查找标程
-fn find_std(problem: &crate::tuack_lib::config::ProblemConfig) -> Result<PathBuf> {
+fn find_std(problem: &crate::config::ProblemConfig) -> Result<PathBuf> {
     for (name, case) in &problem.tests {
-        if let crate::tuack_lib::config::ExpectedScore::Single(str) = &case.expected
+        if let crate::config::ExpectedScore::Single(str) = &case.expected
             && str.replace(' ', "") == "==100"
             && problem.path.join(PathBuf::from(&case.path)).exists()
         {

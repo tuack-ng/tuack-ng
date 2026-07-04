@@ -10,10 +10,10 @@ use evalexpr::eval_boolean;
 use indicatif::ProgressBar;
 use tempfile::NamedTempFile;
 
+use crate::config::ExpandedDataItem;
+use crate::config::ScorePolicy;
 use crate::prelude::*;
 use crate::test::checker::parse_result;
-use crate::tuack_lib::config::ExpandedDataItem;
-use crate::tuack_lib::config::ScorePolicy;
 use crate::utils::compilers::cpp::CppRunner;
 use crate::utils::compilers::general::*;
 use crate::utils::duration::format_duration;

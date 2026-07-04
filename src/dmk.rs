@@ -1,6 +1,6 @@
+use crate::config::ExpandedDataItem;
 use crate::context::{CurrentLocation, gctx};
 use crate::prelude::*;
-use crate::tuack_lib::config::ExpandedDataItem;
 use crate::tuack_lib::dmk::{DmkReporter, DmkResult, dmk};
 use clap::Args;
 use clap::ValueEnum;

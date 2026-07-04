@@ -1,7 +1,7 @@
+use crate::config::CONFIG_VERSION;
+use crate::config::migrate::base::Migrater;
+use crate::config::migrate::v3::V3Migrater;
 use crate::prelude::*;
-use crate::tuack_lib::config::CONFIG_VERSION;
-use crate::tuack_lib::config::migrate::base::Migrater;
-use crate::tuack_lib::config::migrate::v3::V3Migrater;
 use bytesize::ByteSize;
 use indexmap::IndexMap;
 use std::sync::Arc;

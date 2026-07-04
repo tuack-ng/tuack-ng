@@ -10,6 +10,7 @@ use clap::{Parser, Subcommand};
 use clap_i18n_richformatter::clap_i18n;
 
 mod conf;
+mod config;
 mod context;
 mod develop;
 mod dmk;

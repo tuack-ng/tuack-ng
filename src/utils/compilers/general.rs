@@ -5,7 +5,7 @@ use tokio::io::AsyncReadExt;
 use tokio::process::Command as TokioCommand;
 
 use crate::prelude::*;
-use crate::tuack_lib::config::lang::Language;
+use crate::config::lang::Language;
 use crate::tuack_lib::utils::compiler::{IoMode, ResourceLimits, RunResult, RunnerManifest};
 use crate::utils::command::string_to_command;
 use crate::utils::process::ProcessSupervisor;

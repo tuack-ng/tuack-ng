@@ -1,6 +1,6 @@
 use crate::{
     prelude::*,
-    tuack_lib::config::{
+    config::{
         CONFIG_VERSION,
         migrate::{base::Migrater, v3::V3Migrater},
     },

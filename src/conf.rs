@@ -1,5 +1,5 @@
+use crate::config::{CONFIG_FILE_NAME, save_config, save_day_config};
 use crate::prelude::*;
-use crate::tuack_lib::config::{CONFIG_FILE_NAME, save_config, save_day_config};
 use chrono::Datelike;
 use chrono::Timelike;
 use chrono::{Duration, NaiveDateTime};
@@ -24,8 +24,8 @@ fn add_minutes(time: [u32; 6], minutes: i64) -> [u32; 6] {
 
 use crate::{
     Subcommand,
+    config::save_problem_config,
     context::{CurrentLocation, gctx},
-    tuack_lib::config::save_problem_config,
 };
 use clap::Args;
 
