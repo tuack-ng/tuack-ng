@@ -303,7 +303,7 @@ pub fn main(args: RenArgs) -> Result<()> {
         dunce::canonicalize(Path::new("."))?.to_string_lossy()
     );
 
-    let (config, current_location) = gctx().config.as_ref().context("找不到配置文件")?;
+    let Config { config, location: current_location } = gctx().config.as_ref().context("找不到配置文件")?;
 
     let manifest_file = context::gctx().assets_dirs.iter().find(|dir| {
         let subdir = dir.join("templates").join(format!("{}.json", args.target));

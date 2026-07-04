@@ -21,7 +21,7 @@ fn find_contest_config(start_path: &Path) -> Result<PathBuf> {
     let start = dunce::canonicalize(start_path)?;
 
     for ancestor in start.ancestors() {
-        debug!("Checking: {:?}", ancestor);
+        debug!("正在查找配置文件路径: {:?}", ancestor);
 
         let config_path = ancestor.join(CONFIG_FILE_NAME);
         if config_path.exists() && is_contest_config(&config_path)? {
@@ -56,7 +56,13 @@ fn is_contest_config(path: &Path) -> Result<bool> {
     Ok(false)
 }
 
-pub fn load_config(path: &Path) -> Result<Option<(ContestConfig, CurrentLocation)>> {
+#[derive(Debug, Clone)]
+pub struct Config {
+    pub config: ContestConfig,
+    pub location: CurrentLocation,
+}
+
+pub fn load_config(path: &Path) -> Result<Option<Config>> {
     let config_path = match find_contest_config(path) {
         Ok(path) => path,
         Err(_) => return Ok(None),
@@ -126,7 +132,7 @@ pub fn load_config(path: &Path) -> Result<Option<(ContestConfig, CurrentLocation
             .insert(dayconfig_name.to_string(), dayconfig);
     }
 
-    Ok(Some((config, location)))
+    Ok(Some(Config { config, location }))
 }
 
 #[allow(unused)]

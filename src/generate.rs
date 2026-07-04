@@ -223,10 +223,10 @@ fn gen_lfs() -> Result<()> {
     let attributes_path = find_in_scaffold("problem.gitattributes", false)?;
 
     // 统一获取配置，避免重复调用
-    let config = &gctx().config.as_ref().context("没有有效的配置文件")?.0;
+    let config = &gctx().config.as_ref().context("没有有效的配置文件")?.config;
 
     // 根据当前位置获取需要处理的问题列表
-    let problems_to_process = match gctx().config.as_ref().context("没有有效的配置文件")?.1
+    let problems_to_process = match gctx().config.as_ref().context("没有有效的配置文件")?.location
     {
         CurrentLocation::Root => {
             // 获取所有问题
@@ -293,8 +293,8 @@ fn gen_data(args: GenConfirmArgs) -> Result<()> {
     }
 
     let config = gctx().config.clone().context("没有有效的配置")?;
-    for (now_day_name, day) in config.0.subconfig {
-        let day_name: Option<String> = match config.1 {
+    for (now_day_name, day) in config.config.subconfig {
+        let day_name: Option<String> = match config.location {
             CurrentLocation::Day(ref name) => Some(name.clone()),
             CurrentLocation::Problem(ref day_name, _) => Some(day_name.clone()),
             _ => None,
@@ -303,7 +303,7 @@ fn gen_data(args: GenConfirmArgs) -> Result<()> {
             continue;
         }
         for (now_problem_name, problem) in day.subconfig {
-            let problem_name: Option<String> = match config.1 {
+            let problem_name: Option<String> = match config.location {
                 CurrentLocation::Problem(_, ref name) => Some(name.clone()),
                 _ => None,
             };
@@ -370,8 +370,8 @@ fn gen_sample(args: GenConfirmArgs) -> Result<()> {
     }
 
     let config = gctx().config.clone().context("没有有效的配置")?;
-    for (now_day_name, day) in config.0.subconfig {
-        let day_name: Option<String> = match config.1 {
+    for (now_day_name, day) in config.config.subconfig {
+        let day_name: Option<String> = match config.location {
             CurrentLocation::Day(ref name) => Some(name.clone()),
             CurrentLocation::Problem(ref day_name, _) => Some(day_name.clone()),
             _ => None,
@@ -380,7 +380,7 @@ fn gen_sample(args: GenConfirmArgs) -> Result<()> {
             continue;
         }
         for (now_problem_name, problem) in day.subconfig {
-            let problem_name: Option<String> = match config.1 {
+            let problem_name: Option<String> = match config.location {
                 CurrentLocation::Problem(_, ref name) => Some(name.clone()),
                 _ => None,
             };
@@ -467,8 +467,8 @@ fn gen_code(args: GenConfirmArgs) -> Result<()> {
     }
 
     let config = gctx().config.clone().context("没有有效的配置")?;
-    for (now_day_name, day) in config.0.subconfig {
-        let day_name: Option<String> = match config.1 {
+    for (now_day_name, day) in config.config.subconfig {
+        let day_name: Option<String> = match config.location {
             CurrentLocation::Day(ref name) => Some(name.clone()),
             CurrentLocation::Problem(ref day_name, _) => Some(day_name.clone()),
             _ => None,
@@ -477,7 +477,7 @@ fn gen_code(args: GenConfirmArgs) -> Result<()> {
             continue;
         }
         for (now_problem_name, problem) in day.subconfig {
-            let problem_name: Option<String> = match config.1 {
+            let problem_name: Option<String> = match config.location {
                 CurrentLocation::Problem(_, ref name) => Some(name.clone()),
                 _ => None,
             };

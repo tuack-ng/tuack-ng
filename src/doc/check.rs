@@ -32,7 +32,7 @@ fn print_messages(messages: CheckResult, path: &Path, checker: &dyn CheckRule) {
                     checker.manifest().name.green(),
                     format!(
                         "{}",
-                        path.strip_prefix(&gctx().config.as_ref().unwrap().0.path)
+                        path.strip_prefix(&gctx().config.as_ref().unwrap().config.path)
                             .unwrap()
                             .display()
                     )
@@ -48,7 +48,7 @@ fn print_messages(messages: CheckResult, path: &Path, checker: &dyn CheckRule) {
                     checker.manifest().name,
                     format!(
                         "{}",
-                        path.strip_prefix(&gctx().config.as_ref().unwrap().0.path)
+                        path.strip_prefix(&gctx().config.as_ref().unwrap().config.path)
                             .unwrap()
                             .display()
                     )
@@ -63,7 +63,7 @@ fn print_messages(messages: CheckResult, path: &Path, checker: &dyn CheckRule) {
                             "在 {}:{},{} 等级 {}, 消息: {}",
                             format!(
                                 "{}",
-                                path.strip_prefix(&gctx().config.as_ref().unwrap().0.path)
+                                path.strip_prefix(&gctx().config.as_ref().unwrap().config.path)
                                     .unwrap()
                                     .display()
                             )
@@ -81,7 +81,7 @@ fn print_messages(messages: CheckResult, path: &Path, checker: &dyn CheckRule) {
                             "在 {} 等级 {}, 消息: {}",
                             format!(
                                 "{}",
-                                path.strip_prefix(&gctx().config.as_ref().unwrap().0.path)
+                                path.strip_prefix(&gctx().config.as_ref().unwrap().config.path)
                                     .unwrap()
                                     .display()
                             )
@@ -159,20 +159,20 @@ pub fn main(args: CheckArgs) -> Result<()> {
 
     let config = gctx().config.as_ref().context("没有可用的工程")?;
 
-    match &config.1 {
+    match &config.location {
         CurrentLocation::None => bail!("没有可用的工程"),
         CurrentLocation::Root => {
-            for (_, day_config) in &config.0.subconfig {
+            for (_, day_config) in &config.config.subconfig {
                 check_day(day_config)?;
             }
         }
         CurrentLocation::Day(day) => {
-            check_day(config.0.subconfig.get(day).unwrap())?;
+            check_day(config.config.subconfig.get(day).unwrap())?;
         }
         CurrentLocation::Problem(day, problem) => {
             check(
                 config
-                    .0
+                    .config
                     .subconfig
                     .get(day)
                     .unwrap()

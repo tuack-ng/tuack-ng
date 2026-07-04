@@ -4,7 +4,7 @@ pub use anyhow::{Context, Result, anyhow, bail};
 pub use log::{debug, error, info, trace, warn};
 
 pub use crate::config::{
-    ContestConfig, ContestDayConfig, DataItem, ExpectedScore, ProblemConfig, ProblemType,
+    Config, ContestConfig, ContestDayConfig, DataItem, ExpectedScore, ProblemConfig, ProblemType,
     SampleItem, ScorePolicy, TestCase,
 };
 pub use crate::context::{CurrentLocation, gctx};

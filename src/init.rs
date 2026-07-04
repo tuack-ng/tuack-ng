@@ -134,7 +134,7 @@ fn init_context(multi: MultiProgress) -> Result<()> {
     let config = match load_config(Path::new(".")) {
         Ok(res) => {
             if res.as_ref().is_some() {
-                info!("当前路径: {:#?}", res.as_ref().unwrap().1);
+                info!("当前路径: {:#?}", res.as_ref().unwrap().location);
             }
             res
         }

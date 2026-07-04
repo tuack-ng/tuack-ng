@@ -743,7 +743,7 @@ async fn test_day(day_config: &ContestDayConfig, target: Target) -> Result<()> {
 }
 
 pub async fn main(args: TestArgs) -> Result<()> {
-    let (config, current_location) = gctx().config.as_ref().context("找不到配置文件")?;
+    let Config { config, location: current_location } = gctx().config.as_ref().context("找不到配置文件")?;
 
     match current_location {
         CurrentLocation::Problem(day_key, prob_key) => {

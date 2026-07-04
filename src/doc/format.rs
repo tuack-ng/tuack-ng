@@ -101,20 +101,20 @@ pub fn main(args: FormatArgs) -> Result<()> {
 
     let config = gctx().config.as_ref().context("没有可用的工程")?;
 
-    match &config.1 {
+    match &config.location {
         CurrentLocation::None => bail!("没有可用的工程"),
         CurrentLocation::Root => {
-            for (_, day_config) in &config.0.subconfig {
+            for (_, day_config) in &config.config.subconfig {
                 format_day(day_config)?;
             }
         }
         CurrentLocation::Day(day) => {
-            format_day(config.0.subconfig.get(day).unwrap())?;
+            format_day(config.config.subconfig.get(day).unwrap())?;
         }
         CurrentLocation::Problem(day, problem) => {
             format(
                 config
-                    .0
+                    .config
                     .subconfig
                     .get(day)
                     .unwrap()

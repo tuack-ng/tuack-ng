@@ -41,20 +41,20 @@ pub fn main(args: DumpArgs) -> Result<()> {
         bail!("没有有效的配置文件");
     }
     let config = gctx().config.clone().unwrap();
-    match config.1 {
+    match config.location {
         CurrentLocation::None => bail!("此命令必须在工程下执行"),
         CurrentLocation::Problem(_, _) => bail!("此命令不能在题目下执行"),
         CurrentLocation::Day(day) => {
             dump_main(
-                &config.0,
-                config.0.subconfig.get(&day).unwrap(),
+                &config.config,
+                config.config.subconfig.get(&day).unwrap(),
                 1,
                 args.target,
             )?;
         }
         CurrentLocation::Root => {
-            for (idx, (_, day_config)) in config.0.subconfig.iter().enumerate() {
-                dump_main(&config.0, day_config, idx + 1, args.target)?;
+            for (idx, (_, day_config)) in config.config.subconfig.iter().enumerate() {
+                dump_main(&config.config, day_config, idx + 1, args.target)?;
             }
         }
     }

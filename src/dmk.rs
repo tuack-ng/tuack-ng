@@ -239,9 +239,9 @@ pub async fn main(args: DmkArgs) -> Result<()> {
     let config = gctx().config.as_ref().context("没有找到有效的工程")?;
 
     let (current_problem, current_day) =
-        if let CurrentLocation::Problem(ref day, ref prog) = config.1 {
+        if let CurrentLocation::Problem(ref day, ref prog) = config.location {
             let day_config = config
-                .0
+                .config
                 .subconfig
                 .get(day)
                 .context(format!("无法获取天配置: {}", day))?;

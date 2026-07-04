@@ -1,3 +1,4 @@
+use crate::config::Config;
 use crate::config::lang::Language;
 use crate::prelude::*;
 use indicatif::MultiProgress;
@@ -19,7 +20,7 @@ pub struct Context {
     pub assets_dirs: Vec<PathBuf>,
     pub multiprogress: MultiProgress,
 
-    pub config: Option<(ContestConfig, CurrentLocation)>,
+    pub config: Option<Config>,
     pub languages: HashMap<String, Language>,
 }
 
