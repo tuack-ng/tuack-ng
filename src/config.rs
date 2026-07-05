@@ -1,14 +1,16 @@
+use crate::config::msgs::LoadContext;
 use crate::prelude::*;
 
 pub const CONFIG_FILE_NAME: &str = "conf.json";
 
-#[allow(unused)]
 pub const CONFIG_VERSION: u64 = 4;
+pub const CONFIG_MIN_VERSION: u64 = 3;
 
 pub mod contest;
 pub mod contestday;
 pub mod lang;
 pub mod migrate;
+pub mod msgs;
 pub mod problem;
 
 use crate::context::CurrentLocation;
@@ -29,31 +31,21 @@ fn find_contest_config(start_path: &Path) -> Result<PathBuf> {
         }
     }
 
-    info!("未找到contest配置文件");
-    bail!("未找到contest配置文件");
+    info!("未找到 contest 配置文件");
+    bail!("未找到 contest 配置文件");
 }
 
 fn is_contest_config(path: &Path) -> Result<bool> {
     let content = fs::read_to_string(path)?;
     let json_value: serde_json::Value = serde_json::from_str(&content)?;
 
-    // 通过字段判断是否是contest配置
-    if let Some(version) = json_value.get("version").and_then(|v| v.as_u64()) {
-        if version >= 3 {
-            if let Some(folder) = json_value.get("folder").and_then(|v| v.as_str())
-                && folder == "contest"
-            {
-                return Ok(true);
-            }
-        } else {
-            msg_error!(
-                "配置文件版本过低，可能是 tuack 的配置文件。请迁移到 tuack-ng 配置文件格式再使用。"
-            );
-            bail!("配置文件版本过低");
-        }
+    if let Some(folder) = json_value.get("folder").and_then(|v| v.as_str())
+        && folder == "contest"
+    {
+        Ok(true)
+    } else {
+        Ok(false)
     }
-
-    Ok(false)
 }
 
 #[derive(Debug, Clone)]
@@ -70,8 +62,10 @@ pub fn load_config(path: &Path) -> Result<Option<Config>> {
 
     let canonicalize_path = dunce::canonicalize(path)?.to_path_buf();
 
+    let mut ctx = LoadContext::new();
+
     // 使用 load_contest_config 加载主配置
-    let mut config = load_contest_config(&config_path)?;
+    let mut config = load_contest_config(&mut ctx, &config_path)?;
 
     let mut location: CurrentLocation = CurrentLocation::None;
 
@@ -79,31 +73,25 @@ pub fn load_config(path: &Path) -> Result<Option<Config>> {
         location = CurrentLocation::Root;
     }
 
-    let parent_dir = config_path
-        .parent()
-        .map(|p| p.to_path_buf())
-        .context("无法获取配置文件父目录")?;
+    let parent_dir = config_path.parent().context("无法获取配置文件父目录")?;
 
     // 递归加载子配置
-    for dayconfig_name in &config.subdir {
-        let dayconfig_path = parent_dir.join(dayconfig_name).join(CONFIG_FILE_NAME);
-        let mut dayconfig = load_day_config(&dayconfig_path)?;
+    for day_name in &config.subdir {
+        let day_path = parent_dir.join(day_name).join(CONFIG_FILE_NAME);
+        ctx.enter(day_name.into());
+        let mut dayconfig = load_day_config(&mut ctx, &day_path)?;
 
-        if canonicalize_path.starts_with(dayconfig_path.parent().unwrap()) {
-            location = CurrentLocation::Day(dayconfig_name.to_string());
+        if canonicalize_path.starts_with(day_path.parent().unwrap()) {
+            location = CurrentLocation::Day(day_name.to_string());
         }
 
         // 递归加载题目配置
-        let day_parent_dir = dayconfig_path
-            .parent()
-            .map(|p| p.to_path_buf())
-            .context("无法获取配置文件父目录")?;
-        for problemconfig_name in &dayconfig.subdir {
-            let problemconfig_path = day_parent_dir
-                .join(problemconfig_name)
-                .join(CONFIG_FILE_NAME);
-            let mut problemconfig = load_problem_config(&problemconfig_path)?;
-
+        let day_parent_dir = day_path.parent().context("无法获取配置文件父目录")?;
+        for problem_name in &dayconfig.subdir {
+            let problem_path = day_parent_dir.join(problem_name).join(CONFIG_FILE_NAME);
+            ctx.enter(problem_name.into());
+            let mut problemconfig = load_problem_config(&mut ctx, &problem_path)?;
+            // TODO：总觉得不对劲
             problemconfig.use_pretest = dayconfig.use_pretest.or(config.use_pretest);
             problemconfig.noi_style = dayconfig.noi_style.or(config.noi_style);
             problemconfig.file_io = if problemconfig.problem_type == ProblemType::Interactive {
@@ -115,27 +103,25 @@ pub fn load_config(path: &Path) -> Result<Option<Config>> {
             .or(dayconfig.file_io)
             .or(config.file_io);
 
-            if canonicalize_path.starts_with(problemconfig_path.parent().unwrap()) {
-                location = CurrentLocation::Problem(
-                    dayconfig_name.to_string(),
-                    problemconfig_name.to_string(),
-                );
+            if canonicalize_path.starts_with(problem_path.parent().unwrap()) {
+                location = CurrentLocation::Problem(day_name.to_string(), problem_name.to_string());
             }
 
             dayconfig
                 .subconfig
-                .insert(problemconfig_name.to_string(), problemconfig);
+                .insert(problem_name.to_string(), problemconfig);
+
+            ctx.ret(); // problem
         }
 
-        config
-            .subconfig
-            .insert(dayconfig_name.to_string(), dayconfig);
+        config.subconfig.insert(day_name.to_string(), dayconfig);
+
+        ctx.ret(); // day
     }
 
     Ok(Some(Config { config, location }))
 }
 
-#[allow(unused)]
 /// 将整个配置序列化并保存到文件系统中
 pub fn save_config(config: &ContestConfig, base_path: &Path) -> Result<()> {
     // 检查基础目录是否存在
@@ -143,18 +129,13 @@ pub fn save_config(config: &ContestConfig, base_path: &Path) -> Result<()> {
         bail!("基础目录 {} 不存在", base_path.display());
     }
 
-    // 保存主配置文件（排除null字段）
+    // 保存主配置文件
     let main_config_path = base_path.join(CONFIG_FILE_NAME);
     let main_config_json = save_contest_config(config)?;
     fs::write(&main_config_path, main_config_json)?;
 
     // 保存每个比赛日的配置
-    for (day_index, (day_name, day_config)) in config.subconfig.iter().enumerate() {
-        if config.subdir.len() <= day_index {
-            bail!("子目录名称不足，无法保存第{}个比赛日配置", day_index);
-        }
-
-        let day_name = &config.subdir[day_index];
+    for (day_name, day_config) in config.subconfig.iter() {
         let day_path = base_path.join(day_name);
 
         // 检查比赛日目录是否存在
@@ -167,12 +148,7 @@ pub fn save_config(config: &ContestConfig, base_path: &Path) -> Result<()> {
         fs::write(&day_config_path, day_config_json)?;
 
         // 保存每个题目的配置
-        for (problem_index, problem_config) in day_config.subconfig.iter().enumerate() {
-            if day_config.subdir.len() <= problem_index {
-                bail!("子目录名称不足，无法保存第{}个题目配置", problem_index);
-            }
-
-            let problem_name = &day_config.subdir[problem_index];
+        for (problem_name, problem_config) in day_config.subconfig.iter() {
             let problem_path = day_path.join(problem_name);
 
             // 检查题目目录是否存在
@@ -181,7 +157,7 @@ pub fn save_config(config: &ContestConfig, base_path: &Path) -> Result<()> {
             }
 
             let problem_config_path = problem_path.join(CONFIG_FILE_NAME);
-            let problem_config_json = save_problem_config(problem_config.1)?;
+            let problem_config_json = save_problem_config(problem_config)?;
             fs::write(&problem_config_path, problem_config_json)?;
         }
     }

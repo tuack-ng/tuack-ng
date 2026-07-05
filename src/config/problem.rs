@@ -1,6 +1,7 @@
-use crate::config::CONFIG_VERSION;
 use crate::config::migrate::base::Migrater;
 use crate::config::migrate::v3::V3Migrater;
+use crate::config::msgs::LoadContext;
+use crate::config::{CONFIG_MIN_VERSION, CONFIG_VERSION};
 use crate::prelude::*;
 use bytesize::ByteSize;
 use indexmap::IndexMap;
@@ -305,7 +306,10 @@ pub struct InteractiveConfig {
 }
 
 /// 加载题目配置
-pub fn load_problem_config(problemconfig_path: &Path) -> Result<ProblemConfig> {
+pub fn load_problem_config(
+    ctx: &mut LoadContext,
+    problemconfig_path: &Path,
+) -> Result<ProblemConfig> {
     // 读取并验证问题配置文件
     let problem_content = fs::read_to_string(problemconfig_path)?;
     let mut problem_json_value: serde_json::Value = serde_json::from_str(&problem_content)?;
@@ -316,11 +320,8 @@ pub fn load_problem_config(problemconfig_path: &Path) -> Result<ProblemConfig> {
         .context("配置文件缺少版本号")?;
 
     // 检查版本
-    if version < 3 {
-        msg_error!(
-            "配置文件版本过低，可能是 tuack 的配置文件。请迁移到 tuack-ng 配置文件格式再使用。"
-        );
-        bail!("配置文件版本过低");
+    if version < CONFIG_MIN_VERSION {
+        bail!("配置文件版本过低，可能是 tuack 的配置文件。请迁移到 tuack-ng 配置文件格式再使用。");
     }
 
     if version > CONFIG_VERSION {
@@ -331,6 +332,7 @@ pub fn load_problem_config(problemconfig_path: &Path) -> Result<ProblemConfig> {
     if version == 3 {
         info!("正在迁移 V3 题目配置文件");
         problem_json_value = V3Migrater::migrate_problem(problem_json_value)?;
+        ctx.migrated = true;
     }
 
     // 先解析为 File 结构
@@ -394,7 +396,7 @@ pub fn load_problem_config(problemconfig_path: &Path) -> Result<ProblemConfig> {
         if let Some(subtask) = expand_subtasks.get_mut(&subtask_id) {
             subtask.items.push(data.clone());
         } else {
-            msg_warn!("无效的 Subtask ID #{}", subtask_id);
+            ctx.emit_warn(format!("无效的 Subtask ID #{}", subtask_id));
         }
     }
 
@@ -444,8 +446,8 @@ pub fn load_problem_config(problemconfig_path: &Path) -> Result<ProblemConfig> {
         file_io: None,
         path: problemconfig_path
             .parent()
-            .map(|p| p.to_path_buf())
-            .context("无法获取配置文件父目录")?,
+            .context("无法获取配置文件父目录")?
+            .into(),
         data: expand_data,
         subtasks: expand_subtasks,
     })

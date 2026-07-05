@@ -1,6 +1,7 @@
-use crate::config::CONFIG_VERSION;
 use crate::config::migrate::base::Migrater;
 use crate::config::migrate::v3::V3Migrater;
+use crate::config::msgs::LoadContext;
+use crate::config::{CONFIG_MIN_VERSION, CONFIG_VERSION};
 use crate::prelude::*;
 use indexmap::IndexMap;
 
@@ -61,7 +62,7 @@ pub struct ContestDayConfig {
 }
 
 /// 加载比赛日配置
-pub fn load_day_config(dayconfig_path: &Path) -> Result<ContestDayConfig> {
+pub fn load_day_config(ctx: &mut LoadContext, dayconfig_path: &Path) -> Result<ContestDayConfig> {
     // 读取并验证每日配置文件
     let day_content = fs::read_to_string(dayconfig_path)?;
     let mut day_json_value: serde_json::Value = serde_json::from_str(&day_content)?;
@@ -72,21 +73,18 @@ pub fn load_day_config(dayconfig_path: &Path) -> Result<ContestDayConfig> {
         .context("配置文件缺少版本号")?;
 
     // 检查版本
-    if version < 3 {
-        msg_error!(
-            "配置文件版本过低，可能是 tuack 的配置文件。请迁移到 tuack-ng 配置文件格式再使用。"
-        );
-        bail!("配置文件版本过低");
+    if version < CONFIG_MIN_VERSION {
+        bail!("配置文件版本过低，可能是 tuack 的配置文件。请迁移到 tuack-ng 配置文件格式再使用。");
     }
 
     if version > CONFIG_VERSION {
-        msg_error!("配置文件版本过高，可能是新版本的配置文件。请检查是否有新版本。");
-        bail!("配置文件版本过高");
+        bail!("配置文件版本过高，可能是新版本的配置文件。请检查是否有新版本。");
     }
 
     if version == 3 {
         info!("正在迁移 V3 天配置文件");
         day_json_value = V3Migrater::migrate_day(day_json_value)?;
+        ctx.migrated = true;
     }
 
     let dayconfig: ContestDayConfigFile = serde_json::from_value(day_json_value)?;
@@ -106,8 +104,8 @@ pub fn load_day_config(dayconfig_path: &Path) -> Result<ContestDayConfig> {
         subconfig: IndexMap::new(),
         path: dayconfig_path
             .parent()
-            .map(|p| p.to_path_buf())
-            .context("无法获取配置文件父目录")?,
+            .context("无法获取配置文件父目录")?
+            .into(),
     })
 }
 

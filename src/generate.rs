@@ -2,6 +2,7 @@ use crate::config::SingleDataItem;
 use crate::config::load_contest_config;
 use crate::config::load_day_config;
 use crate::config::load_problem_config;
+use crate::config::msgs::LoadContext;
 use crate::config::save_contest_config;
 use crate::config::save_day_config;
 use crate::config::save_problem_config;
@@ -96,8 +97,11 @@ fn gen_contest(args: GenStatementArgs) -> Result<()> {
     for contest_name in &args.name {
         copy_dir_recursive(&scaffold_path, current_dir.join(contest_name))?;
 
-        let mut contest_json: ContestConfig =
-            load_contest_config(&current_dir.join(contest_name).join(CONFIG_FILE_NAME))?;
+        let mut _ctx = LoadContext::new();
+        let mut contest_json: ContestConfig = load_contest_config(
+            &mut _ctx,
+            &current_dir.join(contest_name).join(CONFIG_FILE_NAME),
+        )?;
 
         contest_json.name = contest_name.to_string();
 
@@ -138,8 +142,11 @@ fn gen_day(args: GenStatementArgs) -> Result<()> {
     for day_name in &args.name {
         copy_dir_recursive(&scaffold_path, current_dir.join(day_name))?;
 
-        let mut day_json: ContestDayConfig =
-            load_day_config(&current_dir.join(day_name).join(CONFIG_FILE_NAME))?;
+        let mut _ctx = LoadContext::new();
+        let mut day_json: ContestDayConfig = load_day_config(
+            &mut _ctx,
+            &current_dir.join(day_name).join(CONFIG_FILE_NAME),
+        )?;
 
         day_json.name = day_name.to_string();
 
@@ -194,8 +201,11 @@ fn gen_problem(args: GenStatementArgs) -> Result<()> {
     for problem_name in &args.name {
         copy_dir_recursive(&scaffold_path, current_dir.join(problem_name))?;
 
-        let mut problem_json: ProblemConfig =
-            load_problem_config(&current_dir.join(problem_name).join(CONFIG_FILE_NAME))?;
+        let mut _ctx = LoadContext::new();
+        let mut problem_json: ProblemConfig = load_problem_config(
+            &mut _ctx,
+            &current_dir.join(problem_name).join(CONFIG_FILE_NAME),
+        )?;
 
         problem_json.name = problem_name.to_string();
 
@@ -226,7 +236,11 @@ fn gen_lfs() -> Result<()> {
     let config = &gctx().config.as_ref().context("没有有效的配置文件")?.config;
 
     // 根据当前位置获取需要处理的问题列表
-    let problems_to_process = match gctx().config.as_ref().context("没有有效的配置文件")?.location
+    let problems_to_process = match gctx()
+        .config
+        .as_ref()
+        .context("没有有效的配置文件")?
+        .location
     {
         CurrentLocation::Root => {
             // 获取所有问题
@@ -352,7 +366,9 @@ fn gen_data(args: GenConfirmArgs) -> Result<()> {
                 .collect();
             let subtasks: BTreeMap<u32, ScorePolicy> = BTreeMap::from([(0, ScorePolicy::Sum)]);
 
-            let mut now_problem = load_problem_config(&problem.path.join(CONFIG_FILE_NAME))?;
+            let mut _ctx = LoadContext::new();
+            let mut now_problem =
+                load_problem_config(&mut _ctx, &problem.path.join(CONFIG_FILE_NAME))?;
             now_problem.orig_data = datas;
             now_problem.orig_subtasks = subtasks;
 
@@ -423,7 +439,9 @@ fn gen_sample(args: GenConfirmArgs) -> Result<()> {
                 })
                 .collect();
 
-            let mut now_problem = load_problem_config(&problem.path.join(CONFIG_FILE_NAME))?;
+            let mut _ctx = LoadContext::new();
+            let mut now_problem =
+                load_problem_config(&mut _ctx, &problem.path.join(CONFIG_FILE_NAME))?;
             now_problem.samples = samples;
 
             let updated_content = save_problem_config(&now_problem)?;
@@ -528,7 +546,9 @@ fn gen_code(args: GenConfirmArgs) -> Result<()> {
                 );
             }
 
-            let mut now_problem = load_problem_config(&problem.path.join(CONFIG_FILE_NAME))?;
+            let mut _ctx = LoadContext::new();
+            let mut now_problem =
+                load_problem_config(&mut _ctx, &problem.path.join(CONFIG_FILE_NAME))?;
             now_problem.tests = tests;
 
             let updated_content = save_problem_config(&now_problem)?;
