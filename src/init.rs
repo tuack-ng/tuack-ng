@@ -8,6 +8,7 @@ use log4rs::{
     encode::pattern::PatternEncoder,
 };
 
+use crate::config::msgs::LoadContext;
 use crate::{config::load_config, context};
 use chrono::Local;
 use colored::Colorize;
@@ -131,10 +132,21 @@ fn init_context(multi: MultiProgress) -> Result<()> {
         },
     ];
 
-    let config = match load_config(Path::new(".")) {
+    let mut ctx = LoadContext::new();
+
+    let config = match load_config(&mut ctx, Path::new(".")) {
         Ok(res) => {
             if res.as_ref().is_some() {
                 info!("当前路径: {:#?}", res.as_ref().unwrap().location);
+                if ctx.migrated {
+                    msg_warn!("配置文件版本已经过时。使用 `tuack-ng conf migrate` 进行迁移。");
+                }
+                if ctx.root.count() != 0 {
+                    msg_warn!(
+                        "配置文件中发现了 {} 个问题。使用 `tuack-ng doc validate` 查看。",
+                        ctx.root.count()
+                    );
+                }
             }
             res
         }
@@ -161,6 +173,7 @@ fn init_context(multi: MultiProgress) -> Result<()> {
         assets_dirs,
         multiprogress: multi,
         config,
+        loadctx: ctx,
         languages,
     })?;
     Ok(())

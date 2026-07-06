@@ -464,6 +464,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "debug_tree"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2d1ec383f2d844902d3c34e4253ba11ae48513cdaddc565cf1a6518db09a8e57"
+dependencies = [
+ "once_cell",
+]
+
+[[package]]
 name = "deranged"
 version = "0.5.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2024,6 +2033,7 @@ dependencies = [
  "clap_complete",
  "colored",
  "csv",
+ "debug_tree",
  "dialoguer",
  "dirs",
  "dunce",
@@ -2040,7 +2050,6 @@ dependencies = [
  "natord",
  "nom",
  "opener",
- "pretty",
  "quick-xml",
  "rand",
  "rayon",

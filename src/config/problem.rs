@@ -396,7 +396,11 @@ pub fn load_problem_config(
         if let Some(subtask) = expand_subtasks.get_mut(&subtask_id) {
             subtask.items.push(data.clone());
         } else {
-            ctx.emit_warn(format!("无效的 Subtask ID #{}", subtask_id));
+            ctx.emit_warn(format!(
+                "数据点 {} 中发现了无效的 Subtask ID {}",
+                data.id.to_string().cyan(),
+                subtask_id.to_string().cyan()
+            ));
         }
     }
 

@@ -18,6 +18,9 @@ pub enum Targets {
     #[command(version)]
     /// 检查
     Check(CheckArgs),
+    #[command(version)]
+    /// 查看配置文件错误
+    Validate,
 }
 
 #[derive(Args, Debug, Clone)]
@@ -32,6 +35,7 @@ pub fn main(args: DocArgs) -> Result<()> {
     match args.target {
         Targets::Format(args) => format::main(args)?,
         Targets::Check(args) => check::main(args)?,
+        Targets::Validate => println!("{}", gctx().loadctx.render_tree()),
     }
 
     Ok(())

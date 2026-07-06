@@ -1,5 +1,6 @@
+use crate::prelude::*;
 use colored::ColoredString;
-use indexmap::IndexMap;
+use debug_tree::{TreeBuilder, TreeConfig, TreeSymbols};
 
 #[derive(Clone, Debug, Copy)]
 pub enum LoadMessageLevel {
@@ -42,63 +43,75 @@ impl LoadMessage {
 
 #[derive(Clone, Debug, Default)]
 pub struct LoadMessages {
+    pub name: String,
     pub messages: Vec<LoadMessage>,
-    pub sub: IndexMap<String, LoadMessages>,
+    pub sub: Vec<LoadMessages>,
 }
 
 impl LoadMessages {
-    /// 创建空的消息集合
     pub fn new() -> Self {
         Self {
+            name: String::new(),
             messages: Vec::new(),
-            sub: IndexMap::new(),
+            sub: Vec::new(),
         }
     }
 
-    /// 创建包含单条消息的集合
-    pub fn from_message(message: LoadMessage) -> Self {
-        let mut messages = Self::new();
-        messages.messages.push(message);
-        messages
-    }
-
-    /// 创建包含多条消息的集合
-    pub fn from_messages(messages: Vec<LoadMessage>) -> Self {
-        Self {
-            messages,
-            sub: IndexMap::new(),
-        }
-    }
-
-    /// 添加消息到当前层级
     pub fn push(&mut self, message: LoadMessage) {
         self.messages.push(message);
     }
 
-    /// 添加子层级
-    pub fn sub<K: Into<String>>(&mut self, key: K) -> &mut LoadMessages {
-        self.sub.entry(key.into()).or_insert_with(LoadMessages::new)
+    pub fn count(&self) -> usize {
+        self.messages.len() + self.sub.iter().map(|v| v.count()).sum::<usize>()
     }
 
-    /// 检查是否为空（无消息且无子层级）
     pub fn is_empty(&self) -> bool {
-        // TODO: 不要 DFS
-        self.messages.is_empty() && self.sub.values().all(|v| v.is_empty())
+        self.count() == 0
+    }
+
+    pub fn render_tree(&self, tree: &mut TreeBuilder) -> () {
+        for leaf in &self.messages {
+            let level_string = if colored::control::SHOULD_COLORIZE.should_colorize() {
+                match leaf.level {
+                    LoadMessageLevel::Warn => "*".yellow(),
+                    LoadMessageLevel::Error => "*".red(),
+                    LoadMessageLevel::Note => "*".blue(),
+                }
+                .bold()
+            } else {
+                match leaf.level {
+                    LoadMessageLevel::Warn => "[W]",
+                    LoadMessageLevel::Error => "[E]",
+                    LoadMessageLevel::Note => "[N]",
+                }
+                .into()
+            };
+
+            tree.add_leaf(&format!("{level_string} {}", leaf.message));
+        }
+
+        for branch in &self.sub {
+            if branch.is_empty() {
+                continue;
+            }
+            let _branch = tree.add_branch(&branch.name);
+            branch.render_tree(tree);
+        }
     }
 }
 
 #[derive(Clone, Debug, Default)]
 pub struct LoadContext {
     pub root: LoadMessages,
-    pub current_path: Vec<String>,
+    current_path: Vec<usize>,
     pub migrated: bool,
 }
 
 impl LoadContext {
     fn current(&mut self) -> &mut LoadMessages {
         let mut node = &mut self.root;
-        for key in &self.current_path {
-            node = node.sub(key);
+        for &idx in &self.current_path {
+            node = &mut node.sub[idx];
         }
         node
     }
@@ -111,8 +124,17 @@ impl LoadContext {
         }
     }
 
-    pub fn enter(&mut self, sub: String) -> () {
-        self.current_path.push(sub);
+    pub fn enter(&mut self) -> () {
+        let idx = {
+            let node = self.current();
+            node.sub.push(LoadMessages::new());
+            node.sub.len() - 1
+        };
+        self.current_path.push(idx);
+    }
+
+    pub fn set_name(&mut self, name: impl Into<String>) -> () {
+        self.current().name = name.into();
     }
 
     pub fn ret(&mut self) -> () {
@@ -129,5 +151,16 @@ impl LoadContext {
 
     pub fn emit_error(&mut self, message: impl Into<ColoredString>) -> () {
         self.current().push(LoadMessage::error(message));
+    }
+
+    pub fn render_tree(&self) -> String {
+        let mut tree = TreeBuilder::new();
+        tree.set_config_override(
+            TreeConfig::new()
+                .symbols(TreeSymbols::new().leaf("─ "))
+                .indent(2),
+        );
+        self.root.render_tree(&mut tree);
+        tree.string()
     }
 }

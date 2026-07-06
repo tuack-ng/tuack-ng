@@ -54,7 +54,7 @@ pub struct Config {
     pub location: CurrentLocation,
 }
 
-pub fn load_config(path: &Path) -> Result<Option<Config>> {
+pub fn load_config(ctx: &mut LoadContext, path: &Path) -> Result<Option<Config>> {
     let config_path = match find_contest_config(path) {
         Ok(path) => path,
         Err(_) => return Ok(None),
@@ -62,10 +62,12 @@ pub fn load_config(path: &Path) -> Result<Option<Config>> {
 
     let canonicalize_path = dunce::canonicalize(path)?.to_path_buf();
 
-    let mut ctx = LoadContext::new();
+    ctx.enter();
 
     // 使用 load_contest_config 加载主配置
-    let mut config = load_contest_config(&mut ctx, &config_path)?;
+    let mut config = load_contest_config(ctx, &config_path)?;
+
+    ctx.set_name(format!("[contest] {}", &config.name));
 
     let mut location: CurrentLocation = CurrentLocation::None;
 
@@ -78,8 +80,9 @@ pub fn load_config(path: &Path) -> Result<Option<Config>> {
     // 递归加载子配置
     for day_name in &config.subdir {
         let day_path = parent_dir.join(day_name).join(CONFIG_FILE_NAME);
-        ctx.enter(day_name.into());
-        let mut dayconfig = load_day_config(&mut ctx, &day_path)?;
+        ctx.enter();
+        let mut dayconfig = load_day_config(ctx, &day_path)?;
+        ctx.set_name(format!("[day] {}", &dayconfig.name));
 
         if canonicalize_path.starts_with(day_path.parent().unwrap()) {
             location = CurrentLocation::Day(day_name.to_string());
@@ -89,8 +92,9 @@ pub fn load_config(path: &Path) -> Result<Option<Config>> {
         let day_parent_dir = day_path.parent().context("无法获取配置文件父目录")?;
         for problem_name in &dayconfig.subdir {
             let problem_path = day_parent_dir.join(problem_name).join(CONFIG_FILE_NAME);
-            ctx.enter(problem_name.into());
-            let mut problemconfig = load_problem_config(&mut ctx, &problem_path)?;
+            ctx.enter();
+            let mut problemconfig = load_problem_config(ctx, &problem_path)?;
+            ctx.set_name(format!("[problem] {}", &problemconfig.name));
             // TODO：总觉得不对劲
             problemconfig.use_pretest = dayconfig.use_pretest.or(config.use_pretest);
             problemconfig.noi_style = dayconfig.noi_style.or(config.noi_style);
@@ -118,6 +122,10 @@ pub fn load_config(path: &Path) -> Result<Option<Config>> {
 
         ctx.ret(); // day
     }
+
+    ctx.ret(); // contest
+
+    // println!("{}", ctx.render_tree());
 
     Ok(Some(Config { config, location }))
 }

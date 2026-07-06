@@ -1,5 +1,6 @@
 use crate::config::Config;
 use crate::config::lang::Language;
+use crate::config::msgs::LoadContext;
 use crate::prelude::*;
 use indicatif::MultiProgress;
 use std::sync::OnceLock;
@@ -21,6 +22,7 @@ pub struct Context {
     pub multiprogress: MultiProgress,
 
     pub config: Option<Config>,
+    pub loadctx: LoadContext,
     pub languages: HashMap<String, Language>,
 }
 
