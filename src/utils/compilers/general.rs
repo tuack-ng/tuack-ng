@@ -77,7 +77,10 @@ impl GeneralRunner {
                     ("args".to_string(), self.compile_args.clone()),
                     (
                         "input_path".to_string(),
-                        self.source
+                        self.tmp_dir
+                            .path()
+                            .join(&self.program_name)
+                            .with_extension(self.source.extension().unwrap())
                             .to_string_lossy()
                             .to_string()
                             .replace(" ", "\\ "),

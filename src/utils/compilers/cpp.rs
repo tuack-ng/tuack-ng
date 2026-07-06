@@ -67,7 +67,14 @@ impl CppRunner {
             .to_string()
             .replace(" ", "\\ ");
 
-        let source_path = self.source.display().to_string().replace(" ", "\\ ");
+        let source_path = self
+            .tmp_dir
+            .path()
+            .join(&self.program_name)
+            .with_extension(self.source.extension().unwrap())
+            .display()
+            .to_string()
+            .replace(" ", "\\ ");
 
         let mut cmd_str = format!("g++ -o {} {} {}", exe_path, self.compile_args, source_path);
 
