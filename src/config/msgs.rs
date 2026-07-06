@@ -1,3 +1,4 @@
+#![allow(unused)]
 use crate::prelude::*;
 use colored::ColoredString;
 use debug_tree::{TreeBuilder, TreeConfig, TreeSymbols};
@@ -69,7 +70,7 @@ impl LoadMessages {
         self.count() == 0
     }
 
-    pub fn render_tree(&self, tree: &mut TreeBuilder) -> () {
+    pub fn render_tree(&self, tree: &mut TreeBuilder) {
         for leaf in &self.messages {
             let level_string = if colored::control::SHOULD_COLORIZE.should_colorize() {
                 match leaf.level {
@@ -124,7 +125,7 @@ impl LoadContext {
         }
     }
 
-    pub fn enter(&mut self) -> () {
+    pub fn enter(&mut self) {
         let idx = {
             let node = self.current();
             node.sub.push(LoadMessages::new());
@@ -133,23 +134,23 @@ impl LoadContext {
         self.current_path.push(idx);
     }
 
-    pub fn set_name(&mut self, name: impl Into<String>) -> () {
+    pub fn set_name(&mut self, name: impl Into<String>) {
         self.current().name = name.into();
     }
 
-    pub fn ret(&mut self) -> () {
+    pub fn ret(&mut self) {
         self.current_path.pop();
     }
 
-    pub fn emit_note(&mut self, message: impl Into<ColoredString>) -> () {
+    pub fn emit_note(&mut self, message: impl Into<ColoredString>) {
         self.current().push(LoadMessage::note(message));
     }
 
-    pub fn emit_warn(&mut self, message: impl Into<ColoredString>) -> () {
+    pub fn emit_warn(&mut self, message: impl Into<ColoredString>) {
         self.current().push(LoadMessage::warn(message));
     }
 
-    pub fn emit_error(&mut self, message: impl Into<ColoredString>) -> () {
+    pub fn emit_error(&mut self, message: impl Into<ColoredString>) {
         self.current().push(LoadMessage::error(message));
     }
 

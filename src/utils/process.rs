@@ -23,7 +23,7 @@ impl ProcessSupervisor {
         self,
         child: &mut tokio::process::Child,
     ) -> Result<(RunStatus, Option<Duration>, Option<u64>)> {
-        let pid = child.id().context("无法获取进程 PID")? as u32;
+        let pid = child.id().context("无法获取进程 PID")?;
         let start = Instant::now();
         let time_limit = self.limits.time_limit.unwrap_or(Duration::MAX);
         let memory_limit = self.limits.memory_limit.unwrap_or(u64::MAX);

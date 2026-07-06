@@ -14,11 +14,8 @@ pub fn process_ast(ast: &mut Document, processors: &Vec<String>) -> Result<Docum
         match processor.as_str() {
             "loj_table" => {
                 for block in &mut ast.blocks {
-                    match block {
-                        Block::Table(table) => {
-                            *table = loj_unspan(table)?;
-                        }
-                        _ => (),
+                    if let Block::Table(table) = block {
+                        *table = loj_unspan(table)?;
                     }
                 }
             }
@@ -34,22 +31,19 @@ pub fn process_ast(ast: &mut Document, processors: &Vec<String>) -> Result<Docum
             }
             "uoj_title" => {
                 for block in &mut ast.blocks {
-                    match block {
-                        Block::Heading(heading) => match &mut heading.kind {
-                            HeadingKind::Atx(level) => {
-                                *level = (*level + 1).min(6);
-                            }
-                            HeadingKind::Setext(setext_heading) => {
-                                heading.kind = match setext_heading {
-                                    SetextHeading::Level1 => {
-                                        HeadingKind::Setext(SetextHeading::Level2)
-                                    }
-                                    SetextHeading::Level2 => HeadingKind::Atx(3),
-                                };
-                            }
-                        },
-                        _ => (),
-                    }
+                    if let Block::Heading(heading) = block { match &mut heading.kind {
+                        HeadingKind::Atx(level) => {
+                            *level = (*level + 1).min(6);
+                        }
+                        HeadingKind::Setext(setext_heading) => {
+                            heading.kind = match setext_heading {
+                                SetextHeading::Level1 => {
+                                    HeadingKind::Setext(SetextHeading::Level2)
+                                }
+                                SetextHeading::Level2 => HeadingKind::Atx(3),
+                            };
+                        }
+                    } }
                 }
             }
             processor => bail!("无此处理器: {}", processor),

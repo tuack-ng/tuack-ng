@@ -6,7 +6,7 @@ pub use colored::Colorize;
 #[macro_export]
 macro_rules! _internal_print {
     ($stream:ident, $($arg:tt)*) => {
-        if let Some(ctx) = crate::context::GLOBAL_CONTEXT.get() {
+        if let Some(ctx) = $crate::context::GLOBAL_CONTEXT.get() {
             ctx.multiprogress.suspend(|| {
                 $stream!($($arg)*);
             });

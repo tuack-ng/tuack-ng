@@ -173,7 +173,7 @@ impl Runner for CppRunner {
         self.io_mode = io_mode;
     }
 
-    fn set_interactive(&mut self, grader_file: &PathBuf, header_file: &PathBuf) -> Result<()> {
+    fn set_interactive(&mut self, grader_file: &Path, header_file: &Path) -> Result<()> {
         self.interactive = true;
         self.grader_path = Some(grader_file.to_owned());
         self.header_path = Some(header_file.to_owned());

@@ -58,7 +58,7 @@ fn ren(
     manifest: &TemplateManifest,
     day_config: &ContestDayConfig,
     problem: Option<String>,
-    statements_dir: &PathBuf,
+    statements_dir: &Path,
     args: &RenArgs,
     is_contest_level: bool,
 ) -> Result<()> {
@@ -146,8 +146,8 @@ fn ren(
 
         // 解析题面同时展开模板, 移除注释
         let content = match render_template(
-            &re.replace_all(&fs::read_to_string(&statement_path)?, "")
-                .to_string(),
+            re.replace_all(&fs::read_to_string(&statement_path)?, "")
+                .as_ref(),
             problem_config,
             &day_to_render,
             config,
@@ -266,7 +266,7 @@ fn ren(
             let target = if output_filename.is_file() {
                 statements_dir.join(output_filename.file_name().unwrap())
             } else {
-                statements_dir.clone()
+                statements_dir.to_path_buf()
             };
             if output_filename.is_file() {
                 fs::copy(&source, &target)?;
@@ -303,7 +303,10 @@ pub fn main(args: RenArgs) -> Result<()> {
         dunce::canonicalize(Path::new("."))?.to_string_lossy()
     );
 
-    let Config { config, location: current_location } = gctx().config.as_ref().context("找不到配置文件")?;
+    let Config {
+        config,
+        location: current_location,
+    } = gctx().config.as_ref().context("找不到配置文件")?;
 
     let manifest_file = context::gctx().assets_dirs.iter().find(|dir| {
         let subdir = dir.join("templates").join(format!("{}.json", args.target));
@@ -368,9 +371,9 @@ pub fn main(args: RenArgs) -> Result<()> {
             for (day_count, (_day_name, day_config)) in config.subconfig.iter().enumerate() {
                 day_pb.set_message(format!("处理第 {}/{} 天", day_count, total_days));
                 ren(
-                    &config,
+                    config,
                     &manifest,
-                    &day_config,
+                    day_config,
                     None,
                     &statements_dir,
                     &args,
@@ -382,9 +385,9 @@ pub fn main(args: RenArgs) -> Result<()> {
         }
         CurrentLocation::Day(day) => {
             ren(
-                &config,
+                config,
                 &manifest,
-                &config.subconfig.get(day).unwrap(),
+                config.subconfig.get(day).unwrap(),
                 None,
                 &statements_dir,
                 &args,
@@ -393,9 +396,9 @@ pub fn main(args: RenArgs) -> Result<()> {
         }
         CurrentLocation::Problem(day, problem) => {
             ren(
-                &config,
+                config,
                 &manifest,
-                &config.subconfig.get(day).unwrap(),
+                config.subconfig.get(day).unwrap(),
                 Some(problem.to_string()),
                 &statements_dir,
                 &args,

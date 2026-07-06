@@ -42,17 +42,15 @@ fn build_row(
 
         let mut cell_node = if is_header { tr.th() } else { tr.td() };
 
-        if let Some(colspan) = col.colspan {
-            if colspan > 1 {
+        if let Some(colspan) = col.colspan
+            && colspan > 1 {
                 cell_node = cell_node.attr(&format!("colspan=\"{}\"", colspan));
             }
-        }
 
-        if let Some(rowspan) = col.rowspan {
-            if rowspan > 1 {
+        if let Some(rowspan) = col.rowspan
+            && rowspan > 1 {
                 cell_node = cell_node.attr(&format!("rowspan=\"{}\"", rowspan));
             }
-        }
 
         if let Some(align) = alignments.get(col_id) {
             let align_str = match align {

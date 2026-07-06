@@ -26,18 +26,18 @@ pub struct ContestConfigFile {
     pub file_io: Option<bool>,
 }
 
-impl Into<ContestConfigFile> for ContestConfig {
-    fn into(self) -> ContestConfigFile {
+impl From<ContestConfig> for ContestConfigFile {
+    fn from(val: ContestConfig) -> Self {
         ContestConfigFile {
-            version: self.version,
-            folder: self.folder,
-            name: self.name,
-            subdir: self.subdir,
-            title: self.title,
-            short_title: self.short_title,
-            use_pretest: self.use_pretest,
-            noi_style: self.noi_style,
-            file_io: self.file_io,
+            version: val.version,
+            folder: val.folder,
+            name: val.name,
+            subdir: val.subdir,
+            title: val.title,
+            short_title: val.short_title,
+            use_pretest: val.use_pretest,
+            noi_style: val.noi_style,
+            file_io: val.file_io,
         }
     }
 }

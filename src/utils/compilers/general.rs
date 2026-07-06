@@ -4,8 +4,8 @@ use tempfile::TempDir;
 use tokio::io::AsyncReadExt;
 use tokio::process::Command as TokioCommand;
 
-use crate::prelude::*;
 use crate::config::lang::Language;
+use crate::prelude::*;
 use crate::tuack_lib::utils::compiler::{IoMode, ResourceLimits, RunResult, RunnerManifest};
 use crate::utils::command::string_to_command;
 use crate::utils::process::ProcessSupervisor;
@@ -216,7 +216,7 @@ impl Runner for GeneralRunner {
         self.io_mode = io_mode;
     }
 
-    fn set_interactive(&mut self, _grader_file: &PathBuf, _header_file: &PathBuf) -> Result<()> {
+    fn set_interactive(&mut self, _grader_file: &Path, _header_file: &Path) -> Result<()> {
         unreachable!("通用运行器不支持交互");
     }
 

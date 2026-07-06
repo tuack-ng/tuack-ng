@@ -30,7 +30,7 @@ pub enum DevelopCommands {
 }
 
 fn sha256(src_path: &PathBuf) -> Result<String> {
-    let mut file = std::fs::File::open(&src_path)?;
+    let mut file = std::fs::File::open(src_path)?;
     let mut hasher = Sha256::new();
     std::io::copy(&mut file, &mut hasher)?;
     let hash = hasher.finalize();
@@ -206,7 +206,7 @@ fn wrap() -> Result<()> {
             if !manifest_path.exists() {
                 bail!("manifest 文件不存在: {:?}", manifest_path);
             }
-            fs::copy(manifest_path, &templates_path.join(name.clone() + ".json"))?;
+            fs::copy(manifest_path, templates_path.join(name.clone() + ".json"))?;
 
             let manifest_path = templates_path.join(name + ".json");
 

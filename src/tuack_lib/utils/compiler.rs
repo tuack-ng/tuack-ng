@@ -92,7 +92,7 @@ pub trait Runner: Send {
     /// 设置 IO 模式
     fn set_io_mode(&mut self, io_mode: IoMode);
     /// 设置交互
-    fn set_interactive(&mut self, grader_file: &PathBuf, header_file: &PathBuf) -> Result<()>;
+    fn set_interactive(&mut self, grader_file: &Path, header_file: &Path) -> Result<()>;
 
     /// 清理
     fn cleanup(&mut self) -> Result<()>;

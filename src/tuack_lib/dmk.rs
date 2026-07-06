@@ -140,8 +140,8 @@ pub async fn dmk(
     info!("找到生成器: {}", generator_path.display());
     info!("找到标程: {}", std_path.display());
 
-    if current_problem.problem_type == ProblemType::Interactive {
-        if runner.manifest().interactive {
+    if current_problem.problem_type == ProblemType::Interactive
+        && runner.manifest().interactive {
             let interactive = current_problem.interactive.as_ref().unwrap();
 
             let resolve_path = |path: &String| -> Result<PathBuf> {
@@ -167,7 +167,6 @@ pub async fn dmk(
 
             runner.set_interactive(&grader_path, &header_path)?;
         }
-    }
 
     let generator_path_clone = generator_path.clone();
 

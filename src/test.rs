@@ -455,7 +455,7 @@ pub async fn test_problem(
         {
             problem_status = ProblemStatus::Compiling;
         }
-        match {
+        let res = {
             if problem_config.problem_type == ProblemType::Interactive {
                 if runner.manifest().interactive {
                     let interactive = problem_config.interactive.as_ref().unwrap();
@@ -492,7 +492,7 @@ pub async fn test_problem(
                 }
             }
             runner.prepare()
-        } {
+        }; match res {
             Ok(_) => {
                 problem_status = ProblemStatus::Compiled;
             }
