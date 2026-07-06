@@ -81,7 +81,11 @@ struct SampleItem {
 pub struct V3Migrater;
 
 impl Migrater for V3Migrater {
-    fn migrate_contest(mut config: serde_json::Value) -> Result<serde_json::Value> {
+    fn metadata(&self) -> MigraterMetadata {
+        MigraterMetadata { force: false }
+    }
+
+    fn migrate_contest(&self, mut config: serde_json::Value) -> Result<serde_json::Value> {
         match config.as_object_mut() {
             Some(obj) => {
                 if obj.get("version").and_then(|v| v.as_u64()).is_some() {
@@ -95,7 +99,7 @@ impl Migrater for V3Migrater {
 
         Ok(config)
     }
-    fn migrate_day(mut config: serde_json::Value) -> Result<serde_json::Value> {
+    fn migrate_day(&self, mut config: serde_json::Value) -> Result<serde_json::Value> {
         match config.as_object_mut() {
             Some(obj) => {
                 if obj.get("version").and_then(|v| v.as_u64()).is_some() {
@@ -109,7 +113,7 @@ impl Migrater for V3Migrater {
 
         Ok(config)
     }
-    fn migrate_problem(mut config: serde_json::Value) -> Result<serde_json::Value> {
+    fn migrate_problem(&self, mut config: serde_json::Value) -> Result<serde_json::Value> {
         match config.as_object_mut() {
             Some(obj) => {
                 if obj.get("version").and_then(|v| v.as_u64()).is_some() {
@@ -121,9 +125,9 @@ impl Migrater for V3Migrater {
                         serde_json::from_value(array.clone()).context("配置无效")?;
 
                     for item in &mut items {
-                        item.dmk =
-                            item.manual
-                                .map(|m| if m { DmkConfig::Skip } else { DmkConfig::On });
+                        item.dmk = item
+                            .manual
+                            .map(|m| if m { DmkConfig::Skip } else { DmkConfig::On });
                     }
 
                     obj.insert("samples".to_string(), serde_json::to_value(items)?);

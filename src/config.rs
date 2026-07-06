@@ -125,8 +125,6 @@ pub fn load_config(ctx: &mut LoadContext, path: &Path) -> Result<Option<Config>>
 
     ctx.ret(); // contest
 
-    // println!("{}", ctx.render_tree());
-
     Ok(Some(Config { config, location }))
 }
 

@@ -1,9 +1,5 @@
 use crate::{
-    config::{
-        CONFIG_MIN_VERSION, CONFIG_VERSION,
-        migrate::{base::Migrater, v3::V3Migrater},
-        msgs::LoadContext,
-    },
+    config::{CONFIG_MIN_VERSION, CONFIG_VERSION, migrate::base::MIGRATERS, msgs::LoadContext},
     prelude::*,
 };
 use indexmap::IndexMap;
@@ -65,12 +61,10 @@ pub fn load_contest_config(ctx: &mut LoadContext, config_path: &Path) -> Result<
     let mut main_json_value: serde_json::Value = serde_json::from_str(&main_content)?;
 
     // 检查版本
-    let version = main_json_value
+    let mut version = main_json_value
         .get("version")
         .and_then(|v| v.as_u64())
         .context("配置文件缺少版本号")?;
-
-    // let mut migrated = false;
 
     if version < CONFIG_MIN_VERSION {
         bail!("配置文件版本过低，可能是 tuack 的配置文件。请迁移到 tuack-ng 配置文件格式再使用。");
@@ -80,17 +74,25 @@ pub fn load_contest_config(ctx: &mut LoadContext, config_path: &Path) -> Result<
         bail!("配置文件版本过高，可能是新版本的配置文件。请检查是否有新版本。");
     }
 
-    if version == 3 {
-        info!("正在迁移 V3 比赛配置文件");
-        main_json_value = V3Migrater::migrate_contest(main_json_value)?;
-        // migrated = true;
-        ctx.migrated = true;
+    while version < CONFIG_VERSION {
+        match MIGRATERS.get(&(version as i32)) {
+            Some(migrater) => {
+                if migrater.metadata().force && !ctx.force_migrate() {
+                    bail!(
+                        "配置文件已经过时且无法自动迁移。你需要使用 `tuack-ng conf migrate` 手动迁移。"
+                    )
+                } else {
+                    main_json_value = migrater.migrate_contest(main_json_value)?;
+                    version = main_json_value
+                        .get("version")
+                        .and_then(|v| v.as_u64())
+                        .context("配置文件缺少版本号")?;
+                    ctx.migrated = true;
+                }
+            }
+            None => bail!("不存在配置文件版本 {} 的迁移", version),
+        }
     }
-
-    // if migrated {
-    //     // TODO: 不应该在这里提示
-    //     msg_warn!("配置文件版本已经过时。使用 `tuack-ng conf migrate` 进行迁移。");
-    // }
 
     // 反序列化主配置
     let config: ContestConfigFile = serde_json::from_value(main_json_value)?;

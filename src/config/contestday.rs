@@ -1,5 +1,4 @@
-use crate::config::migrate::base::Migrater;
-use crate::config::migrate::v3::V3Migrater;
+use crate::config::migrate::base::MIGRATERS;
 use crate::config::msgs::LoadContext;
 use crate::config::{CONFIG_MIN_VERSION, CONFIG_VERSION};
 use crate::prelude::*;
@@ -67,7 +66,7 @@ pub fn load_day_config(ctx: &mut LoadContext, dayconfig_path: &Path) -> Result<C
     let day_content = fs::read_to_string(dayconfig_path)?;
     let mut day_json_value: serde_json::Value = serde_json::from_str(&day_content)?;
 
-    let version = day_json_value
+    let mut version = day_json_value
         .get("version")
         .and_then(|v| v.as_u64())
         .context("配置文件缺少版本号")?;
@@ -81,10 +80,33 @@ pub fn load_day_config(ctx: &mut LoadContext, dayconfig_path: &Path) -> Result<C
         bail!("配置文件版本过高，可能是新版本的配置文件。请检查是否有新版本。");
     }
 
-    if version == 3 {
-        info!("正在迁移 V3 天配置文件");
-        day_json_value = V3Migrater::migrate_day(day_json_value)?;
-        ctx.migrated = true;
+    let folder = day_json_value
+        .get("folder")
+        .and_then(|v| v.as_str())
+        .context("配置文件缺少 `folder` 字段")?;
+
+    if folder != "day" {
+        bail!("配置文件层级错误。预期 `day`，读到 `{}`", folder);
+    }
+
+    while version < CONFIG_VERSION {
+        match MIGRATERS.get(&(version as i32)) {
+            Some(migrater) => {
+                if migrater.metadata().force && !ctx.force_migrate() {
+                    bail!(
+                        "配置文件已经过时且无法自动迁移。你需要使用 `tuack-ng conf migrate` 手动迁移。"
+                    )
+                } else {
+                    day_json_value = migrater.migrate_day(day_json_value)?;
+                    version = day_json_value
+                        .get("version")
+                        .and_then(|v| v.as_u64())
+                        .context("配置文件缺少版本号")?;
+                    ctx.migrated = true;
+                }
+            }
+            None => bail!("不存在配置文件版本 {} 的迁移", version),
+        }
     }
 
     let dayconfig: ContestDayConfigFile = serde_json::from_value(day_json_value)?;

@@ -60,12 +60,8 @@ enum Commands {
 }
 
 async fn tuack_ng(cli: Cli) -> Result<()> {
-    // 生成补全文件时，有可能还没有全局配置文件亦或者不合法，所以可能会失败
-    // 因此，跳过初始化逻辑
-    if !matches!(cli.command, Commands::Gen(ref args)
-       if matches!(args.target, crate::generate::Targets::Complete(_)))
-    {
-        init::init(&{
+    init::init(
+        &{
             #[cfg(debug_assertions)]
             {
                 !cli.silent
@@ -74,9 +70,10 @@ async fn tuack_ng(cli: Cli) -> Result<()> {
             {
                 cli.verbose
             }
-        })?;
-        info!("booting up");
-    }
+        },
+        &cli,
+    )?;
+    info!("booting up");
 
     match cli.command {
         Commands::Ren(args) => ren::main(args),

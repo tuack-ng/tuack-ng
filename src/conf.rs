@@ -39,7 +39,7 @@ pub struct ConfValuesArgs {
 
 #[derive(Subcommand, Debug)]
 #[command(infer_subcommands = false)]
-enum Targets {
+pub enum Targets {
     /// 设置标题
     #[command(version)]
     Title(ConfValuesArgs),
@@ -62,7 +62,7 @@ enum Targets {
 pub struct ConfArgs {
     /// 目标对象
     #[command(subcommand)]
-    target: Targets,
+    pub target: Targets,
 }
 
 #[derive(Args, Debug, Clone)]
@@ -75,7 +75,12 @@ pub struct ConfCustomArgs {
     value: Vec<String>,
 }
 fn conf_title(args: &ConfValuesArgs) -> Result<()> {
-    match gctx().config.as_ref().context("没有找到有效的工程")?.location {
+    match gctx()
+        .config
+        .as_ref()
+        .context("没有找到有效的工程")?
+        .location
+    {
         CurrentLocation::Problem(_, _) => bail!("本命令不支持设置单个题目标题"),
         CurrentLocation::Day(ref day) => {
             let mut day_config = gctx()
@@ -119,7 +124,12 @@ fn conf_title(args: &ConfValuesArgs) -> Result<()> {
 }
 
 fn conf_time(args: &ConfValuesArgs) -> Result<()> {
-    match gctx().config.as_ref().context("没有找到有效的工程")?.location {
+    match gctx()
+        .config
+        .as_ref()
+        .context("没有找到有效的工程")?
+        .location
+    {
         CurrentLocation::Problem(_, _) => bail!("本命令不支持设置单个题目时间限制"),
         CurrentLocation::Day(ref day) => {
             let mut day_config = gctx()
@@ -147,7 +157,12 @@ fn conf_time(args: &ConfValuesArgs) -> Result<()> {
 }
 
 fn conf_length(args: &ConfValuesArgs) -> Result<()> {
-    match gctx().config.as_ref().context("没有找到有效的工程")?.location {
+    match gctx()
+        .config
+        .as_ref()
+        .context("没有找到有效的工程")?
+        .location
+    {
         CurrentLocation::Problem(_, _) => bail!("本命令不支持设置单个题目时间限制"),
         CurrentLocation::Root => {
             let mut config = gctx()
@@ -178,7 +193,12 @@ fn conf_length(args: &ConfValuesArgs) -> Result<()> {
 }
 
 fn conf_custom(args: &ConfCustomArgs) -> Result<()> {
-    match gctx().config.as_ref().context("没有找到有效的工程")?.location {
+    match gctx()
+        .config
+        .as_ref()
+        .context("没有找到有效的工程")?
+        .location
+    {
         CurrentLocation::Problem(_, _) => bail!("本命令不支持设置单个题目标题"),
         CurrentLocation::Day(ref day) => {
             let mut day_config = gctx()
@@ -236,7 +256,11 @@ fn conf_custom(args: &ConfCustomArgs) -> Result<()> {
 }
 
 fn conf_migrate() -> Result<()> {
-    let config = gctx().config.clone().context("没有找到有效的配置文件")?.config;
+    let config = gctx()
+        .config
+        .clone()
+        .context("没有找到有效的配置文件")?
+        .config;
     save_config(&config, &config.path)?;
     msg_info!("迁移完成！");
     Ok(())

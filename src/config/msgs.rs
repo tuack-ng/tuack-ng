@@ -106,6 +106,7 @@ pub struct LoadContext {
     pub root: LoadMessages,
     current_path: Vec<usize>,
     pub migrated: bool,
+    force_migrate: bool,
 }
 
 impl LoadContext {
@@ -122,7 +123,19 @@ impl LoadContext {
             root: LoadMessages::new(),
             current_path: Vec::new(),
             migrated: false,
+            force_migrate: false,
         }
+    }
+
+    pub fn new_force_migrate() -> Self {
+        Self {
+            force_migrate: true,
+            ..Self::new()
+        }
+    }
+
+    pub fn force_migrate(&self) -> bool {
+        self.force_migrate
     }
 
     pub fn enter(&mut self) {

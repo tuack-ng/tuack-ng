@@ -91,7 +91,7 @@ fn init_log(verbose: &bool) -> Result<MultiProgress> {
     Ok(multi)
 }
 
-fn init_context(multi: MultiProgress) -> Result<()> {
+fn init_context(multi: MultiProgress, migrating: bool, vaildating: bool) -> Result<()> {
     let home_dir = dirs::home_dir().context("无法获取 HOME 环境变量")?;
 
     debug!(
@@ -132,7 +132,11 @@ fn init_context(multi: MultiProgress) -> Result<()> {
         },
     ];
 
-    let mut ctx = LoadContext::new();
+    let mut ctx = if migrating {
+        LoadContext::new()
+    } else {
+        LoadContext::new_force_migrate()
+    };
 
     let config = match load_config(&mut ctx, Path::new(".")) {
         Ok(res) => {
@@ -141,7 +145,7 @@ fn init_context(multi: MultiProgress) -> Result<()> {
                 if ctx.migrated {
                     msg_warn!("配置文件版本已经过时。使用 `tuack-ng conf migrate` 进行迁移。");
                 }
-                if ctx.root.count() != 0 {
+                if ctx.root.count() != 0 && !vaildating {
                     msg_warn!(
                         "配置文件中发现了 {} 个问题。使用 `tuack-ng doc validate` 查看。",
                         ctx.root.count()
@@ -179,9 +183,30 @@ fn init_context(multi: MultiProgress) -> Result<()> {
     Ok(())
 }
 
-pub fn init(verbose: &bool) -> Result<()> {
+pub fn init(verbose: &bool, cli: &crate::Cli) -> Result<()> {
     let multi = init_log(verbose)?;
-    init_context(multi)?;
+    // 生成补全文件时，有可能还没有全局配置文件亦或者不合法，所以可能会失败
+    // 因此，跳过初始化逻辑
+    if !matches!(cli.command, crate::Commands::Gen(ref args)
+       if matches!(args.target, crate::generate::Targets::Complete(_)))
+    {
+        let migrating = if !matches!(cli.command, crate::Commands::Conf(ref args)
+       if matches!(args.target, crate::conf::Targets::Migrate))
+        {
+            true
+        } else {
+            false
+        };
+        let valdating = if !matches!(cli.command, crate::Commands::Doc(ref args)
+       if matches!(args.target, crate::doc::Targets::Validate))
+        {
+            true
+        } else {
+            false
+        };
+
+        init_context(multi, migrating, valdating)?;
+    }
     if !DEBUG {
         let verbose_value = *verbose;
         panic::set_hook(Box::new(move |panic_info| {
