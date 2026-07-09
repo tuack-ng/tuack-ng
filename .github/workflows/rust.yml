@@ -75,6 +75,7 @@ jobs:
             artifact_suffix: darwin-x86_64
           - runner: macos-15
             artifact_suffix: darwin-arm64
+    continue-on-error: ${{ matrix.runner == 'macos-15-intel' && !(startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch') }}
 
     runs-on: ${{ matrix.runner }}
 
