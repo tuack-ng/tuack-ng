@@ -330,7 +330,7 @@ fn gen_data(args: GenConfirmArgs) -> Result<()> {
                 msg_warn!("题目 {} 不存在 data 目录，跳过数据生成", problem.name);
                 continue;
             }
-            let mut datas_entrys = Vec::<String>::new();
+            let mut data_entries = Vec::<String>::new();
             for entry in fs::read_dir(&data_dir)? {
                 let entry = entry?;
                 let path = entry.path();
@@ -342,14 +342,14 @@ fn gen_data(args: GenConfirmArgs) -> Result<()> {
                     let output_path = data_dir.join(output_file.as_ref());
 
                     if output_path.exists() {
-                        datas_entrys.push(path.file_stem().unwrap().to_string_lossy().to_string());
+                        data_entries.push(path.file_stem().unwrap().to_string_lossy().to_string());
                     }
                 }
             }
-            datas_entrys.sort_by(|a, b| compare(a, b));
-            let count = datas_entrys.len() as u32;
+            data_entries.sort_by(|a, b| compare(a, b));
+            let count = data_entries.len() as u32;
 
-            let datas: Vec<DataItem> = datas_entrys
+            let data: Vec<DataItem> = data_entries
                 .into_iter()
                 .enumerate()
                 .map(|(id, name)| {
@@ -369,7 +369,7 @@ fn gen_data(args: GenConfirmArgs) -> Result<()> {
             let mut _ctx = LoadContext::new();
             let mut now_problem =
                 load_problem_config(&mut _ctx, &problem.path.join(CONFIG_FILE_NAME))?;
-            now_problem.orig_data = datas;
+            now_problem.orig_data = data;
             now_problem.orig_subtasks = subtasks;
 
             let updated_content = save_problem_config(&now_problem)?;
@@ -404,13 +404,13 @@ fn gen_sample(args: GenConfirmArgs) -> Result<()> {
                 continue;
             }
 
-            let data_dir = problem.path.join("sample");
-            if !data_dir.exists() {
+            let sample_dir = problem.path.join("sample");
+            if !sample_dir.exists() {
                 msg_warn!("题目 {} 不存在 sample 目录，跳过数据生成", problem.name);
                 continue;
             }
-            let mut datas_entrys = Vec::<String>::new();
-            for entry in fs::read_dir(&data_dir)? {
+            let mut sample_entries = Vec::<String>::new();
+            for entry in fs::read_dir(&sample_dir)? {
                 let entry = entry?;
                 let path = entry.path();
                 if path.is_file()
@@ -418,16 +418,17 @@ fn gen_sample(args: GenConfirmArgs) -> Result<()> {
                     && ext == "in"
                 {
                     let output_file = path.file_stem().unwrap().to_string_lossy() + ".ans";
-                    let output_path = data_dir.join(output_file.as_ref());
+                    let output_path = sample_dir.join(output_file.as_ref());
 
                     if output_path.exists() {
-                        datas_entrys.push(path.file_stem().unwrap().to_string_lossy().to_string());
+                        sample_entries
+                            .push(path.file_stem().unwrap().to_string_lossy().to_string());
                     }
                 }
             }
-            datas_entrys.sort_by(|a, b| compare(a, b));
+            sample_entries.sort_by(|a, b| compare(a, b));
 
-            let samples: Vec<SampleItem> = datas_entrys
+            let samples: Vec<SampleItem> = sample_entries
                 .into_iter()
                 .enumerate()
                 .map(|(id, name)| SampleItem {

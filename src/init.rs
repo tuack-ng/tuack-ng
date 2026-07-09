@@ -91,7 +91,7 @@ fn init_log(verbose: &bool) -> Result<MultiProgress> {
     Ok(multi)
 }
 
-fn init_context(multi: MultiProgress, migrating: bool, vaildating: bool) -> Result<()> {
+fn init_context(multi: MultiProgress, migrating: bool, validating: bool) -> Result<()> {
     let home_dir = dirs::home_dir().context("无法获取 HOME 环境变量")?;
 
     debug!(
@@ -150,7 +150,7 @@ fn init_context(multi: MultiProgress, migrating: bool, vaildating: bool) -> Resu
                         msg_warn!("来自从 {} 版本迁移到 {} 版本的信息：{}", from, to, message);
                     }
                 }
-                if ctx.root.count() != 0 && !vaildating {
+                if ctx.root.count() != 0 && !validating {
                     msg_warn!(
                         "配置文件中发现了 {} 个问题。使用 `tuack-ng doc validate` 查看。",
                         ctx.root.count()
@@ -202,7 +202,7 @@ pub fn init(verbose: &bool, cli: &crate::Cli) -> Result<()> {
         } else {
             false
         };
-        let valdating = if !matches!(cli.command, crate::Commands::Doc(ref args)
+        let validating = if !matches!(cli.command, crate::Commands::Doc(ref args)
        if matches!(args.target, crate::doc::Targets::Validate))
         {
             true
@@ -210,7 +210,7 @@ pub fn init(verbose: &bool, cli: &crate::Cli) -> Result<()> {
             false
         };
 
-        init_context(multi, migrating, valdating)?;
+        init_context(multi, migrating, validating)?;
     }
     if !DEBUG {
         let verbose_value = *verbose;
