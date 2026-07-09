@@ -1,16 +1,6 @@
 use crate::prelude::*;
+pub use crate::tuack_lib::utils::testlib::JudgeResult;
 use quick_xml::de::from_str;
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum JudgeResult {
-    /// 标准结果类型
-    Accepted,
-    WrongAnswer,
-    PresentationError,
-    Fail,
-    /// 部分正确或得分结果，统一表示为 0-100 的分数
-    Score(f64),
-}
 
 #[derive(Debug, Deserialize, PartialEq)]
 struct XmlResult {
@@ -24,6 +14,7 @@ struct XmlResult {
     text: Option<String>,
 }
 
+/// 解析 testlib checker 的 XML 结果
 pub fn parse_result(xml_str: &str) -> Result<(JudgeResult, String)> {
     let xml_str = xml_str.trim();
     let xml_result: XmlResult = from_str(xml_str)?;
@@ -50,7 +41,6 @@ pub fn parse_result(xml_str: &str) -> Result<(JudgeResult, String)> {
 }
 
 fn parse_score_value(attr_value: &Option<String>) -> Result<f64> {
-    //从属性获取
     if let Some(value_str) = attr_value {
         return value_str
             .parse::<f64>()

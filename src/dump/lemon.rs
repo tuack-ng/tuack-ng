@@ -123,22 +123,21 @@ pub fn main(day: &ContestDayConfig) -> Result<()> {
             }
         }
 
-        if prob.use_chk.unwrap_or(false) {
+        if let Some(checker) = &prob.checker {
             info!("尝试编译 SPJ");
 
-            let chk_path = prob.path.join("data").join("chk").join("chk.cpp");
+            let chk_path = prob.path.join(&checker.data.source);
             if !chk_path.exists() {
-                bail!("chk 文件不存在");
+                bail!("checker 文件不存在: {}", chk_path.display());
             }
+            let chk_out = output_dir
+                .join("data")
+                .join(&prob.name)
+                .join("chk")
+                .with_extension(std::env::consts::EXE_EXTENSION);
             let compile_status = Command::new("g++")
                 .arg("-o")
-                .arg(
-                    output_dir
-                        .join("data")
-                        .join(&prob.name)
-                        .join("chk")
-                        .with_extension(std::env::consts::EXE_EXTENSION),
-                )
+                .arg(&chk_out)
                 .arg(&chk_path)
                 .arg("-O2")
                 .arg("-std=c++23")
@@ -166,7 +165,7 @@ pub fn main(day: &ContestDayConfig) -> Result<()> {
 
         let prob_json = LemonProblem {
             answer_file_extension: "out".to_string(),
-            comparison_mode: if prob.use_chk.unwrap_or(false) { 4 } else { 1 },
+            comparison_mode: if prob.checker.is_some() { 4 } else { 1 },
             special_judge: PathBuf::from(prob_name)
                 .join("chk")
                 .with_extension(std::env::consts::EXE_EXTENSION),

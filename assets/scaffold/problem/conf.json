@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 6,
   "folder": "problem",
   "type": "program",
   "name": "题目英文名称",
@@ -40,5 +40,5 @@
     "0": "sum"
   },
   "tests": {},
-  "use-chk": false
+  "checker": null
 }

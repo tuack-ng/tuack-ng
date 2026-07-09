@@ -1,3 +1,4 @@
+pub mod checkers;
 pub mod command;
 pub mod compilers;
 pub mod duration;

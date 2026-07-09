@@ -132,22 +132,26 @@ fn arbiter_main_day(day: &ContestDayConfig, daynum: usize, main_dir: &Path) -> R
         }
 
         // Checker
-        let chk_cpp = prob.path.join("data").join("chk").join("chk.cpp");
         let filter_path = main_dir.join("filter").join(format!("{}_e", prob.name));
 
-        if prob.use_chk.unwrap_or(false) && chk_cpp.exists() {
-            info!("发现 chk，尝试编译。");
-            let status = Command::new("g++")
-                .arg(&chk_cpp)
-                .arg("-o")
-                .arg(&filter_path)
-                .arg("-O2")
-                .arg("-std=c++17")
-                .status()
-                .context("执行 g++ 失败")?;
+        if let Some(checker) = &prob.checker {
+            let chk_cpp = prob.path.join(&checker.data.source);
+            if chk_cpp.exists() {
+                info!("发现 chk，尝试编译。");
+                let status = Command::new("g++")
+                    .arg(&chk_cpp)
+                    .arg("-o")
+                    .arg(&filter_path)
+                    .arg("-O2")
+                    .arg("-std=c++17")
+                    .status()
+                    .context("执行 g++ 失败")?;
 
-            if !status.success() {
-                msg_warn!("chk 编译失败，请手动处理: {}", chk_cpp.display());
+                if !status.success() {
+                    msg_warn!("chk 编译失败，请手动处理: {}", chk_cpp.display());
+                }
+            } else {
+                msg_warn!("checker 源文件不存在: {}", chk_cpp.display());
             }
         } else {
             // 从 assets 中复制默认的 arbiter_e 可执行文件（如果有）

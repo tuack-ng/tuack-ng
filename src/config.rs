@@ -3,7 +3,7 @@ use crate::prelude::*;
 
 pub const CONFIG_FILE_NAME: &str = "conf.json";
 
-pub const CONFIG_VERSION: u64 = 5;
+pub const CONFIG_VERSION: u64 = 6;
 pub const CONFIG_MIN_VERSION: u64 = 3;
 
 pub mod contest;

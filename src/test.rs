@@ -1,4 +1,3 @@
-use std::process::{Command, Stdio};
 use std::str::FromStr;
 use std::time::Duration;
 
@@ -8,17 +7,16 @@ use colored::Colorize;
 use csv::Writer;
 use evalexpr::eval_boolean;
 use indicatif::ProgressBar;
-use tempfile::NamedTempFile;
 
 use crate::config::ExpandedDataItem;
 use crate::config::ScorePolicy;
 use crate::prelude::*;
-use crate::test::checker::parse_result;
+use crate::tuack_lib::utils::testlib::Checker;
+use crate::tuack_lib::utils::testlib::JudgeResult;
+use crate::utils::checkers::{cpp::CppChecker, prebuilt::PrebuiltChecker};
 use crate::utils::compilers::cpp::CppRunner;
 use crate::utils::compilers::general::*;
 use crate::utils::duration::format_duration;
-
-pub mod checker;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum Target {
@@ -86,6 +84,7 @@ async fn run_test_case(
     problem_config: &ProblemConfig,
     case: &Arc<ExpandedDataItem>,
     data_dir: &str,
+    checker: Option<&dyn Checker>,
 ) -> Result<(TestCaseStatus, Option<Duration>, Option<ByteSize>)> {
     let problem_name = &problem_config.name;
     let file_io = problem_config.file_io.unwrap_or(true);
@@ -111,7 +110,9 @@ async fn run_test_case(
     let run_result = runner.execute().await?;
 
     let case_status = match run_result.status {
-        RunStatus::Success => validate_output(&run_result.output, problem_config, case, data_dir)?,
+        RunStatus::Success => {
+            validate_output(&run_result.output, problem_config, case, data_dir, checker)?
+        }
         RunStatus::NonZeroExit(_) => TestCaseStatus::RE,
         RunStatus::TimeLimitExceeded => TestCaseStatus::TLE,
         RunStatus::MemoryLimitExceeded => TestCaseStatus::MLE,
@@ -130,9 +131,8 @@ fn validate_output(
     problem_config: &ProblemConfig,
     case: &Arc<ExpandedDataItem>,
     data_dir: &str,
+    checker: Option<&dyn Checker>,
 ) -> Result<TestCaseStatus> {
-    use std::process::{Command, Stdio};
-
     let input_path = problem_config.path.join(data_dir).join(&case.input);
     let answer_path = problem_config.path.join(data_dir).join(&case.output);
 
@@ -140,78 +140,43 @@ fn validate_output(
         return Ok(TestCaseStatus::WA);
     }
 
-    let spj = if problem_config.use_chk.unwrap_or(false) {
-        let chk_dir = problem_config.path.join("data").join("chk");
-        match data_dir {
-            "sample" => {
-                let sample_chk = chk_dir.join("chk_sample");
-                if sample_chk.exists() {
-                    Some(sample_chk)
-                } else {
-                    Some(chk_dir.join("chk"))
-                }
-            }
-            _ => Some(chk_dir.join("chk")),
+    let result = match checker {
+        Some(chk) => chk.validate(&input_path, output, &answer_path),
+        None => {
+            let default_binary = gctx()
+                .assets_dirs
+                .iter()
+                .find_map(|dir| {
+                    dir.join("checkers")
+                        .join("normal")
+                        .exists()
+                        .then(|| dir.join("checkers").join("normal"))
+                })
+                .unwrap_or_else(|| gctx().assets_dirs[0].join("checkers").join("normal"));
+            let pchk = PrebuiltChecker::new(default_binary);
+            pchk.validate(&input_path, output, &answer_path)
         }
-    } else {
-        None
     };
 
-    let checker_path = match spj {
-        Some(spj_path) => spj_path,
-        None => gctx()
-            .assets_dirs
-            .iter()
-            .find_map(|dir| {
-                dir.join("checkers")
-                    .join("normal")
-                    .exists()
-                    .then(|| dir.join("checkers").join("normal"))
-            })
-            .unwrap_or_else(|| gctx().assets_dirs[0].join("checkers").join("normal")),
-    };
-
-    let res_path = NamedTempFile::with_prefix("tuack-ng-test-res-")?;
-    let output_path = NamedTempFile::with_prefix("tuack-ng-test-out-")?;
-    fs::write(&output_path, output)?;
-
-    let _validate = Command::new(&checker_path)
-        .arg(&input_path)
-        .arg(output_path.path())
-        .arg(&answer_path)
-        .arg(res_path.path())
-        .arg("-appes")
-        .stderr(Stdio::null())
-        .stdout(Stdio::null())
-        .status()?;
-
-    let res_content = match fs::read_to_string(res_path) {
-        Ok(content) => content,
+    let (judge_result, message) = match result {
+        Ok(value) => value,
         Err(e) => {
-            msg_warn!("无法读取校验器结果文件: {}", e);
+            msg_warn!("Checker 执行失败: {}", e);
             return Ok(TestCaseStatus::UKE);
         }
     };
 
-    let res = match parse_result(&res_content) {
-        Ok(value) => value,
-        Err(e) => {
-            msg_warn!("无法解析校验器结果: {:?}", e);
-            (checker::JudgeResult::Fail, "无法解析校验器结果".into())
-        }
-    };
+    info!("测试点信息: {}", message.trim());
 
-    info!("测试点信息: {}", res.1.trim());
-
-    match res.0 {
-        checker::JudgeResult::Accepted => Ok(TestCaseStatus::AC),
-        checker::JudgeResult::WrongAnswer => Ok(TestCaseStatus::WA),
-        checker::JudgeResult::PresentationError => Ok(TestCaseStatus::WA),
-        checker::JudgeResult::Fail => {
+    match judge_result {
+        JudgeResult::Accepted => Ok(TestCaseStatus::AC),
+        JudgeResult::WrongAnswer => Ok(TestCaseStatus::WA),
+        JudgeResult::PresentationError => Ok(TestCaseStatus::WA),
+        JudgeResult::Fail => {
             msg_warn!("SPJ 执行失败，请检查 SPJ、标程和输入输出");
             Ok(TestCaseStatus::UKE)
         }
-        checker::JudgeResult::Score(score) => Ok(TestCaseStatus::PC(score)),
+        JudgeResult::Score(score) => Ok(TestCaseStatus::PC(score)),
     }
 }
 
@@ -310,73 +275,74 @@ pub async fn test_problem(
 
     let is_sample = matches!(target, Target::Sample);
 
-    // 编译 SPJ
-    if let Some(use_chk) = problem_config.use_chk
-        && use_chk
-    {
-        if is_sample {
-            let chk_cpp = problem_config
-                .path
-                .join("data")
-                .join("chk")
-                .join("chk_sample.cpp");
-            if chk_cpp.exists() {
-                let compile_pb = gctx().multiprogress.add(ProgressBar::new_spinner());
-                compile_pb.enable_steady_tick(Duration::from_millis(100));
-                compile_pb.set_message(format!("编译 {} 题目的样例 SPJ", problem_config.name));
+    // 准备 Checker
+    let checker: Option<Box<dyn Checker>> = match &problem_config.checker {
+        Some(pair) => {
+            let chk_config = if is_sample {
+                pair.sample.as_ref().unwrap_or(&pair.data)
+            } else {
+                &pair.data
+            };
 
-                let chk_bin = problem_config
-                    .path
-                    .join("data")
-                    .join("chk")
-                    .join("chk_sample");
-                let compile_output = Command::new("g++")
-                    .arg("-o")
-                    .arg(&chk_bin)
-                    .arg(&chk_cpp)
-                    .arg("-O2")
-                    .arg("-std=c++23")
-                    .stdout(Stdio::null())
-                    .stderr(Stdio::piped())
-                    .output()?;
-                if !compile_output.status.success() {
-                    msg_warn!(
-                        "题目 {} 的样例 Checker 编译失败",
-                        problem_config.name.magenta()
-                    );
-                    msg_warn!("{}", String::from_utf8_lossy(&compile_output.stderr));
-                    return Ok(());
-                }
-                compile_pb.finish_and_clear();
-            }
-        } else {
-            let compile_pb = gctx().multiprogress.add(ProgressBar::new_spinner());
-            compile_pb.enable_steady_tick(Duration::from_millis(100));
-            compile_pb.set_message(format!("编译 {} 题目的 spj", problem_config.name));
+            let resolve = |path: &str| problem_config.path.join(path);
+            let source_path = resolve(&chk_config.source);
 
-            let chk_path = problem_config.path.join("data").join("chk").join("chk.cpp");
-            if !chk_path.exists() {
+            if !source_path.exists() {
                 msg_warn!("题目 {} 的 Checker 不存在", problem_config.name.magenta());
                 return Ok(());
             }
 
-            let compile_output = Command::new("g++")
-                .arg("-o")
-                .arg(problem_config.path.join("data").join("chk").join("chk"))
-                .arg(&chk_path)
-                .arg("-O2")
-                .arg("-std=c++23")
-                .stdout(Stdio::null())
-                .stderr(Stdio::piped())
-                .output()?;
-            if !compile_output.status.success() {
+            let mut deps: HashMap<String, Vec<u8>> = HashMap::new();
+            for dep_path in &chk_config.deps {
+                let abs = resolve(dep_path);
+                let content = match fs::read(&abs) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        msg_warn!(
+                            "题目 {} 的 Checker 依赖读取失败: {}",
+                            problem_config.name.magenta(),
+                            e
+                        );
+                        return Ok(());
+                    }
+                };
+                let name = dep_path
+                    .split('/')
+                    .next_back()
+                    .unwrap_or(dep_path)
+                    .to_string();
+                deps.insert(name, content);
+            }
+
+            let compile_pb = gctx().multiprogress.add(ProgressBar::new_spinner());
+            compile_pb.enable_steady_tick(Duration::from_millis(100));
+            compile_pb.set_message(format!("编译 {} 题目的 Checker", problem_config.name));
+
+            let mut cpp_checker = match CppChecker::new(&source_path, &HashMap::new(), "chk", deps)
+            {
+                Ok(c) => c,
+                Err(e) => {
+                    msg_warn!(
+                        "题目 {} 的 Checker 初始化失败: {}",
+                        problem_config.name.magenta(),
+                        e
+                    );
+                    return Ok(());
+                }
+            };
+
+            if let Err(e) = cpp_checker.prepare() {
                 msg_warn!("题目 {} 的 Checker 编译失败", problem_config.name.magenta());
-                msg_warn!("{}", String::from_utf8_lossy(&compile_output.stderr));
+                msg_warn!("{}", e);
+                compile_pb.finish_and_clear();
                 return Ok(());
             }
+
             compile_pb.finish_and_clear();
+            Some(Box::new(cpp_checker) as Box<dyn Checker>)
         }
-    }
+        None => None,
+    };
 
     // 测试进度条
     let test_pb = gctx()
@@ -537,7 +503,14 @@ pub async fn test_problem(
                 case_count += 1;
                 info!("运行测试点: {}", case.id);
 
-                let run_result = run_test_case(&mut runner, problem_config, case, data_dir).await?;
+                let run_result = run_test_case(
+                    &mut runner,
+                    problem_config,
+                    case,
+                    data_dir,
+                    checker.as_deref(),
+                )
+                .await?;
                 let case_status = run_result.0;
                 info!("测试点结果: {:?}", case_status);
 

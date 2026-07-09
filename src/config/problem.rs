@@ -30,6 +30,28 @@ pub struct GeneratorConfigPair {
     pub sample: Option<GeneratorConfig>,
 }
 
+/// Checker 配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct CheckerConfig {
+    /// Checker 源文件路径（相对于题目目录）
+    pub source: String,
+    /// 依赖文件列表（相对于题目目录）
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub deps: Vec<String>,
+}
+
+/// Checker 配置对（data / sample）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct CheckerConfigPair {
+    /// 正式数据 Checker
+    pub data: CheckerConfig,
+    /// 样例数据 Checker，为 null 时使用 data
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sample: Option<CheckerConfig>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct ProblemConfigFile {
@@ -76,9 +98,9 @@ pub struct ProblemConfigFile {
     /// 测试用例
     #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
     pub tests: IndexMap<String, TestCase>,
-    /// 是否有 SPJ
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub use_chk: Option<bool>,
+    /// Checker 配置
+    #[serde(default)]
+    pub checker: Option<CheckerConfigPair>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -118,8 +140,8 @@ pub struct ProblemConfig {
     pub orig_subtasks: BTreeMap<u32, ScorePolicy>,
     /// 测试用例
     pub tests: IndexMap<String, TestCase>,
-    /// 是否有 SPJ
-    pub use_chk: Option<bool>,
+    /// Checker 配置
+    pub checker: Option<CheckerConfigPair>,
 
     /// 是否有 pretest，目前没有用途
     pub use_pretest: Option<bool>,
@@ -157,7 +179,7 @@ impl From<ProblemConfig> for ProblemConfigFile {
             data: config.orig_data,
             subtasks: config.orig_subtasks,
             tests: config.tests,
-            use_chk: config.use_chk,
+            checker: config.checker,
         }
     }
 }
@@ -376,7 +398,10 @@ pub fn load_problem_config(
                     )
                 } else {
                     let from_ver = version as i32;
-                    problem_json_value = migrater.migrate_problem(problem_json_value, problemconfig_path.parent().unwrap())?;
+                    problem_json_value = migrater.migrate_problem(
+                        problem_json_value,
+                        problemconfig_path.parent().unwrap(),
+                    )?;
                     ctx.migrated = true;
                     version = problem_json_value
                         .get("version")
@@ -501,7 +526,7 @@ pub fn load_problem_config(
         orig_data: problemconfig.data,
         orig_subtasks: problemconfig.subtasks,
         tests: problemconfig.tests,
-        use_chk: problemconfig.use_chk,
+        checker: problemconfig.checker,
         use_pretest: None,
         noi_style: None,
         file_io: None,
