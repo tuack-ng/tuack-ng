@@ -22,21 +22,19 @@ const DEBUG: bool = true;
 const DEBUG: bool = false;
 
 fn custom_panic_handler(panic_info: &PanicHookInfo, verbose: bool) {
-    let prefix = || "PANIC".bright_red().bold().on_black();
-
     macro_rules! panic_log {
         ($($arg:tt)*) => {
             if verbose {
                 eprintln!("{} | {} | {}",
                 Local::now().format("%Y-%m-%d %H:%M:%S"),
-                prefix(), format!($($arg)*));
+                "PANIC".bright_red().bold(), format!($($arg)*));
             }else{
-                eprintln!("{} | {}", prefix(), format!($($arg)*));
+                eprintln!("{} {}", "!!!".bright_red().bold(), format!($($arg)*));
             }
         };
     }
 
-    panic_log!("程序发生了无法挽回的异常，即将退出");
+    panic_log!("程序发生了无法挽回的异常 (Panic)，即将退出");
     panic_log!("如果你想要报告这个问题，请保留以下信息：");
 
     if let Some(location) = panic_info.location() {
@@ -189,6 +187,12 @@ fn init_context(multi: MultiProgress, migrating: bool, validating: bool) -> Resu
 }
 
 pub fn init(verbose: &bool, cli: &crate::Cli) -> Result<()> {
+    if !DEBUG {
+        let verbose_value = *verbose;
+        panic::set_hook(Box::new(move |panic_info| {
+            custom_panic_handler(panic_info, verbose_value);
+        }));
+    }
     let multi = init_log(verbose)?;
     // 生成补全文件时，有可能还没有全局配置文件亦或者不合法，所以可能会失败
     // 因此，跳过初始化逻辑
@@ -211,12 +215,6 @@ pub fn init(verbose: &bool, cli: &crate::Cli) -> Result<()> {
         };
 
         init_context(multi, migrating, validating)?;
-    }
-    if !DEBUG {
-        let verbose_value = *verbose;
-        panic::set_hook(Box::new(move |panic_info| {
-            custom_panic_handler(panic_info, verbose_value);
-        }));
     }
     Ok(())
 }
