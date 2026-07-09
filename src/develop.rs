@@ -131,7 +131,7 @@ fn unwrap() -> Result<()> {
     let store_path = templates_path.join("store");
 
     if !store_path.exists() {
-        bail!("store 文件夹不存在: {:?}", store_path);
+        bail!("store 文件夹不存在：{:?}", store_path);
     }
 
     create_or_clear_dir(&unwrapped_path)?;
@@ -165,7 +165,7 @@ fn unwrap() -> Result<()> {
                 if source_file.exists() {
                     fs::copy(&source_file, &target_file)?;
                 } else {
-                    bail!("store 中找不到文件: {} (名称: {})", relative_path, sha256);
+                    bail!("store 中找不到文件：{} (名称：{})", relative_path, sha256);
                 }
             }
 
@@ -188,7 +188,7 @@ fn wrap() -> Result<()> {
     let store_path = templates_path.join("store");
 
     if !unwrapped_path.exists() {
-        bail!("unwrapped 文件夹不存在: {:?}", unwrapped_path);
+        bail!("unwrapped 文件夹不存在：{:?}", unwrapped_path);
     }
 
     create_or_clear_dir(&store_path)?;
@@ -204,7 +204,7 @@ fn wrap() -> Result<()> {
             msg_progress!("包装 {} 文件夹", name.bold());
             let manifest_path = entry_path.join("manifest.json");
             if !manifest_path.exists() {
-                bail!("manifest 文件不存在: {:?}", manifest_path);
+                bail!("manifest 文件不存在：{:?}", manifest_path);
             }
             fs::copy(manifest_path, templates_path.join(name.clone() + ".json"))?;
 

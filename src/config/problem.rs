@@ -506,7 +506,7 @@ pub fn load_problem_config(
 
     if problemconfig.problem_type == ProblemType::Interactive && problemconfig.interactive.is_none()
     {
-        bail!("交互题目需要配置交互(interactive)");
+        bail!("交互题目需要配置交互 (interactive)");
     }
 
     Ok(ProblemConfig {
@@ -539,7 +539,7 @@ pub fn load_problem_config(
     })
 }
 
-/// 将题目配置序列化为JSON字符串
+/// 将题目配置序列化为 JSON 字符串
 pub fn save_problem_config(config: &ProblemConfig) -> Result<String> {
     let config_file: ProblemConfigFile = config.clone().into();
     let json = serde_json::to_string_pretty(&config_file)?;

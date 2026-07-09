@@ -132,7 +132,7 @@ impl SamplesShouldBeExternal {
                     _ => unreachable!(),
                 };
 
-                debug!("找到应该被提取的样例, id: {}", index);
+                debug!("找到应该被提取的样例，id: {}", index);
 
                 let input_code = match &queue[1] {
                     Block::CodeBlock(cb) => cb.literal.clone(),

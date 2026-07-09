@@ -183,13 +183,13 @@ pub fn parse_test_object(
 
             let start = start_str
                 .parse::<u32>()
-                .with_context(|| format!("无效的起始ID: {}", start_str))?;
+                .with_context(|| format!("无效的起始 ID: {}", start_str))?;
             let end = end_str
                 .parse::<u32>()
-                .with_context(|| anyhow!("无效的结束ID: {}", end_str))?;
+                .with_context(|| anyhow!("无效的结束 ID: {}", end_str))?;
 
             if start > end {
-                bail!("起始ID不能大于结束ID: {}", part);
+                bail!("起始 ID 不能大于结束 ID: {}", part);
             }
 
             // 遍历查找在范围内的测试点
@@ -201,7 +201,7 @@ pub fn parse_test_object(
         } else {
             let id = part
                 .parse::<u32>()
-                .with_context(|| anyhow!("无效的测试点ID: {}", part))?;
+                .with_context(|| anyhow!("无效的测试点 ID: {}", part))?;
 
             // 遍历查找匹配的测试点
             if let Some(item) = all_items.iter().find(|item| item.id == id) {
@@ -245,12 +245,12 @@ pub async fn main(args: DmkArgs) -> Result<()> {
                 .config
                 .subconfig
                 .get(day)
-                .context(format!("无法获取天配置: {}", day))?;
+                .context(format!("无法获取天配置：{}", day))?;
 
             let problem_config = day_config
                 .subconfig
                 .get(prog)
-                .context(format!("无法获取题目配置: {}/{}", day, prog))?;
+                .context(format!("无法获取题目配置：{}/{}", day, prog))?;
 
             (problem_config, day_config)
         } else {
@@ -300,7 +300,7 @@ pub async fn main(args: DmkArgs) -> Result<()> {
     for dep_path in &generator_config.deps {
         let abs = resolve(dep_path);
         let content = std::fs::read(&abs)
-            .with_context(|| format!("读取依赖文件失败: {}", abs.display()))?;
+            .with_context(|| format!("读取依赖文件失败：{}", abs.display()))?;
         let name = dep_path
             .split('/')
             .last()

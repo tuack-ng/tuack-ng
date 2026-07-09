@@ -23,7 +23,7 @@ fn find_contest_config(start_path: &Path) -> Result<PathBuf> {
     let start = dunce::canonicalize(start_path)?;
 
     for ancestor in start.ancestors() {
-        debug!("正在查找配置文件路径: {:?}", ancestor);
+        debug!("正在查找配置文件路径：{:?}", ancestor);
 
         let config_path = ancestor.join(CONFIG_FILE_NAME);
         if config_path.exists() && is_contest_config(&config_path)? {

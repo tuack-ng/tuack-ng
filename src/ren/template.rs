@@ -26,7 +26,7 @@ fn handle_sample(
     problem: &ProblemConfig,
     base_path: &Path,
 ) -> Result<String, minijinja::Error> {
-    debug!("处理 sample 函数: {}", sample_id);
+    debug!("处理 sample 函数：{}", sample_id);
 
     // 查找样例
     let sample_item = match problem.samples.iter().find(|s| s.id == sample_id) {
@@ -44,7 +44,7 @@ fn handle_sample(
         }
     };
 
-    // 构建Markdown
+    // 构建 Markdown
     let mut md = String::new();
 
     // 输入部分
@@ -64,7 +64,7 @@ fn handle_sample(
                 md.push_str("```\n\n");
             }
             Err(e) => {
-                msg_error!("读取输入文件失败: {:?} -> {}", input_path, e);
+                msg_error!("读取输入文件失败：{:?} -> {}", input_path, e);
                 return Err(minijinja::Error::new(
                     minijinja::ErrorKind::InvalidOperation,
                     format!("读取输入文件失败 {}", e),
@@ -95,7 +95,7 @@ fn handle_sample(
                 md.push_str("```\n");
             }
             Err(e) => {
-                msg_error!("读取输出文件失败: {:?} -> {}", output_path, e);
+                msg_error!("读取输出文件失败：{:?} -> {}", output_path, e);
                 return Err(minijinja::Error::new(
                     minijinja::ErrorKind::InvalidOperation,
                     format!("读取输出文件失败 {}", e),
@@ -109,13 +109,13 @@ fn handle_sample(
         ));
     }
 
-    debug!("成功生成样例 {} 的Markdown", sample_id);
+    debug!("成功生成样例 {} 的 Markdown", sample_id);
     Ok(md)
 }
 
 /// 处理 sample_file 函数
 fn handle_sample_file(sample_id: u32, problem: &ProblemConfig) -> Result<String, minijinja::Error> {
-    debug!("处理 sample_file 函数: {}", sample_id);
+    debug!("处理 sample_file 函数：{}", sample_id);
 
     // 检查样例是否存在
     if !problem.samples.iter().any(|s| s.id == sample_id) {
@@ -131,11 +131,11 @@ fn handle_sample_file(sample_id: u32, problem: &ProblemConfig) -> Result<String,
         problem.name, sample_id
     );
 
-    debug!("生成文件引用: sample_file({}) -> {}", sample_id, text);
+    debug!("生成文件引用：sample_file({}) -> {}", sample_id, text);
     Ok(text)
 }
 
-/// 计算一个数的以10为底的对数的整数部分
+/// 计算一个数的以 10 为底的对数的整数部分
 ///
 /// # 参数
 /// - `num`: f64 - 要计算的数字

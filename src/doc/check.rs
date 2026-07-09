@@ -60,7 +60,7 @@ fn print_messages(messages: CheckResult, path: &Path, checker: &dyn CheckRule) {
                         && let Some(line) = message.line
                     {
                         msg_warn!(
-                            "在 {}:{},{} 等级 {}, 消息: {}",
+                            "在 {}:{},{} 等级 {}, 消息：{}",
                             format!(
                                 "{}",
                                 path.strip_prefix(&gctx().config.as_ref().unwrap().config.path)
@@ -78,7 +78,7 @@ fn print_messages(messages: CheckResult, path: &Path, checker: &dyn CheckRule) {
                         )
                     } else {
                         msg_warn!(
-                            "在 {} 等级 {}, 消息: {}",
+                            "在 {} 等级 {}, 消息：{}",
                             format!(
                                 "{}",
                                 path.strip_prefix(&gctx().config.as_ref().unwrap().config.path)

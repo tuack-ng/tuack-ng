@@ -41,7 +41,7 @@ fn compiler_for_lang(lang: &str) -> Result<&'static str> {
         .iter()
         .find(|(k, _)| *k == lang)
         .map(|(_, v)| *v)
-        .ok_or_else(|| anyhow!("不支持的语言: {lang}"))
+        .ok_or_else(|| anyhow!("不支持的语言：{lang}"))
 }
 
 fn case_rel_path(prob_name: &str, case_id: u32, ext: &str) -> String {
@@ -128,7 +128,7 @@ pub fn main(day: &ContestDayConfig) -> Result<()> {
 
             let chk_path = prob.path.join(&checker.data.source);
             if !chk_path.exists() {
-                bail!("checker 文件不存在: {}", chk_path.display());
+                bail!("checker 文件不存在：{}", chk_path.display());
             }
             let chk_out = output_dir
                 .join("data")
@@ -191,7 +191,7 @@ pub fn main(day: &ContestDayConfig) -> Result<()> {
     fs::write(cdf_file, serde_json::to_string_pretty(&day_cdf)?)?;
 
     msg_warn!("受 Lemon 限制，您需要手动调整编译选项。");
-    msg_warn!("目前设置是默认(default)，如需要请自行修改。");
+    msg_warn!("目前设置是默认 (default)，如需要请自行修改。");
 
     Ok(())
 }

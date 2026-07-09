@@ -161,12 +161,12 @@ fn validate_output(
     let (judge_result, message) = match result {
         Ok(value) => value,
         Err(e) => {
-            msg_warn!("Checker 执行失败: {}", e);
+            msg_warn!("Checker 执行失败：{}", e);
             return Ok(TestCaseStatus::UKE);
         }
     };
 
-    info!("测试点信息: {}", message.trim());
+    info!("测试点信息：{}", message.trim());
 
     match judge_result {
         JudgeResult::Accepted => Ok(TestCaseStatus::AC),
@@ -205,7 +205,7 @@ fn write_results_to_csv(results: Vec<ProblemTestResult>, csv_path: &Path) -> Res
 
     wtr.write_record([
         "测试者",
-        "测试点ID",
+        "测试点 ID",
         "状态",
         "得分",
         "最高分",
@@ -231,7 +231,7 @@ fn write_results_to_csv(results: Vec<ProblemTestResult>, csv_path: &Path) -> Res
         // 给这个测试者写入总分
         wtr.write_record(&[
             result.tester_name.clone(),
-            "".to_string(),                        // 测试点ID
+            "".to_string(),                        // 测试点 ID
             "TOTAL".to_string(),                   // 状态
             result.total_score.to_string(),        // 得分
             result.max_possible_score.to_string(), // 最高分
@@ -299,7 +299,7 @@ pub async fn test_problem(
                     Ok(c) => c,
                     Err(e) => {
                         msg_warn!(
-                            "题目 {} 的 Checker 依赖读取失败: {}",
+                            "题目 {} 的 Checker 依赖读取失败：{}",
                             problem_config.name.magenta(),
                             e
                         );
@@ -323,7 +323,7 @@ pub async fn test_problem(
                 Ok(c) => c,
                 Err(e) => {
                     msg_warn!(
-                        "题目 {} 的 Checker 初始化失败: {}",
+                        "题目 {} 的 Checker 初始化失败：{}",
                         problem_config.name.magenta(),
                         e
                     );
@@ -371,7 +371,7 @@ pub async fn test_problem(
     for (test_name, test) in &problem_config.tests {
         tester_count += 1;
         tester_pb.set_message(format!(
-            "处理第 {}/{} 个测试者: {}",
+            "处理第 {}/{} 个测试者：{}",
             tester_count,
             problem_config.tests.len(),
             test_name
@@ -501,7 +501,7 @@ pub async fn test_problem(
 
             for case in &data_items {
                 case_count += 1;
-                info!("运行测试点: {}", case.id);
+                info!("运行测试点：{}", case.id);
 
                 let run_result = run_test_case(
                     &mut runner,
@@ -512,7 +512,7 @@ pub async fn test_problem(
                 )
                 .await?;
                 let case_status = run_result.0;
-                info!("测试点结果: {:?}", case_status);
+                info!("测试点结果：{:?}", case_status);
 
                 let earned_score = match case_status {
                     TestCaseStatus::AC => case.score,
@@ -569,7 +569,7 @@ pub async fn test_problem(
                 );
 
                 case_test_pb.set_message(format!(
-                    "运行测试点: {}/{} | #{} {}",
+                    "运行测试点：{}/{} | #{} {}",
                     case_count,
                     data_items.len(),
                     case.id,
@@ -579,7 +579,7 @@ pub async fn test_problem(
             }
             case_test_pb.finish_and_clear();
 
-            msg_info!("测试结果:");
+            msg_info!("测试结果：");
             if is_sample {
                 total_score = individual_results.iter().map(|r| r.score).sum();
                 let max_possible = data_items.len() as u32;
@@ -667,7 +667,7 @@ pub async fn test_problem(
         }
 
         info!(
-            "总得分: {}/{}",
+            "总得分：{}/{}",
             total_score,
             data_items.iter().map(|case| case.score).sum::<u32>()
         );
@@ -727,18 +727,18 @@ pub async fn main(args: TestArgs) -> Result<()> {
             let day_config = config
                 .subconfig
                 .get(day_key)
-                .with_context(|| format!("未找到天配置: {}", day_key))?;
+                .with_context(|| format!("未找到天配置：{}", day_key))?;
             let problem_config = day_config
                 .subconfig
                 .get(prob_key)
-                .with_context(|| format!("未找到题目配置: {}", prob_key))?;
+                .with_context(|| format!("未找到题目配置：{}", prob_key))?;
             test_problem(day_config, problem_config, args.target).await?;
         }
         CurrentLocation::Day(day_key) => {
             let day_config = config
                 .subconfig
                 .get(day_key)
-                .with_context(|| format!("未找到天配置: {}", day_key))?;
+                .with_context(|| format!("未找到天配置：{}", day_key))?;
             test_day(day_config, args.target).await?;
         }
         CurrentLocation::Root => {

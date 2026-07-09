@@ -49,13 +49,13 @@ impl Compiler for MarkdownCompiler {
                 let output_filename = format!("{}.md", problem_config.name);
 
                 fs::write(output_dir.join(&output_filename), output)?;
-                info!("生成 Markdown 文件: {}", output_filename);
+                info!("生成 Markdown 文件：{}", output_filename);
             }
         }
         if self.tmp_dir.join("img").exists() {
             let target = output_dir.join("img");
             copy_dir_recursive(self.tmp_dir.join("img"), &target)?;
-            info!("复制图片目录到: {}", target.display());
+            info!("复制图片目录到：{}", target.display());
         }
         Ok(output_dir.clone())
     }

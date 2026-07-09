@@ -123,7 +123,7 @@ impl Runner for CppRunner {
 
         let output = cmd.stdout(Stdio::null()).stderr(Stdio::piped()).output()?;
         if !output.status.success() {
-            bail!("编译错误: {}", String::from_utf8_lossy(&output.stderr));
+            bail!("编译错误：{}", String::from_utf8_lossy(&output.stderr));
         }
 
         fs::remove_file(&source_target_path)?;
@@ -160,7 +160,7 @@ impl Runner for CppRunner {
             .output()
             .await?;
         if !output.status.success() {
-            bail!("编译错误: {}", String::from_utf8_lossy(&output.stderr));
+            bail!("编译错误：{}", String::from_utf8_lossy(&output.stderr));
         }
 
         tokio::fs::remove_file(&target_path).await?;
@@ -194,7 +194,7 @@ impl Runner for CppRunner {
 
         let program_path = self.tmp_dir.path().join(&self.program_name);
         if !program_path.exists() {
-            bail!("可执行文件不存在: {}", program_path.display());
+            bail!("可执行文件不存在：{}", program_path.display());
         }
 
         let mut cmd = StdCommand::new(&program_path);

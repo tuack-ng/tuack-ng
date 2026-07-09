@@ -102,7 +102,7 @@ impl CheckRule for Invisible {
                     messages.push(CheckInfo {
                         line: Some(line_number),
                         col: Some(col_num + 1),
-                        info: format!("发现不可见字符: {} (U+{:04X})", get_char_name(c), c as u32),
+                        info: format!("发现不可见字符：{} (U+{:04X})", get_char_name(c), c as u32),
                         importance: CheckImportance::Error,
                     });
                 }

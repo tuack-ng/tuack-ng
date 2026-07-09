@@ -34,7 +34,7 @@ struct Cli {
     /// 详细模式
     verbose: bool,
     #[arg(long, global = true)]
-    /// 静默模式, 无视详细
+    /// 静默模式，无视详细
     silent: bool,
 }
 
@@ -96,7 +96,7 @@ async fn main() -> Result<()> {
     if cfg!(debug_assertions) {
         result?;
     } else if let Err(e) = result {
-        msg_error!("程序执行出错: {:#}", e);
+        msg_error!("程序执行出错：{:#}", e);
         std::process::exit(1);
     }
     Ok(())

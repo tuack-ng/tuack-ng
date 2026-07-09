@@ -22,29 +22,29 @@ impl Checker for TypstChecker {
     }
 
     fn check_compiler(&self) -> Result<()> {
-        debug!("检查Typst编译环境");
+        debug!("检查 Typst 编译环境");
         let typst_check = Command::new("typst").arg("--version").output();
 
         match typst_check {
             Ok(output) => {
                 if output.status.success() {
                     let version = String::from_utf8_lossy(&output.stdout);
-                    debug!("Typst 版本: {}", version.trim());
+                    debug!("Typst 版本：{}", version.trim());
                 } else {
                     bail!("Typst 命令执行失败，请检查是否已安装");
                 }
             }
             Err(e) => {
-                bail!(anyhow!(e).context("未找到 typst 命令，请确保已安装并添加到PATH"));
+                bail!(anyhow!(e).context("未找到 typst 命令，请确保已安装并添加到 PATH"));
             }
         }
 
         let template_required_files = ["main.typ", "utils.typ"];
         for file in template_required_files {
             if !self.template_dir.join(file).exists() {
-                bail!("模板缺少必要文件: {}", file);
+                bail!("模板缺少必要文件：{}", file);
             }
-            info!("文件存在: {}", file);
+            info!("文件存在：{}", file);
         }
         Ok(())
     }
@@ -98,7 +98,7 @@ impl Compiler for TypstCompiler {
             .current_dir(&self.tmp_dir)
             .output()?;
         if output.status.success() {
-            info!("Typst 编译成功: {}", output_filename);
+            info!("Typst 编译成功：{}", output_filename);
             Ok(self.tmp_dir.join(output_filename))
         } else {
             let stderr = String::from_utf8_lossy(&output.stderr).to_string();
@@ -165,11 +165,11 @@ impl TypstCompiler {
         let mut support_languages = Vec::new();
 
         for (lang_key, compile_options) in &day_config.compile {
-            // 从context中查找对应的语言配置来获取语言名称
+            // 从 context 中查找对应的语言配置来获取语言名称
             let language_name = if let Some(lang_config) = context.languages.get(lang_key) {
                 lang_config.language.clone()
             } else {
-                // 如果context中没有对应的语言配置，使用键名作为语言名称
+                // 如果 context 中没有对应的语言配置，使用键名作为语言名称
                 bail!("在语言配置中未找到 {}", lang_key);
             };
 
@@ -192,7 +192,7 @@ impl TypstCompiler {
             None
         };
 
-        // 从ContestConfig和ContestDayConfig中获取覆盖值
+        // 从 ContestConfig 和 ContestDayConfig 中获取覆盖值
         let use_pretest = day_config
             .use_pretest
             .or(self.contest_config.use_pretest)
@@ -230,21 +230,21 @@ impl TypstCompiler {
         ast: &Document,
         index: usize,
     ) -> Result<()> {
-        info!("生成Typst: {}", problem.name);
+        info!("生成 Typst: {}", problem.name);
         let typst_output = render_typst(ast, Config::default().with_width(1000000));
         let typst_output = format!("#import \"utils.typ\": *\n{}", typst_output);
 
         let typst_filename = format!("problem-{}.typ", index);
         fs::write(tmp_dir.join(&typst_filename), typst_output)?;
-        info!("生成: {}", typst_filename);
+        info!("生成：{}", typst_filename);
         Ok(())
     }
     pub fn convert_ast_precaution(&self, tmp_dir: &Path, ast: &Document) -> Result<()> {
-        info!("生成注意事项Typst...");
+        info!("生成注意事项 Typst...");
         let typst_output = render_typst(ast, Config::default().with_width(1000000));
         let typst_output = format!("#import \"utils.typ\": *\n{}", typst_output);
         fs::write(tmp_dir.join("precaution.typ"), typst_output)?;
-        info!("生成: precaution.typ");
+        info!("生成：precaution.typ");
         Ok(())
     }
 }

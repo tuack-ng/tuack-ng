@@ -13,7 +13,7 @@ pub enum CurrentLocation {
     Root,
     /// 比赛日配置文件
     Day(String),
-    /// 赛题配置文件,
+    /// 赛题配置文件，
     Problem(String, String),
 }
 

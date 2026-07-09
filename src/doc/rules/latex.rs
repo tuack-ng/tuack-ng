@@ -34,7 +34,7 @@ lazy_static! {
     // 汉字和中文标点
     static ref CHINESE_CHARS: Regex = Regex::new(r"[\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]").unwrap();
 
-    // 大数字 (6位或以上)
+    // 大数字 (6 位或以上)
     static ref LARGE_NUMBER: Regex = Regex::new(r"\b\d{6,}\b").unwrap();
 
     // 带逗号的数字
@@ -56,7 +56,7 @@ impl LatexVisitor {
                 self.messages.push(CheckInfo {
                     line: None,
                     col: None,
-                    info: format!("在公式 {} 中: `{}` 应该写成 `\\{}`", latex, func, func),
+                    info: format!("在公式 {} 中：`{}` 应该写成 `\\{}`", latex, func, func),
                     importance: CheckImportance::Warn,
                 });
             }
@@ -68,7 +68,7 @@ impl LatexVisitor {
                 self.messages.push(CheckInfo {
                     line: None,
                     col: None,
-                    info: format!("在公式 {} 中: `{}` 应该写成 `\\le`", latex, cap.as_str()),
+                    info: format!("在公式 {} 中：`{}` 应该写成 `\\le`", latex, cap.as_str()),
                     importance: CheckImportance::Warn,
                 });
             }
@@ -80,7 +80,7 @@ impl LatexVisitor {
                 self.messages.push(CheckInfo {
                     line: None,
                     col: None,
-                    info: format!("在公式 {} 中: `{}` 应该写成 `\\ge`", latex, cap.as_str()),
+                    info: format!("在公式 {} 中：`{}` 应该写成 `\\ge`", latex, cap.as_str()),
                     importance: CheckImportance::Warn,
                 });
             }
@@ -93,7 +93,7 @@ impl LatexVisitor {
                     line: None,
                     col: None,
                     info: format!(
-                        "在公式 {} 中: `{}` 应该写成 `\\dots`（逗号分隔）或 `\\cdots`（运算符分隔）",
+                        "在公式 {} 中：`{}` 应该写成 `\\dots`（逗号分隔）或 `\\cdots`（运算符分隔）",
                         latex, cap.as_str()
                     ),
                     importance: CheckImportance::Warn,
@@ -111,7 +111,7 @@ impl LatexVisitor {
                         line: None,
                         col: None,
                         info: format!(
-                            "在公式 {} 中: `mod` 应该写成 `\\bmod` 或 `\\pmod{{}}`",
+                            "在公式 {} 中：`mod` 应该写成 `\\bmod` 或 `\\pmod{{}}`",
                             latex
                         ),
                         importance: CheckImportance::Warn,
@@ -129,7 +129,7 @@ impl LatexVisitor {
                     line: None,
                     col: None,
                     info: format!(
-                        "在公式 {} 中: 一般不用星号 `*` 做乘号，应该用 `\\times`（叉乘）、`\\cdot`（点乘）或省略",
+                        "在公式 {} 中：一般不用星号 `*` 做乘号，应该用 `\\times`（叉乘）、`\\cdot`（点乘）或省略",
                         latex
                     ),
                     importance: CheckImportance::Warn,
@@ -145,7 +145,7 @@ impl LatexVisitor {
                     line: None,
                     col: None,
                     info: format!(
-                        "在公式 {} 中: 一般不用斜杠 `/` 做除号，应该用 `\\frac{{}}{{}}` 或 `\\div`",
+                        "在公式 {} 中：一般不用斜杠 `/` 做除号，应该用 `\\frac{{}}{{}}` 或 `\\div`",
                         latex
                     ),
                     importance: CheckImportance::Warn,
@@ -160,7 +160,7 @@ impl LatexVisitor {
                     line: None,
                     col: None,
                     info: format!(
-                        "在公式 {} 中: 不能包含汉字或中文标点 `{}`",
+                        "在公式 {} 中：不能包含汉字或中文标点 `{}`",
                         latex,
                         cap.as_str()
                     ),
@@ -176,7 +176,7 @@ impl LatexVisitor {
                     line: None,
                     col: None,
                     info: format!(
-                        "在公式 {} 中: 数字 `{}` 太长，建议用科学计数法（如 `10^6`）或定义为变量",
+                        "在公式 {} 中：数字 `{}` 太长，建议用科学计数法（如 `10^6`）或定义为变量",
                         latex,
                         cap.as_str()
                     ),
@@ -192,7 +192,7 @@ impl LatexVisitor {
                     line: None,
                     col: None,
                     info: format!(
-                        "在公式 {} 中: 数字 `{}` 太长，建议用科学计数法或定义为变量",
+                        "在公式 {} 中：数字 `{}` 太长，建议用科学计数法或定义为变量",
                         latex,
                         cap.as_str()
                     ),

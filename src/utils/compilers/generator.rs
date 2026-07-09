@@ -73,7 +73,7 @@ impl Generator for CppGenerator {
 
         let output = cmd.stdout(Stdio::null()).stderr(Stdio::piped()).output()?;
         if !output.status.success() {
-            bail!("生成器编译错误: {}", String::from_utf8_lossy(&output.stderr));
+            bail!("生成器编译错误：{}", String::from_utf8_lossy(&output.stderr));
         }
 
         fs::remove_file(&source_target)?;
@@ -110,7 +110,7 @@ impl Generator for CppGenerator {
             .output()?;
 
         if !output.status.success() {
-            bail!("生成器运行失败: {}", String::from_utf8_lossy(&output.stderr));
+            bail!("生成器运行失败：{}", String::from_utf8_lossy(&output.stderr));
         }
 
         Ok(output.stdout)

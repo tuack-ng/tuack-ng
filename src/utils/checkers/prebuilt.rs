@@ -21,7 +21,7 @@ impl PrebuiltChecker {
 impl Checker for PrebuiltChecker {
     fn prepare(&mut self) -> Result<()> {
         if !self.binary.exists() {
-            bail!("预编译 Checker 不存在: {}", self.binary.display());
+            bail!("预编译 Checker 不存在：{}", self.binary.display());
         }
         Ok(())
     }
@@ -49,7 +49,7 @@ impl Checker for PrebuiltChecker {
 
         let res_content = fs::read_to_string(res_path.path()).context("Checker 未生成报告文件")?;
         let (result, message) =
-            parse_result(&res_content).map_err(|e| anyhow!("无法解析 Checker 结果: {}", e))?;
+            parse_result(&res_content).map_err(|e| anyhow!("无法解析 Checker 结果：{}", e))?;
 
         Ok((result, message))
     }

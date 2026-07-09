@@ -66,11 +66,11 @@ fn ren(
 
     // 清理已存在的临时目录
     if tmp_dir.exists() {
-        info!("清理已存在的临时目录: {}", tmp_dir.display());
+        info!("清理已存在的临时目录：{}", tmp_dir.display());
         fs::remove_dir_all(&tmp_dir)?;
     }
     fs::create_dir(&tmp_dir)?;
-    info!("创建临时目录: {}", tmp_dir.display());
+    info!("创建临时目录：{}", tmp_dir.display());
 
     unwrap_template(manifest, &tmp_dir)?;
 
@@ -88,10 +88,10 @@ fn ren(
             .subconfig
             .get(problem_key)
             .map(|config| {
-                info!("渲染指定问题: {}", config.name);
+                info!("渲染指定问题：{}", config.name);
                 IndexMap::from([(problem_key.to_string(), config)])
             })
-            .context(format!("未找到问题: {}", problem_key))?,
+            .context(format!("未找到问题：{}", problem_key))?,
         None => {
             info!("渲染所有问题（共{}个）", day_config.subconfig.len());
             day_config
@@ -131,20 +131,20 @@ fn ren(
     let re = regex::Regex::new(r"<!--[\s\S]*?-->").unwrap();
 
     for (_problem_key, problem_config) in problems_to_render.iter() {
-        problem_pb.set_message(format!("处理问题: {}", problem_config.name));
-        info!("处理问题: {}", problem_config.name);
+        problem_pb.set_message(format!("处理问题：{}", problem_config.name));
+        info!("处理问题：{}", problem_config.name);
 
         // 题面文件路径
         let problem_dir = &problem_config.path;
         let statement_path = problem_dir.join("statement.md");
 
         if !statement_path.exists() {
-            msg_error!("未找到题面文件: {}", statement_path.display());
+            msg_error!("未找到题面文件：{}", statement_path.display());
             problem_pb.finish_with_message("遇到错误，停止处理");
-            bail!("未找到题面文件: {}", statement_path.display());
+            bail!("未找到题面文件：{}", statement_path.display());
         }
 
-        // 解析题面同时展开模板, 移除注释
+        // 解析题面同时展开模板，移除注释
         let content = match render_template(
             re.replace_all(&fs::read_to_string(&statement_path)?, "")
                 .as_ref(),
@@ -157,7 +157,7 @@ fn ren(
             Ok(content) => content,
             Err(e) => {
                 msg_error!(
-                    "读取题面文件/展开模板 {} 失败: {:?}",
+                    "读取题面文件/展开模板 {} 失败：{:?}",
                     statement_path.display(),
                     e
                 );
@@ -170,7 +170,7 @@ fn ren(
         let mut ast = match parse_markdown(state, &content) {
             Ok(ast) => ast,
             Err(e) => {
-                msg_error!("解析题面文件 {} 失败: {:?}", statement_path.display(), e);
+                msg_error!("解析题面文件 {} 失败：{:?}", statement_path.display(), e);
                 problem_pb.finish_with_message("遇到错误，停止处理");
                 bail!("解析题面文件失败");
             }
@@ -195,7 +195,7 @@ fn ren(
 
             process_images_with_unique_ids(&img_src_dir, &img_dst_dir)?;
             info!(
-                "处理图片资源: {} -> {}",
+                "处理图片资源：{} -> {}",
                 img_src_dir.display(),
                 img_dst_dir.display()
             );
@@ -208,7 +208,7 @@ fn ren(
     let precaution_path = config.path.join("precaution.md");
     info!("{}", precaution_path.to_string_lossy());
     if precaution_path.exists() {
-        info!("处理注意事项文件: {}", precaution_path.display());
+        info!("处理注意事项文件：{}", precaution_path.display());
         let content = fs::read_to_string(&precaution_path)?;
         let state = MarkdownParserState::new();
         match parse_markdown(state, &content) {
@@ -216,7 +216,7 @@ fn ren(
                 renderqueue.push(RenderQueue::Precaution(ast));
             }
             Err(e) => {
-                msg_warn!("解析注意事项文件失败: {:?}", e);
+                msg_warn!("解析注意事项文件失败：{:?}", e);
             }
         }
     } else {
@@ -225,11 +225,11 @@ fn ren(
 
     problem_pb.finish_and_clear();
 
-    // 编译PDF
-    info!("开始编译: {}", day_config.name);
+    // 编译 PDF
+    info!("开始编译：{}", day_config.name);
     let compile_pb = gctx().multiprogress.add(ProgressBar::new_spinner());
     compile_pb.enable_steady_tick(Duration::from_millis(100));
-    compile_pb.set_message(format!("编译: {}", day_config.name));
+    compile_pb.set_message(format!("编译：{}", day_config.name));
 
     let compiler: Box<dyn Compiler> = match manifest.target {
         TargetType::Typst => Box::new(TypstCompiler::new(
@@ -273,14 +273,14 @@ fn ren(
             } else {
                 copy_dir_recursive(&source, &target)?;
             }
-            msg_info!("结果已保存到: {}", target.display());
+            msg_info!("结果已保存到：{}", target.display());
 
             if !args.no_auto_open {
                 open(target)?;
             }
 
             if args.keep_tmp {
-                msg_info!("保留临时目录: {}", tmp_dir.display());
+                msg_info!("保留临时目录：{}", tmp_dir.display());
             } else {
                 fs::remove_dir_all(&tmp_dir)?;
                 info!("清理临时目录");
@@ -289,7 +289,7 @@ fn ren(
         Err(e) => {
             msg_error!("编译失败:\n{:?}", e);
 
-            msg_info!("保留临时目录以供调试: {}", tmp_dir.display());
+            msg_info!("保留临时目录以供调试：{}", tmp_dir.display());
             bail!("编译过程出错");
         }
     }
@@ -299,7 +299,7 @@ fn ren(
 
 pub fn main(args: RenArgs) -> Result<()> {
     debug!(
-        "当前目录: {}",
+        "当前目录：{}",
         dunce::canonicalize(Path::new("."))?.to_string_lossy()
     );
 
@@ -316,7 +316,7 @@ pub fn main(args: RenArgs) -> Result<()> {
     let manifest_file = match manifest_file {
         Some(dir) => {
             info!(
-                "找到清单文件: {}",
+                "找到清单文件：{}",
                 dir.join("templates")
                     .join(format!("{}.json", args.target))
                     .to_string_lossy()
@@ -342,14 +342,14 @@ pub fn main(args: RenArgs) -> Result<()> {
 
     info!("{}", &statements_dir.to_string_lossy());
     if !statements_dir.exists() {
-        info!("创建题面输出目录: {}", statements_dir.display());
+        info!("创建题面输出目录：{}", statements_dir.display());
         fs::create_dir(&statements_dir)?;
     }
 
     let statements_dir = statements_dir.join(&args.target);
     if !statements_dir.exists() {
         info!(
-            "创建 {} 目标输出目录: {}",
+            "创建 {} 目标输出目录：{}",
             args.target,
             statements_dir.display()
         );

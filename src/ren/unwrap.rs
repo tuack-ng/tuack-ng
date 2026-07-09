@@ -15,7 +15,7 @@ pub fn unwrap_template(manifest: &TemplateManifest, output_dir: &Path) -> Result
     for (relative_path, sha256) in &manifest.filelist {
         // 为每个文件查找 store 目录
         let source_file = find_file_in_store(assets_dirs, sha256)
-            .with_context(|| format!("查找文件失败: {} (sha256: {})", relative_path, sha256))?;
+            .with_context(|| format!("查找文件失败：{} (sha256: {})", relative_path, sha256))?;
 
         let target_file = output_dir.join(relative_path);
 
@@ -27,7 +27,7 @@ pub fn unwrap_template(manifest: &TemplateManifest, output_dir: &Path) -> Result
         // 复制文件
         fs::copy(&source_file, &target_file).with_context(|| {
             format!(
-                "复制文件失败: {} -> {}",
+                "复制文件失败：{} -> {}",
                 source_file.display(),
                 target_file.display()
             )
@@ -47,5 +47,5 @@ fn find_file_in_store(assets_dirs: &[PathBuf], sha256: &str) -> Result<PathBuf> 
         }
     }
 
-    bail!("在所有 assets 目录中未找到文件: {}", sha256)
+    bail!("在所有 assets 目录中未找到文件：{}", sha256)
 }

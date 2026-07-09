@@ -46,7 +46,7 @@ pub fn process_ast(ast: &mut Document, processors: &Vec<String>) -> Result<Docum
                     } }
                 }
             }
-            processor => bail!("无此处理器: {}", processor),
+            processor => bail!("无此处理器：{}", processor),
         }
     }
     Ok(ast.to_owned())

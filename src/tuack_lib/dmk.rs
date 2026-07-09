@@ -108,14 +108,14 @@ pub async fn dmk(
     current_day: &ContestDayConfig,
     generator: &mut impl Generator,
 ) -> Result<()> {
-    info!("开始生成数据: {}", current_problem.name);
+    info!("开始生成数据：{}", current_problem.name);
     let target_dir = match target {
         Target::Data => current_problem.path.join("data"),
         Target::Sample => current_problem.path.join("sample"),
     };
     if !target_dir.exists() {
         std::fs::create_dir_all(&target_dir)?;
-        info!("创建目标目录: {}", target_dir.display());
+        info!("创建目标目录：{}", target_dir.display());
     }
     let std_path = find_std(current_problem)?;
     let mut runner: Box<dyn Runner> = match std_path
@@ -136,7 +136,7 @@ pub async fn dmk(
             current_problem.name.clone(),
         )?),
     };
-    info!("找到标程: {}", std_path.display());
+    info!("找到标程：{}", std_path.display());
 
     if current_problem.problem_type == ProblemType::Interactive
         && runner.manifest().interactive {
@@ -301,7 +301,7 @@ async fn get_or_generate_seed(
     if !force && seed_file.exists() {
         let seed_str = fs::read_to_string(&seed_file).await?;
         seeds = serde_json::from_str(&seed_str).unwrap_or_else(|e| {
-            msg_warn!(".seed 文件无效, 重新生成: {}", e);
+            msg_warn!(".seed 文件无效，重新生成：{}", e);
             BTreeMap::new()
         });
     }
@@ -349,7 +349,7 @@ async fn generate_output(
         RunStatus::Success => {}
         _ if !result.stderr.is_empty() => {
             bail!(
-                "标程运行失败\n标准错误输出: {}",
+                "标程运行失败\n标准错误输出：{}",
                 String::from_utf8_lossy(&result.stderr)
             );
         }
@@ -364,7 +364,7 @@ async fn generate_output(
 
     tokio::fs::write(output_path, &result.output).await?;
 
-    debug!("成功生成输出文件: {}", output_path.display());
+    debug!("成功生成输出文件：{}", output_path.display());
 
     info!("标程成功生成输出");
     Ok(())

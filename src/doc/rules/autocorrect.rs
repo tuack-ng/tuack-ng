@@ -39,7 +39,7 @@ impl FormatRule for Autocorrect {
         .unwrap();
         let format_result = format_for(&markdown_text, "md");
         if format_result.has_error() {
-            bail!("格式化失败: {}", format_result.error);
+            bail!("格式化失败：{}", format_result.error);
         }
         Ok((format_result.out, problem_config))
     }
@@ -70,7 +70,7 @@ impl CheckRule for Autocorrect {
         let check_result = lint_for(markdown_text, "md");
 
         if check_result.has_error() {
-            bail!("检查失败: {}", check_result.error);
+            bail!("检查失败：{}", check_result.error);
         }
         let mut messages: Vec<CheckInfo> = vec![];
         for info in check_result.lines {

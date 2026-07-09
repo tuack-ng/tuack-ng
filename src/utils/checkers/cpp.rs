@@ -73,7 +73,7 @@ impl Checker for CppChecker {
         let output = cmd.stdout(Stdio::null()).stderr(Stdio::piped()).output()?;
         if !output.status.success() {
             bail!(
-                "Checker 编译错误: {}",
+                "Checker 编译错误：{}",
                 String::from_utf8_lossy(&output.stderr)
             );
         }
@@ -111,7 +111,7 @@ impl Checker for CppChecker {
 
         let res_content = fs::read_to_string(res_path.path()).context("Checker 未生成报告文件")?;
         let (result, message) =
-            parse_result(&res_content).map_err(|e| anyhow!("无法解析 Checker 结果: {}", e))?;
+            parse_result(&res_content).map_err(|e| anyhow!("无法解析 Checker 结果：{}", e))?;
 
         Ok((result, message))
     }

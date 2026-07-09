@@ -37,11 +37,11 @@ fn custom_panic_handler(panic_info: &PanicHookInfo, verbose: bool) {
     }
 
     panic_log!("程序发生了无法挽回的异常，即将退出");
-    panic_log!("如果你想要报告这个问题，请保留以下信息:");
+    panic_log!("如果你想要报告这个问题，请保留以下信息：");
 
     if let Some(location) = panic_info.location() {
         panic_log!(
-            "Panic 发生在: {}:{}:{}",
+            "Panic 发生在：{}:{}:{}",
             location.file(),
             location.line(),
             location.column()
@@ -51,13 +51,13 @@ fn custom_panic_handler(panic_info: &PanicHookInfo, verbose: bool) {
     }
 
     if let Some(message) = panic_info.payload().downcast_ref::<&str>() {
-        panic_log!("Panic 信息: {}", message);
+        panic_log!("Panic 信息：{}", message);
     } else if let Some(message) = panic_info.payload().downcast_ref::<String>() {
-        panic_log!("Panic 信息: {}", message);
+        panic_log!("Panic 信息：{}", message);
     } else {
         panic_log!("无法获取 Panic 信息");
     }
-    panic_log!("详见: https://docs.tuack-ng.ink/contributing/panic.html");
+    panic_log!("详见：https://docs.tuack-ng.ink/contributing/panic.html");
 }
 
 fn init_log(verbose: &bool) -> Result<MultiProgress> {
@@ -112,7 +112,7 @@ fn init_context(multi: MultiProgress, migrating: bool, vaildating: bool) -> Resu
         // 系统目录
         #[cfg(not(windows))]
         {
-            // Nix 下, 使用相对路径探测
+            // Nix 下，使用相对路径探测
             #[cfg(feature = "nix")]
             let path = std::env::current_exe()
                 .ok()
@@ -141,13 +141,13 @@ fn init_context(multi: MultiProgress, migrating: bool, vaildating: bool) -> Resu
     let config = match load_config(&mut ctx, Path::new(".")) {
         Ok(res) => {
             if res.as_ref().is_some() {
-                info!("当前路径: {:#?}", res.as_ref().unwrap().location);
+                info!("当前路径：{:#?}", res.as_ref().unwrap().location);
                 for (&from, message) in &ctx.migrated_notices {
                     let to = from + 1;
                     if message.is_empty() {
                         msg_warn!("来自从 {} 版本迁移到 {} 版本的信息", from, to);
                     } else {
-                        msg_warn!("来自从 {} 版本迁移到 {} 版本的信息: {}", from, to, message);
+                        msg_warn!("来自从 {} 版本迁移到 {} 版本的信息：{}", from, to, message);
                     }
                 }
                 if ctx.root.count() != 0 && !vaildating {
@@ -160,7 +160,7 @@ fn init_context(multi: MultiProgress, migrating: bool, vaildating: bool) -> Resu
             res
         }
         Err(e) => {
-            msg_warn!("配置文件解析失败，可能导致问题: {}", e);
+            msg_warn!("配置文件解析失败，可能导致问题：{}", e);
             None
         }
     };

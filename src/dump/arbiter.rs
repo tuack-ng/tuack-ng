@@ -28,7 +28,7 @@ fn arbiter_main_day(day: &ContestDayConfig, daynum: usize, main_dir: &Path) -> R
 
     for (probnum, (_, prob)) in day.subconfig.iter().enumerate() {
         let probnum = probnum + 1;
-        info!("处理题目: {}", prob.name);
+        info!("处理题目：{}", prob.name);
 
         let score_per_case = if prob.data.is_empty() {
             0u32
@@ -148,10 +148,10 @@ fn arbiter_main_day(day: &ContestDayConfig, daynum: usize, main_dir: &Path) -> R
                     .context("执行 g++ 失败")?;
 
                 if !status.success() {
-                    msg_warn!("chk 编译失败，请手动处理: {}", chk_cpp.display());
+                    msg_warn!("chk 编译失败，请手动处理：{}", chk_cpp.display());
                 }
             } else {
-                msg_warn!("checker 源文件不存在: {}", chk_cpp.display());
+                msg_warn!("checker 源文件不存在：{}", chk_cpp.display());
             }
         } else {
             // 从 assets 中复制默认的 arbiter_e 可执行文件（如果有）
@@ -164,7 +164,7 @@ fn arbiter_main_day(day: &ContestDayConfig, daynum: usize, main_dir: &Path) -> R
                 Some(src) => {
                     fs::copy(&src, &filter_path).with_context(|| {
                         format!(
-                            "复制默认 arbiter_e 失败: {} -> {}",
+                            "复制默认 arbiter_e 失败：{} -> {}",
                             src.display(),
                             filter_path.display()
                         )
@@ -191,7 +191,7 @@ fn arbiter_main_day(day: &ContestDayConfig, daynum: usize, main_dir: &Path) -> R
 /// arbiter_down：复制样例文件
 fn arbiter_down_day(day: &ContestDayConfig, down_dir: &Path) -> Result<()> {
     for (_, prob) in &day.subconfig {
-        info!("处理题目样例: {}", prob.name);
+        info!("处理题目样例：{}", prob.name);
 
         let prob_down_dir = down_dir.join(&prob.name);
         if !prob_down_dir.exists() {
@@ -210,17 +210,17 @@ fn arbiter_down_day(day: &ContestDayConfig, down_dir: &Path) -> Result<()> {
             if src_in.exists() {
                 let dst = prob_down_dir.join(format!("{}{}.in", prob.name, idx));
                 fs::copy(&src_in, &dst)
-                    .with_context(|| format!("复制样例输入失败: {}", src_in.display()))?;
+                    .with_context(|| format!("复制样例输入失败：{}", src_in.display()))?;
             } else {
-                msg_warn!("样例输入文件不存在: {}", src_in.display());
+                msg_warn!("样例输入文件不存在：{}", src_in.display());
             }
 
             if src_ans.exists() {
                 let dst = prob_down_dir.join(format!("{}{}.ans", prob.name, idx));
                 fs::copy(&src_ans, &dst)
-                    .with_context(|| format!("复制样例输出失败: {}", src_ans.display()))?;
+                    .with_context(|| format!("复制样例输出失败：{}", src_ans.display()))?;
             } else {
-                msg_warn!("样例输出文件不存在: {}", src_ans.display());
+                msg_warn!("样例输出文件不存在：{}", src_ans.display());
             }
 
             // 拷贝 down/ 目录下其他不在 samples 列表里的文件（与原 Python 版一致）
@@ -243,7 +243,7 @@ fn arbiter_down_day(day: &ContestDayConfig, down_dir: &Path) -> Result<()> {
                 let entry = entry?;
                 let fname = entry.file_name().to_string_lossy().to_string();
                 if !sample_files.contains(&fname) {
-                    info!("发现附加文件: {}", fname);
+                    info!("发现附加文件：{}", fname);
                     fs::copy(entry.path(), prob_down_dir.join(&fname))
                         .with_context(|| format!("复制附加文件 {} 失败", fname))?;
                 }
@@ -306,7 +306,7 @@ pub fn main(contest: &ContestConfig, day: &ContestDayConfig, daynum: usize) -> R
     }
     arbiter_down_day(day, &down_dir)?;
 
-    info!("Arbiter 导出完成，输出目录: {}", out_root.display());
+    info!("Arbiter 导出完成，输出目录：{}", out_root.display());
 
     Ok(())
 }

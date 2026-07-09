@@ -57,7 +57,7 @@ impl ProcessSupervisor {
                 let _ = child.kill().await;
                 let final_peak = *peak_memory.lock().unwrap();
                 if start.elapsed() > time_limit {
-                    info!("进程超时: {}", start.elapsed().as_secs_f64());
+                    info!("进程超时：{}", start.elapsed().as_secs_f64());
                     (RunStatus::TimeLimitExceeded, None, Some(final_peak))
                 } else {
                     info!("进程内存超限");
@@ -68,7 +68,7 @@ impl ProcessSupervisor {
             exit_status = child.wait() => {
                 let elapsed = start.elapsed();
                 let final_peak = *peak_memory.lock().unwrap();
-                info!("进程结束，耗时: {:?}, 峰值内存: {}, 退出码: {:?}",
+                info!("进程结束，耗时：{:?}, 峰值内存：{}, 退出码：{:?}",
                     elapsed, final_peak, exit_status.as_ref().ok().and_then(|s| s.code()));
                 match exit_status {
                     Ok(status) if status.success() => {

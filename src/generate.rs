@@ -91,7 +91,7 @@ pub struct GenArgs {
 fn gen_contest(args: GenStatementArgs) -> Result<()> {
     let current_dir = std::env::current_dir()?;
 
-    // 查找scaffold/contest目录（在程序上下文中的列表中第一个存在的）
+    // 查找 scaffold/contest 目录（在程序上下文中的列表中第一个存在的）
     let scaffold_path = find_in_scaffold("contest", true)?;
 
     for contest_name in &args.name {
@@ -115,28 +115,28 @@ fn gen_contest(args: GenStatementArgs) -> Result<()> {
 }
 
 fn gen_day(args: GenStatementArgs) -> Result<()> {
-    // 检查是否在contest目录下执行
+    // 检查是否在 contest 目录下执行
     let current_dir = std::env::current_dir()?;
     let config_path = current_dir.join(CONFIG_FILE_NAME);
 
-    // 检查当前目录是否存在contest配置文件
+    // 检查当前目录是否存在 contest 配置文件
     if !config_path.exists() {
-        bail!("day命令必须在contest目录下执行");
+        bail!("day 命令必须在 contest 目录下执行");
     }
 
-    // 检查配置文件是否为contest类型
+    // 检查配置文件是否为 contest 类型
     let content = std::fs::read_to_string(&config_path)?;
     let json_value: serde_json::Value = serde_json::from_str(&content)?;
 
     if let Some(folder) = json_value.get("folder").and_then(|v| v.as_str()) {
         if folder != "contest" {
-            bail!("day命令必须在contest目录下执行");
+            bail!("day 命令必须在 contest 目录下执行");
         }
     } else {
         bail!("无效的配置文件");
     }
 
-    // 查找scaffold/day目录（在程序上下文中的列表中第一个存在的）
+    // 查找 scaffold/day 目录（在程序上下文中的列表中第一个存在的）
     let scaffold_path = find_in_scaffold("day", true)?;
 
     for day_name in &args.name {
@@ -157,7 +157,7 @@ fn gen_day(args: GenStatementArgs) -> Result<()> {
         )?;
     }
 
-    // 更新contest配置文件的subdir字段
+    // 更新 contest 配置文件的 subdir 字段
     let mut contest_config: serde_json::Value = serde_json::from_str(&content)?;
     if let Some(subdir) = contest_config
         .get_mut("subdir")
@@ -174,28 +174,28 @@ fn gen_day(args: GenStatementArgs) -> Result<()> {
 }
 
 fn gen_problem(args: GenStatementArgs) -> Result<()> {
-    // 检查是否在day目录下执行
+    // 检查是否在 day 目录下执行
     let current_dir = std::env::current_dir()?;
     let config_path = current_dir.join(CONFIG_FILE_NAME);
 
-    // 检查当前目录是否存在day配置文件
+    // 检查当前目录是否存在 day 配置文件
     if !config_path.exists() {
-        bail!("problem命令必须在day目录下执行");
+        bail!("problem 命令必须在 day 目录下执行");
     }
 
-    // 检查配置文件是否为day类型
+    // 检查配置文件是否为 day 类型
     let content = std::fs::read_to_string(&config_path)?;
     let json_value: serde_json::Value = serde_json::from_str(&content)?;
 
     if let Some(folder) = json_value.get("folder").and_then(|v| v.as_str()) {
         if folder != "day" {
-            bail!("problem命令必须在day目录下执行");
+            bail!("problem 命令必须在 day 目录下执行");
         }
     } else {
         bail!("无效的配置文件");
     }
 
-    // 查找scaffold/problem目录（在程序上下文中的列表中第一个存在的）
+    // 查找 scaffold/problem 目录（在程序上下文中的列表中第一个存在的）
     let scaffold_path = find_in_scaffold("problem", true)?;
 
     for problem_name in &args.name {
@@ -216,7 +216,7 @@ fn gen_problem(args: GenStatementArgs) -> Result<()> {
         )?;
     }
 
-    // 更新day配置文件的subdir字段
+    // 更新 day 配置文件的 subdir 字段
     let mut day_config: serde_json::Value = serde_json::from_str(&content)?;
     if let Some(subdir) = day_config.get_mut("subdir").and_then(|v| v.as_array_mut()) {
         for problem_name in &args.name {
@@ -576,8 +576,8 @@ fn gen_complete(args: GenCompleteArgs) -> Result<()> {
         "zsh" => Shell::Zsh,
         "fish" => Shell::Fish,
         _ => {
-            error!("不支持的shell类型: {}", args.name);
-            bail!("不支持的shell类型")
+            error!("不支持的 shell 类型：{}", args.name);
+            bail!("不支持的 shell 类型")
         }
     };
     let mut cmd = crate::Cli::command_i18n();
@@ -616,5 +616,5 @@ fn find_in_scaffold(name: &str, is_dir: bool) -> Result<PathBuf> {
     }
 
     let item_type = if is_dir { "目录" } else { "文件" };
-    bail!("找不到scaffold/{} {}", name, item_type);
+    bail!("找不到 scaffold/{} {}", name, item_type);
 }

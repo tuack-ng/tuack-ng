@@ -3,7 +3,7 @@ use markdown_ppp::ast_transform::Transform;
 use sha2::{Digest, Sha256};
 use std::ffi::OsStr;
 
-// 为图片分配唯一ID并复制的函数
+// 为图片分配唯一 ID 并复制的函数
 pub fn process_images_with_unique_ids(src_dir: &Path, dst_dir: &Path) -> Result<()> {
     if !dst_dir.exists() {
         fs::create_dir_all(dst_dir)?;
@@ -14,7 +14,7 @@ pub fn process_images_with_unique_ids(src_dir: &Path, dst_dir: &Path) -> Result<
         let src_path = entry.path();
 
         if src_path.is_file() {
-            // 计算文件的SHA256哈希值
+            // 计算文件的 SHA256 哈希值
             let mut file = std::fs::File::open(&src_path)?;
             let mut hasher = Sha256::new();
             std::io::copy(&mut file, &mut hasher)?;
@@ -27,7 +27,7 @@ pub fn process_images_with_unique_ids(src_dir: &Path, dst_dir: &Path) -> Result<
                 .and_then(|ext| ext.to_str())
                 .unwrap_or("");
 
-            // 生成唯一ID: sha256.extension
+            // 生成唯一 ID: sha256.extension
             let unique_filename = if extension.is_empty() {
                 hash_hex
             } else {
@@ -37,14 +37,14 @@ pub fn process_images_with_unique_ids(src_dir: &Path, dst_dir: &Path) -> Result<
 
             // 复制文件
             fs::copy(&src_path, &dst_path)?;
-            log::info!("复制图片: {} -> {}", src_path.display(), dst_path.display());
+            log::info!("复制图片：{} -> {}", src_path.display(), dst_path.display());
         }
     }
 
     Ok(())
 }
 
-/// 修改图片路径，将相对路径替换为唯一ID路径
+/// 修改图片路径，将相对路径替换为唯一 ID 路径
 pub fn process_image_urls(img_src_dir: &Path, ast: &mut markdown_ppp::ast::Document) {
     if img_src_dir.exists() && img_src_dir.is_dir() {
         *ast = ast.clone().transform_image_urls(|url| {
@@ -84,7 +84,7 @@ pub fn process_image_urls(img_src_dir: &Path, ast: &mut markdown_ppp::ast::Docum
                 }
             } else {
                 msg_warn!(
-                    "图片 url 不合法: {}, 不支持使用在 img/ 以外的图片, 可能会产生问题。",
+                    "图片 url 不合法：{}, 不支持使用在 img/ 以外的图片，可能会产生问题。",
                     url
                 );
                 url
