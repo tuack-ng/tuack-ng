@@ -1,14 +1,13 @@
-use std::collections::{BTreeMap, HashMap};
-use std::process::Stdio;
+use std::collections::BTreeMap;
 use std::str::FromStr;
 use std::sync::Arc;
 
 use rand::Rng;
 use tokio::fs;
-use tokio::process::Command;
 
 use crate::prelude::*;
 use crate::config::ExpandedDataItem;
+use crate::tuack_lib::utils::testlib::Generator;
 use crate::utils::compilers::cpp::CppRunner;
 use crate::utils::compilers::general::GeneralRunner;
 use crate::utils::random::gen_rnd;
@@ -107,6 +106,7 @@ pub async fn dmk(
     data_items: &[Arc<ExpandedDataItem>],
     current_problem: &ProblemConfig,
     current_day: &ContestDayConfig,
+    generator: &mut impl Generator,
 ) -> Result<()> {
     info!("开始生成数据: {}", current_problem.name);
     let target_dir = match target {
@@ -117,7 +117,6 @@ pub async fn dmk(
         std::fs::create_dir_all(&target_dir)?;
         info!("创建目标目录: {}", target_dir.display());
     }
-    let generator_path = find_generator(&current_problem.path, *target)?;
     let std_path = find_std(current_problem)?;
     let mut runner: Box<dyn Runner> = match std_path
         .extension()
@@ -137,7 +136,6 @@ pub async fn dmk(
             current_problem.name.clone(),
         )?),
     };
-    info!("找到生成器: {}", generator_path.display());
     info!("找到标程: {}", std_path.display());
 
     if current_problem.problem_type == ProblemType::Interactive
@@ -168,21 +166,11 @@ pub async fn dmk(
             runner.set_interactive(&grader_path, &header_path)?;
         }
 
-    let generator_path_clone = generator_path.clone();
+    reporter.compiling_dmk();
+    generator.prepare().context("数据生成器编译失败")?;
+    reporter.compiled_dmk();
 
-    let (result1, result2) = tokio::join!(
-        compile_generator(reporter, &generator_path_clone),
-        compile_std(reporter, &mut runner)
-    );
-    if let Err(e) = result1 {
-        // msg_error!("数据生成器编译错误: {}", e);
-        bail!(e.context("数据生成器编译失败"))
-    }
-
-    if let Err(e) = result2 {
-        // msg_error!("标程编译错误: {}", e);
-        bail!(e.context("标程编译失败"))
-    }
+    compile_std(reporter, &mut runner).await?;
 
     let seeds =
         get_or_generate_seed(&target_dir, matches!(action, DmkCommand::Reset), data_items).await?;
@@ -210,18 +198,19 @@ pub async fn dmk(
             let mut args_map = current_problem.args.clone();
             args_map.extend(data_item.args.clone());
 
-            if let Err(e) = generate_input(
-                &generator_path,
-                &input_path,
-                &seeds,
-                data_item.id,
-                &args_map,
-            )
-            .await
-            {
-                reporter.generate_input(data_item.id, &DmkResult::Fail(e));
-            } else {
-                reporter.generate_input(data_item.id, &action.into());
+            let seed = seeds.get(&data_item.id).unwrap();
+
+            match generator.run(args_map, *seed) {
+                Ok(output) => {
+                    if let Err(e) = fs::write(&input_path, &output).await {
+                        reporter.generate_input(data_item.id, &DmkResult::Fail(e.into()));
+                    } else {
+                        reporter.generate_input(data_item.id, &action.into());
+                    }
+                }
+                Err(e) => {
+                    reporter.generate_input(data_item.id, &DmkResult::Fail(e));
+                }
             }
         } else {
             if !input_path.exists() {
@@ -266,26 +255,6 @@ pub async fn dmk(
     Ok(())
 }
 
-/// 查找数据生成器
-fn find_generator(problem_path: &Path, target: Target) -> Result<PathBuf> {
-    let gen_dir = problem_path.join("gen");
-
-    // 根据 target 优先级顺序查找
-    let candidates = match target {
-        Target::Data => vec!["gen.cpp"],
-        Target::Sample => vec!["gen_sample.cpp", "gen.cpp"],
-    };
-
-    for name in candidates {
-        let path = gen_dir.join(name);
-        if path.exists() {
-            return Ok(path);
-        }
-    }
-
-    bail!("在 {} 目录下未找到数据生成器文件", gen_dir.display())
-}
-
 /// 查找标程
 fn find_std(problem: &crate::config::ProblemConfig) -> Result<PathBuf> {
     for (name, case) in &problem.tests {
@@ -299,38 +268,6 @@ fn find_std(problem: &crate::config::ProblemConfig) -> Result<PathBuf> {
     }
 
     bail!("未找到标程文件")
-}
-
-/// 编译生成器
-async fn compile_generator(reporter: &dyn DmkReporter, generator_path: &Path) -> Result<()> {
-    info!("编译数据生成器");
-
-    let tmp_dir = generator_path.parent().unwrap();
-
-    reporter.compiling_dmk();
-
-    let output_path = tmp_dir.join("gen");
-
-    let status = Command::new("g++")
-        .arg("-o")
-        .arg(&output_path)
-        .arg(generator_path)
-        .arg("-O2")
-        .arg("-std=c++17")
-        .stdout(Stdio::null())
-        .stderr(Stdio::piped())
-        .output()
-        .await?;
-
-    if !status.status.success() {
-        bail!("{}", String::from_utf8_lossy(&status.stderr));
-    }
-
-    info!("数据生成器编译成功");
-
-    reporter.compiled_dmk();
-
-    Ok(())
 }
 
 /// 编译标程
@@ -381,52 +318,6 @@ async fn get_or_generate_seed(
 fn save_seed(target_dir: &Path, seeds: BTreeMap<u32, u64>) -> Result<()> {
     let seed_file = target_dir.join(".seed");
     std::fs::write(seed_file, serde_json::to_string_pretty(&seeds)?)?;
-    Ok(())
-}
-
-/// 生成输入文件
-async fn generate_input(
-    generator_path: &Path,
-    input_path: &Path,
-    seeds: &BTreeMap<u32, u64>,
-    test_id: u32,
-    args: &HashMap<String, i64>,
-) -> Result<()> {
-    let tmp_dir = generator_path.parent().unwrap();
-    let generator_exe = tmp_dir.join("gen");
-
-    if !generator_exe.exists() {
-        bail!("生成器未编译");
-    }
-
-    // 构建参数列表
-    let mut cmd_args = vec![test_id.to_string()];
-
-    // 添加自定义参数
-    for (key, value) in args {
-        cmd_args.push(format!("-{}={}", key, value));
-    }
-
-    cmd_args.push("-seed".to_string());
-    cmd_args.push(seeds.get(&test_id).unwrap().to_string());
-
-    // 运行生成器
-    let output = Command::new(&generator_exe)
-        .args(&cmd_args)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()
-        .await?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        bail!("生成器运行失败 (测试点 {}): {}", test_id, stderr);
-    }
-
-    // 写入输入文件
-    fs::write(input_path, &output.stdout).await?;
-
-    debug!("生成输入文件: {}", input_path.display(),);
     Ok(())
 }
 

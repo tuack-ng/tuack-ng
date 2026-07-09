@@ -142,8 +142,13 @@ fn init_context(multi: MultiProgress, migrating: bool, vaildating: bool) -> Resu
         Ok(res) => {
             if res.as_ref().is_some() {
                 info!("当前路径: {:#?}", res.as_ref().unwrap().location);
-                if ctx.migrated {
-                    msg_warn!("配置文件版本已经过时。使用 `tuack-ng conf migrate` 进行迁移。");
+                for (&from, message) in &ctx.migrated_notices {
+                    let to = from + 1;
+                    if message.is_empty() {
+                        msg_warn!("来自从 {} 版本迁移到 {} 版本的信息", from, to);
+                    } else {
+                        msg_warn!("来自从 {} 版本迁移到 {} 版本的信息: {}", from, to, message);
+                    }
                 }
                 if ctx.root.count() != 0 && !vaildating {
                     msg_warn!(

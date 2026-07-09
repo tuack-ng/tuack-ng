@@ -82,10 +82,13 @@ pub struct V3Migrater;
 
 impl Migrater for V3Migrater {
     fn metadata(&self) -> MigraterMetadata {
-        MigraterMetadata { force: false }
+        MigraterMetadata {
+            force: false,
+            notice: None,
+        }
     }
 
-    fn migrate_contest(&self, mut config: serde_json::Value) -> Result<serde_json::Value> {
+    fn migrate_contest(&self, mut config: serde_json::Value, _dir: &Path) -> Result<serde_json::Value> {
         match config.as_object_mut() {
             Some(obj) => {
                 if obj.get("version").and_then(|v| v.as_u64()).is_some() {
@@ -99,7 +102,7 @@ impl Migrater for V3Migrater {
 
         Ok(config)
     }
-    fn migrate_day(&self, mut config: serde_json::Value) -> Result<serde_json::Value> {
+    fn migrate_day(&self, mut config: serde_json::Value, _dir: &Path) -> Result<serde_json::Value> {
         match config.as_object_mut() {
             Some(obj) => {
                 if obj.get("version").and_then(|v| v.as_u64()).is_some() {
@@ -113,7 +116,7 @@ impl Migrater for V3Migrater {
 
         Ok(config)
     }
-    fn migrate_problem(&self, mut config: serde_json::Value) -> Result<serde_json::Value> {
+    fn migrate_problem(&self, mut config: serde_json::Value, _dir: &Path) -> Result<serde_json::Value> {
         match config.as_object_mut() {
             Some(obj) => {
                 if obj.get("version").and_then(|v| v.as_u64()).is_some() {

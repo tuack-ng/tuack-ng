@@ -2,6 +2,7 @@ use crate::config::ExpandedDataItem;
 use crate::context::{CurrentLocation, gctx};
 use crate::prelude::*;
 use crate::tuack_lib::dmk::{DmkReporter, DmkResult, dmk};
+use crate::utils::compilers::generator::CppGenerator;
 use clap::Args;
 use clap::ValueEnum;
 use colored::ColoredString;
@@ -275,6 +276,41 @@ pub async fn main(args: DmkArgs) -> Result<()> {
             .collect(),
     };
 
+    let generator_config = match &args.target {
+        Target::Data => current_problem
+            .generator
+            .as_ref()
+            .context("generator 未配置")?
+            .data
+            .clone(),
+        Target::Sample => {
+            let pair = current_problem
+                .generator
+                .as_ref()
+                .context("generator 未配置")?;
+            pair.sample.clone().unwrap_or(pair.data.clone())
+        }
+    };
+
+    let resolve = |path: &str| current_problem.path.join(path);
+
+    let gen_path = resolve(&generator_config.source);
+
+    let mut deps: HashMap<String, Vec<u8>> = HashMap::new();
+    for dep_path in &generator_config.deps {
+        let abs = resolve(dep_path);
+        let content = std::fs::read(&abs)
+            .with_context(|| format!("读取依赖文件失败: {}", abs.display()))?;
+        let name = dep_path
+            .split('/')
+            .last()
+            .unwrap_or(dep_path)
+            .to_string();
+        deps.insert(name, content);
+    }
+
+    let mut generator = CppGenerator::new(&gen_path, &current_day.compile, "gen", deps)?;
+
     let reporter = CliDmkReporter::new();
 
     dmk(
@@ -284,6 +320,7 @@ pub async fn main(args: DmkArgs) -> Result<()> {
         &parse_test_object(&args.object, &data_items)?,
         current_problem,
         current_day,
+        &mut generator,
     )
     .await
 }

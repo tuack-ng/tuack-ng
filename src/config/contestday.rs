@@ -97,12 +97,16 @@ pub fn load_day_config(ctx: &mut LoadContext, dayconfig_path: &Path) -> Result<C
                         "配置文件已经过时且无法自动迁移。你需要使用 `tuack-ng conf migrate` 手动迁移。"
                     )
                 } else {
-                    day_json_value = migrater.migrate_day(day_json_value)?;
+                    let from_ver = version as i32;
+                    day_json_value = migrater.migrate_day(day_json_value, dayconfig_path.parent().unwrap())?;
                     version = day_json_value
                         .get("version")
                         .and_then(|v| v.as_u64())
                         .context("配置文件缺少版本号")?;
                     ctx.migrated = true;
+                    if let Some(notice) = migrater.metadata().notice {
+                        ctx.migrated_notices.entry(from_ver).or_insert(notice);
+                    }
                 }
             }
             None => bail!("不存在配置文件版本 {} 的迁移", version),

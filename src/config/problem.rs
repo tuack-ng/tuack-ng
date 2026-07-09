@@ -2,9 +2,33 @@ use crate::config::migrate::base::MIGRATERS;
 use crate::config::msgs::LoadContext;
 use crate::config::{CONFIG_MIN_VERSION, CONFIG_VERSION};
 use crate::prelude::*;
+use crate::tuack_lib::utils::testlib::Arg;
 use bytesize::ByteSize;
 use indexmap::IndexMap;
 use std::sync::Arc;
+
+/// 生成器配置
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct GeneratorConfig {
+    /// 生成器源文件路径（相对于题目目录）
+    #[serde(rename = "gen")]
+    pub source: String,
+    /// 依赖文件列表（相对于题目目录）
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub deps: Vec<String>,
+}
+
+/// 生成器配置对（data / sample）
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct GeneratorConfigPair {
+    /// 正式数据生成器
+    pub data: GeneratorConfig,
+    /// 样例数据生成器，为 null 时使用 data
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sample: Option<GeneratorConfig>,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
@@ -34,10 +58,13 @@ pub struct ProblemConfigFile {
     pub dmk: DmkConfig,
     /// 数据点参数 (全局部分)
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub args: HashMap<String, i64>,
+    pub args: HashMap<String, Arg>,
     /// 交互
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub interactive: Option<InteractiveConfig>,
+    /// 生成器配置
+    #[serde(default)]
+    pub generator: Option<GeneratorConfigPair>,
 
     /// 样例
     pub samples: Vec<SampleItem>,
@@ -77,9 +104,11 @@ pub struct ProblemConfig {
     /// 数据生成行为
     pub dmk: DmkConfig,
     /// 数据点参数 (全局部分)
-    pub args: HashMap<String, i64>,
+    pub args: HashMap<String, Arg>,
     /// 交互
     pub interactive: Option<InteractiveConfig>,
+    /// 生成器配置
+    pub generator: Option<GeneratorConfigPair>,
 
     /// 样例
     pub samples: Vec<SampleItem>,
@@ -123,6 +152,7 @@ impl From<ProblemConfig> for ProblemConfigFile {
             dmk: config.dmk,
             args: config.args,
             interactive: config.interactive,
+            generator: config.generator,
             samples: config.samples,
             data: config.orig_data,
             subtasks: config.orig_subtasks,
@@ -157,7 +187,7 @@ pub struct SampleItem {
     pub output: Option<String>,
     /// 参数，会从全局参数继承
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub args: HashMap<String, i64>,
+    pub args: HashMap<String, Arg>,
     /// 数据生成行为
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dmk: Option<DmkConfig>,
@@ -202,7 +232,7 @@ pub struct SingleDataItem {
     pub output: Option<String>,
     /// 参数，会从全局参数继承
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub args: HashMap<String, i64>,
+    pub args: HashMap<String, Arg>,
     /// 数据生成行为
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dmk: Option<DmkConfig>,
@@ -219,7 +249,7 @@ pub struct BundleDataItem {
     pub subtask: u32,
     /// 参数，会从全局参数继承
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub args: HashMap<String, i64>,
+    pub args: HashMap<String, Arg>,
     /// 数据生成行为
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dmk: Option<DmkConfig>,
@@ -238,7 +268,7 @@ pub struct ExpandedDataItem {
     /// 输出文件
     pub output: String,
     /// 参数，会从全局参数继承
-    pub args: HashMap<String, i64>,
+    pub args: HashMap<String, Arg>,
     /// 数据生成行为
     pub dmk: DmkConfig,
 }
@@ -345,12 +375,16 @@ pub fn load_problem_config(
                         "配置文件已经过时且无法自动迁移。你需要使用 `tuack-ng conf migrate` 手动迁移。"
                     )
                 } else {
-                    problem_json_value = migrater.migrate_problem(problem_json_value)?;
+                    let from_ver = version as i32;
+                    problem_json_value = migrater.migrate_problem(problem_json_value, problemconfig_path.parent().unwrap())?;
                     ctx.migrated = true;
                     version = problem_json_value
                         .get("version")
                         .and_then(|v| v.as_u64())
                         .context("配置文件缺少版本号")?;
+                    if let Some(notice) = migrater.metadata().notice {
+                        ctx.migrated_notices.entry(from_ver).or_insert(notice);
+                    }
                 }
             }
             None => bail!("不存在配置文件版本 {} 的迁移", version),
@@ -462,6 +496,7 @@ pub fn load_problem_config(
         dmk: problemconfig.dmk,
         args: problemconfig.args,
         interactive: problemconfig.interactive,
+        generator: problemconfig.generator,
         samples: problemconfig.samples,
         orig_data: problemconfig.data,
         orig_subtasks: problemconfig.subtasks,
