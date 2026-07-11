@@ -62,9 +62,7 @@ impl Generator for CppGenerator {
 
         let binary_path = self.tmp_dir.path().join("gen");
         let mut cmd = Command::new("g++");
-        cmd.arg("-o")
-            .arg(&binary_path)
-            .arg(&source_target);
+        cmd.arg("-o").arg(&binary_path).arg(&source_target);
 
         let parsed = shellwords::split(&self.compile_args)?;
         if !parsed.is_empty() {
@@ -73,7 +71,10 @@ impl Generator for CppGenerator {
 
         let output = cmd.stdout(Stdio::null()).stderr(Stdio::piped()).output()?;
         if !output.status.success() {
-            bail!("生成器编译错误：{}", String::from_utf8_lossy(&output.stderr));
+            bail!(
+                "生成器编译错误：{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
         }
 
         fs::remove_file(&source_target)?;
@@ -110,7 +111,10 @@ impl Generator for CppGenerator {
             .output()?;
 
         if !output.status.success() {
-            bail!("生成器运行失败：{}", String::from_utf8_lossy(&output.stderr));
+            bail!(
+                "生成器运行失败：{}",
+                String::from_utf8_lossy(&output.stderr)
+            );
         }
 
         Ok(output.stdout)

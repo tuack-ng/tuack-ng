@@ -299,13 +299,9 @@ pub async fn main(args: DmkArgs) -> Result<()> {
     let mut deps: HashMap<String, Vec<u8>> = HashMap::new();
     for dep_path in &generator_config.deps {
         let abs = resolve(dep_path);
-        let content = std::fs::read(&abs)
-            .with_context(|| format!("读取依赖文件失败：{}", abs.display()))?;
-        let name = dep_path
-            .split('/')
-            .last()
-            .unwrap_or(dep_path)
-            .to_string();
+        let content =
+            std::fs::read(&abs).with_context(|| format!("读取依赖文件失败：{}", abs.display()))?;
+        let name = dep_path.split('/').last().unwrap_or(dep_path).to_string();
         deps.insert(name, content);
     }
 

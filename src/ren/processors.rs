@@ -31,19 +31,21 @@ pub fn process_ast(ast: &mut Document, processors: &Vec<String>) -> Result<Docum
             }
             "uoj_title" => {
                 for block in &mut ast.blocks {
-                    if let Block::Heading(heading) = block { match &mut heading.kind {
-                        HeadingKind::Atx(level) => {
-                            *level = (*level + 1).min(6);
+                    if let Block::Heading(heading) = block {
+                        match &mut heading.kind {
+                            HeadingKind::Atx(level) => {
+                                *level = (*level + 1).min(6);
+                            }
+                            HeadingKind::Setext(setext_heading) => {
+                                heading.kind = match setext_heading {
+                                    SetextHeading::Level1 => {
+                                        HeadingKind::Setext(SetextHeading::Level2)
+                                    }
+                                    SetextHeading::Level2 => HeadingKind::Atx(3),
+                                };
+                            }
                         }
-                        HeadingKind::Setext(setext_heading) => {
-                            heading.kind = match setext_heading {
-                                SetextHeading::Level1 => {
-                                    HeadingKind::Setext(SetextHeading::Level2)
-                                }
-                                SetextHeading::Level2 => HeadingKind::Atx(3),
-                            };
-                        }
-                    } }
+                    }
                 }
             }
             processor => bail!("无此处理器：{}", processor),

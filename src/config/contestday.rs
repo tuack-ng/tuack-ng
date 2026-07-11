@@ -98,7 +98,8 @@ pub fn load_day_config(ctx: &mut LoadContext, dayconfig_path: &Path) -> Result<C
                     )
                 } else {
                     let from_ver = version as i32;
-                    day_json_value = migrater.migrate_day(day_json_value, dayconfig_path.parent().unwrap())?;
+                    day_json_value =
+                        migrater.migrate_day(day_json_value, dayconfig_path.parent().unwrap())?;
                     version = day_json_value
                         .get("version")
                         .and_then(|v| v.as_u64())

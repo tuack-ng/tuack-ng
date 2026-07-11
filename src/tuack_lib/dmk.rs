@@ -5,8 +5,8 @@ use std::sync::Arc;
 use rand::Rng;
 use tokio::fs;
 
-use crate::prelude::*;
 use crate::config::ExpandedDataItem;
+use crate::prelude::*;
 use crate::tuack_lib::utils::testlib::Generator;
 use crate::utils::compilers::cpp::CppRunner;
 use crate::utils::compilers::general::GeneralRunner;
@@ -138,33 +138,32 @@ pub async fn dmk(
     };
     info!("找到标程：{}", std_path.display());
 
-    if current_problem.problem_type == ProblemType::Interactive
-        && runner.manifest().interactive {
-            let interactive = current_problem.interactive.as_ref().unwrap();
+    if current_problem.problem_type == ProblemType::Interactive && runner.manifest().interactive {
+        let interactive = current_problem.interactive.as_ref().unwrap();
 
-            let resolve_path = |path: &String| -> Result<PathBuf> {
-                let p = PathBuf::from_str(path)?;
-                Ok(if p.is_absolute() {
-                    p
-                } else {
-                    dunce::canonicalize(current_problem.path.join(p))?
-                })
-            };
-            let grader_path = match &interactive.dmk_grader {
-                Some(dmk_grader) => resolve_path(dmk_grader)?,
-                None => resolve_path(&interactive.grader)?,
-            };
-            let header_path = resolve_path(&interactive.header)?;
+        let resolve_path = |path: &String| -> Result<PathBuf> {
+            let p = PathBuf::from_str(path)?;
+            Ok(if p.is_absolute() {
+                p
+            } else {
+                dunce::canonicalize(current_problem.path.join(p))?
+            })
+        };
+        let grader_path = match &interactive.dmk_grader {
+            Some(dmk_grader) => resolve_path(dmk_grader)?,
+            None => resolve_path(&interactive.grader)?,
+        };
+        let header_path = resolve_path(&interactive.header)?;
 
-            if !grader_path.exists() {
-                bail!("grader 不存在")
-            }
-            if !header_path.exists() {
-                bail!("header 不存在")
-            }
-
-            runner.set_interactive(&grader_path, &header_path)?;
+        if !grader_path.exists() {
+            bail!("grader 不存在")
         }
+        if !header_path.exists() {
+            bail!("header 不存在")
+        }
+
+        runner.set_interactive(&grader_path, &header_path)?;
+    }
 
     reporter.compiling_dmk();
     generator.prepare().context("数据生成器编译失败")?;

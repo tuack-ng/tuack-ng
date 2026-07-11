@@ -73,9 +73,6 @@ pub struct ProblemConfigFile {
     /// 空间限制
     #[serde(rename = "memory limit")]
     pub memory_limit: ByteSize,
-    /// 是否有部分分，目前没有用途
-    #[serde(rename = "partial score")]
-    pub partial_score: bool,
     /// 数据生成行为
     pub dmk: DmkConfig,
     /// 数据点参数 (全局部分)
@@ -121,8 +118,6 @@ pub struct ProblemConfig {
     pub time_limit: f64,
     /// 空间限制
     pub memory_limit: ByteSize,
-    /// 是否有部分分，目前没有用途
-    pub partial_score: bool,
     /// 数据生成行为
     pub dmk: DmkConfig,
     /// 数据点参数 (全局部分)
@@ -170,7 +165,6 @@ impl From<ProblemConfig> for ProblemConfigFile {
             title: config.title,
             time_limit: config.time_limit,
             memory_limit: config.memory_limit,
-            partial_score: config.partial_score,
             dmk: config.dmk,
             args: config.args,
             interactive: config.interactive,
@@ -517,7 +511,6 @@ pub fn load_problem_config(
         title: problemconfig.title,
         time_limit: problemconfig.time_limit,
         memory_limit: problemconfig.memory_limit,
-        partial_score: problemconfig.partial_score,
         dmk: problemconfig.dmk,
         args: problemconfig.args,
         interactive: problemconfig.interactive,

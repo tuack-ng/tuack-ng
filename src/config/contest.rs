@@ -83,7 +83,8 @@ pub fn load_contest_config(ctx: &mut LoadContext, config_path: &Path) -> Result<
                     )
                 } else {
                     let from_ver = version as i32;
-                    main_json_value = migrater.migrate_contest(main_json_value, config_path.parent().unwrap())?;
+                    main_json_value =
+                        migrater.migrate_contest(main_json_value, config_path.parent().unwrap())?;
                     version = main_json_value
                         .get("version")
                         .and_then(|v| v.as_u64())

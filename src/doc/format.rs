@@ -1,8 +1,8 @@
 use crate::tuack_lib::doc::rules::*;
 use crate::{
+    config::{CONFIG_FILE_NAME, save_problem_config},
     doc::rules::*,
     prelude::*,
-    config::{CONFIG_FILE_NAME, save_problem_config},
 };
 use clap::Args;
 use markdown_ppp::parser::*;

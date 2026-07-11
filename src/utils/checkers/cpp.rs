@@ -89,10 +89,7 @@ impl Checker for CppChecker {
         output: &[u8],
         answer: &Path,
     ) -> Result<(JudgeResult, String)> {
-        let binary = self
-            .binary_path
-            .as_ref()
-            .context("Checker 未编译")?;
+        let binary = self.binary_path.as_ref().context("Checker 未编译")?;
 
         let output_path = NamedTempFile::with_prefix("tuack-ng-checker-out-")?;
         fs::write(&output_path, output)?;

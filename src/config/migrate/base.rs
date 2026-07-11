@@ -26,5 +26,6 @@ pub static MIGRATERS: LazyLock<HashMap<i32, Box<dyn Migrater>>> = LazyLock::new(
     map.insert(3, Box::new(crate::config::migrate::v3::V3Migrater));
     map.insert(4, Box::new(crate::config::migrate::v4::V4Migrater));
     map.insert(5, Box::new(crate::config::migrate::v5::V5Migrater));
+    map.insert(6, Box::new(crate::config::migrate::v6::V6Migrater));
     map
 });
