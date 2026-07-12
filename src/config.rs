@@ -19,7 +19,7 @@ pub use self::contest::*;
 pub use self::contestday::*;
 pub use self::problem::*;
 
-fn find_contest_config(start_path: &Path) -> Result<PathBuf> {
+pub fn find_contest_config(start_path: &Path) -> Result<PathBuf> {
     let start = dunce::canonicalize(start_path)?;
 
     for ancestor in start.ancestors() {

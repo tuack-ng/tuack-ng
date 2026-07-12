@@ -3,6 +3,7 @@ use crate::dmk::DmkArgs;
 use crate::doc::DocArgs;
 use crate::dump::DumpArgs;
 use crate::generate::GenArgs;
+use crate::move_::MoveArgs;
 use crate::prelude::*;
 use crate::ren::RenArgs;
 use crate::test::TestArgs;
@@ -18,6 +19,7 @@ mod doc;
 mod dump;
 mod generate;
 mod init;
+mod move_;
 mod prelude;
 mod ren;
 mod test;
@@ -57,6 +59,9 @@ enum Commands {
     Doc(DocArgs),
     /// 开发工具
     Develop(develop::DevelopArgs),
+    /// 移动题目到指定比赛日和位置
+    #[command(alias = "mv")]
+    Move(MoveArgs),
 }
 
 async fn tuack_ng(cli: Cli) -> Result<()> {
@@ -84,6 +89,7 @@ async fn tuack_ng(cli: Cli) -> Result<()> {
         Commands::Dump(args) => dump::main(args),
         Commands::Doc(args) => doc::main(args),
         Commands::Develop(args) => develop::main(args),
+        Commands::Move(args) => move_::main(args),
     }
 }
 
