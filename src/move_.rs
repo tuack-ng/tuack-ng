@@ -1,4 +1,3 @@
-use crate::config::find_contest_config;
 use crate::config::CONFIG_FILE_NAME;
 use crate::prelude::*;
 use clap::Args;
@@ -18,76 +17,50 @@ pub struct MoveArgs {
 pub fn main(args: MoveArgs) -> Result<()> {
     let current_dir = std::env::current_dir()?;
 
-    let source_config_path = find_contest_config(&current_dir)
-        .context("未找到 contest 配置文件，请在 contest 目录或其子目录下运行")?;
-    let source_contest_root = source_config_path
+    let source_day_path = find_day_dir(&current_dir)
+        .context("未找到比赛日配置文件，请在比赛日目录或其子目录下运行")?;
+    let contest_root = source_day_path
         .parent()
-        .context("无法获取 contest 根目录")?
-        .to_path_buf();
+        .context("无法获取比赛日父目录")?;
+    let source_day_name = source_day_path
+        .file_name()
+        .context("无效的比赛日路径")?
+        .to_string_lossy()
+        .to_string();
 
-    let source_day_list: Vec<String> = {
-        let content = fs::read_to_string(&source_config_path)?;
-        let contest_json: serde_json::Value = serde_json::from_str(&content)?;
-        contest_json["subdir"]
-            .as_array()
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_str().map(String::from))
-                    .collect()
-            })
-            .unwrap_or_default()
-    };
-
-    let source_day = source_day_list
-        .iter()
-        .find(|day_name| {
-            source_contest_root
-                .join(day_name)
-                .join(&args.problem)
-                .join(CONFIG_FILE_NAME)
-                .exists()
-        })
-        .cloned()
-        .context(format!("找不到题目 '{}'", args.problem))?;
-
-    let (target_contest_root, target_day_name) =
-        resolve_target(&args.day, &current_dir, &source_contest_root)?;
-
-    let target_day_path = target_contest_root.join(&target_day_name);
-    let target_day_config_path = target_day_path.join(CONFIG_FILE_NAME);
-    if !target_day_config_path.exists() {
-        bail!("目标比赛日 '{}' 不存在", target_day_name);
+    let source_problem_path = source_day_path.join(&args.problem);
+    let source_problem_config = source_problem_path.join(CONFIG_FILE_NAME);
+    if !source_problem_config.exists() {
+        bail!("在比赛日 '{}' 中找不到题目 '{}'", source_day_name, args.problem);
     }
+
+    let target_day_path = resolve_day_dir(&args.day, &current_dir, contest_root)
+        .context(format!("无法解析目标比赛日 '{}'", args.day))?;
+    let target_day_name = target_day_path
+        .file_name()
+        .context("无效的目标比赛日路径")?
+        .to_string_lossy()
+        .to_string();
 
     let target_problem_path = target_day_path.join(&args.problem);
-    let same_contest = source_contest_root == target_contest_root;
-
-    if !same_contest || source_day != target_day_name {
-        if target_problem_path.exists() {
-            bail!(
-                "目标比赛日 '{}' 已存在同名题目 '{}'",
-                target_day_name,
-                args.problem
-            );
-        }
+    if source_day_path != target_day_path && target_problem_path.exists() {
+        bail!("目标比赛日 '{}' 已存在同名题目 '{}'", target_day_name, args.problem);
     }
 
-    let source_day_path = source_contest_root.join(&source_day);
-    let source_problem_path = source_day_path.join(&args.problem);
-    let source_day_config_path = source_day_path.join(CONFIG_FILE_NAME);
-
-    let source_content = fs::read_to_string(&source_day_config_path)?;
+    let source_config_path = source_day_path.join(CONFIG_FILE_NAME);
+    let source_content = fs::read_to_string(&source_config_path)?;
     let mut source_json: serde_json::Value = serde_json::from_str(&source_content)?;
     let source_subdir = source_json["subdir"]
         .as_array_mut()
-        .context("源比赛日配置文件缺少 subdir 字段")?;
+        .context("比赛日配置文件缺少 subdir 字段")?;
     source_subdir.retain(|v| v.as_str() != Some(&args.problem));
 
-    let target_content = fs::read_to_string(&target_day_config_path)?;
+    let target_config_path = target_day_path.join(CONFIG_FILE_NAME);
+    let target_content = fs::read_to_string(&target_config_path)?;
     let mut target_json: serde_json::Value = serde_json::from_str(&target_content)?;
     let target_subdir = target_json["subdir"]
         .as_array_mut()
-        .context("目标比赛日配置文件缺少 subdir 字段")?;
+        .context("比赛日配置文件缺少 subdir 字段")?;
 
     let pos = if args.position == 0 {
         0
@@ -97,7 +70,7 @@ pub fn main(args: MoveArgs) -> Result<()> {
     let pos = pos.min(target_subdir.len());
     target_subdir.insert(pos, serde_json::Value::String(args.problem.clone()));
 
-    if source_day != target_day_name || !same_contest {
+    if source_day_path != target_day_path {
         fs::rename(&source_problem_path, &target_problem_path)
             .with_context(|| {
                 format!(
@@ -109,33 +82,23 @@ pub fn main(args: MoveArgs) -> Result<()> {
     }
 
     let updated_source = serde_json::to_string_pretty(&source_json)?;
-    fs::write(&source_day_config_path, updated_source)?;
+    fs::write(&source_config_path, updated_source)?;
 
     let updated_target = serde_json::to_string_pretty(&target_json)?;
-    fs::write(&target_day_config_path, updated_target)?;
+    fs::write(&target_config_path, updated_target)?;
 
-    if same_contest && source_day == target_day_name {
+    if source_day_path == target_day_path {
         msg_info!(
             "已将题目 '{}' 在比赛日 '{}' 中重新排序为第 {} 题",
             args.problem,
             target_day_name,
             args.position
         );
-    } else if same_contest {
+    } else {
         msg_info!(
             "已将题目 '{}' 从 '{}' 移动到 '{}' 的第 {} 题",
             args.problem,
-            source_day,
-            target_day_name,
-            args.position
-        );
-    } else {
-        msg_info!(
-            "已将题目 '{}' 从 contest '{}' 的 '{}' 移动到 contest '{}' 的 '{}' 的第 {} 题",
-            args.problem,
-            source_contest_root.file_name().unwrap().to_string_lossy(),
-            source_day,
-            target_contest_root.file_name().unwrap().to_string_lossy(),
+            source_day_name,
             target_day_name,
             args.position
         );
@@ -144,23 +107,32 @@ pub fn main(args: MoveArgs) -> Result<()> {
     Ok(())
 }
 
-/// 解析目标路径，返回所在 contest 根目录和比赛日名称。
-///
-/// - 简单名称（不含 `/`、`\`、`.`、`..`）：先尝试在当前 contest 下查找，未命中则
-///   尝试作为路径解析。
-/// - 否则相对 `current_dir` 解析绝对路径，通过 `find_contest_config` 定位所属 contest。
-fn resolve_target(
-    raw: &str,
-    current_dir: &Path,
-    source_contest_root: &Path,
-) -> Result<(PathBuf, String)> {
-    // 简单名称：优先在当前 contest 下匹配
-    if !raw.contains(['/', '\\']) && raw != "." && raw != ".." {
-        let day_path = source_contest_root.join(raw);
-        if day_path.join(CONFIG_FILE_NAME).exists() {
-            return Ok((source_contest_root.to_path_buf(), raw.to_string()));
+/// 从 `start` 向上查找包含 `conf.json` 且 `folder` 为 `"day"` 的目录。
+fn find_day_dir(start: &Path) -> Result<PathBuf> {
+    for ancestor in start.ancestors() {
+        let conf = ancestor.join(CONFIG_FILE_NAME);
+        if conf.exists() {
+            let content = fs::read_to_string(&conf)?;
+            let json: serde_json::Value = serde_json::from_str(&content)?;
+            if json.get("folder").and_then(|f| f.as_str()) == Some("day") {
+                return Ok(ancestor.to_path_buf());
+            }
         }
-        // 当前 contest 下没有 → 尝试作为路径解析
+    }
+    bail!("未找到比赛日配置文件，请确认在比赛日目录下运行");
+}
+
+/// 解析用户输入的目标路径，返回对应的比赛日目录。
+///
+/// - 简单名称（不含路径分隔符，也不是 `.`/`..`）：
+///   优先尝试作为 contest_root 下的兄弟比赛日，否则作为路径解析。
+/// - 否则：相对 `current_dir` 解析为绝对路径，再向上查找 `folder == "day"` 的目录。
+fn resolve_day_dir(raw: &str, current_dir: &Path, contest_root: &Path) -> Result<PathBuf> {
+    if !raw.contains(['/', '\\']) && raw != "." && raw != ".." {
+        let sibling = contest_root.join(raw);
+        if sibling.join(CONFIG_FILE_NAME).exists() {
+            return Ok(dunce::canonicalize(&sibling)?);
+        }
     }
 
     let p = PathBuf::from(raw);
@@ -169,51 +141,24 @@ fn resolve_target(
     } else {
         current_dir.join(&p)
     };
-    let canon = dunce::canonicalize(&abs)
-        .with_context(|| format!("无法解析路径 '{}'", raw))?;
+    let canon = dunce::canonicalize(&abs)?;
 
-    if canon.starts_with(source_contest_root) {
-        match canon.strip_prefix(source_contest_root) {
-            Ok(rel) if !rel.as_os_str().is_empty() => {
-                let day_name = rel
-                    .components()
-                    .next()
-                    .context("路径指向 contest 根目录，不是比赛日目录")?
-                    .as_os_str()
-                    .to_string_lossy()
-                    .to_string();
-                return Ok((source_contest_root.to_path_buf(), day_name));
+    let mut path = canon;
+    loop {
+        let conf = path.join(CONFIG_FILE_NAME);
+        if conf.exists() {
+            if let Ok(content) = fs::read_to_string(&conf) {
+                if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
+                    if json.get("folder").and_then(|f| f.as_str()) == Some("day") {
+                        return Ok(path);
+                    }
+                }
             }
-            _ => {}
+        }
+        if !path.pop() {
+            break;
         }
     }
 
-    // 可能跨 contest：从目标路径向上找 contest 配置
-    let target_config = find_contest_config(&canon)
-        .with_context(|| format!("路径 '{}' 不在任何 contest 根目录下", canon.display()))?;
-    let target_contest_root = target_config
-        .parent()
-        .context("无法获取目标 contest 根目录")?
-        .to_path_buf();
-
-    if !canon.starts_with(&target_contest_root) {
-        bail!(
-            "路径 '{}' 不在目标 contest 根目录 '{}' 下",
-            canon.display(),
-            target_contest_root.display()
-        );
-    }
-
-    let rel = canon
-        .strip_prefix(&target_contest_root)
-        .context("无法从路径中提取比赛日名称")?;
-    let day_name = rel
-        .components()
-        .next()
-        .context("路径指向 contest 根目录，不是比赛日目录")?
-        .as_os_str()
-        .to_string_lossy()
-        .to_string();
-
-    Ok((target_contest_root, day_name))
+    bail!("未能在目标路径下找到比赛日目录");
 }
