@@ -1,5 +1,5 @@
 {
-  "version": 6,
+  "version": 7,
   "folder": "problem",
   "type": "program",
   "name": "题目英文名称",
@@ -9,6 +9,7 @@
   "partial score": false,
   "args": {},
   "dmk": "on",
+  "generator": null,
   "samples": [
     {
       "id": 1,
