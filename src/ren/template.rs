@@ -1,5 +1,6 @@
 use crate::prelude::*;
 use crate::ren::manifest::TemplateManifest;
+use crate::ren::tools;
 use anyhow::Result;
 use colored::Colorize;
 use minijinja::{Environment, Value, context};
@@ -135,205 +136,19 @@ fn handle_sample_file(sample_id: u32, problem: &ProblemConfig) -> Result<String,
     Ok(text)
 }
 
-/// 计算一个数的以 10 为底的对数的整数部分
-///
-/// # 参数
-/// - `num`: f64 - 要计算的数字
-///
-/// # 返回值
-/// - f64 - 对数的整数部分，特殊情况：
-///   - 0 -> -inf
-///   - 负数 -> NaN
-pub fn int_lg(num: f64) -> f64 {
-    if num == 0.0 {
-        return f64::NEG_INFINITY;
-    }
-    if num < 0.0 {
-        return f64::NAN;
-    }
-
-    let mut n = 0;
-    let mut temp = num;
-
-    if temp >= 10.0 {
-        while temp >= 10.0 {
-            temp /= 10.0;
-            n += 1;
-        }
-    } else if temp < 1.0 {
-        while temp < 1.0 {
-            temp *= 10.0;
-            n -= 1;
-        }
-    }
-
-    n as f64
-}
-
-/// 将整数格式化为带有逗号分隔的字符串
-///
-/// ## 参数
-/// - `num`: i64 - 要格式化的整数
-///
-/// ## 返回值
-/// - String - 格式化后的字符串
-pub fn comma(num: i64) -> Result<String, minijinja::Error> {
-    if num < 0 {
-        return Ok(format!("-{}", comma(-num)?));
-    }
-
-    let num_str = num.to_string();
-    let len = num_str.len();
-
-    if len <= 3 {
-        return Ok(num_str);
-    }
-
-    let mut result = String::new();
-
-    for (count, ch) in num_str.chars().rev().enumerate() {
-        if count > 0 && count % 3 == 0 {
-            result.push(',');
-        }
-        result.push(ch);
-    }
-
-    Ok(result.chars().rev().collect())
-}
-
-/// 格式化数字为适合阅读的表示形式
-///
-/// ## 参数
-/// - `num`: f64 - 要格式化的数字
-/// - `style`: Option<&str> - 格式化样式：
-///   - Some("x") - 科学记数法
-///   - Some(",") - 逗号分隔形式
-///   - None - 自动选择最紧凑的形式
-pub fn hn(num: f64, style: Option<&str>) -> Result<String, minijinja::Error> {
-    if num == 0.0 {
-        return Ok("0".to_string());
-    }
-
-    let (neg, abs_num) = if num < 0.0 { ("-", -num) } else { ("", num) };
-
-    // 处理整数情况
-    if abs_num.fract() == 0.0 {
-        let int_num = abs_num as i64;
-        return match style {
-            Some("x") => {
-                let n = int_lg(abs_num) as i32;
-                if int_num == 10_i64.pow(n as u32) {
-                    Ok(format!("{}10^{{{}}}", neg, n))
-                } else {
-                    Ok(format!(
-                        "{}{} \\times 10^{{{}}}",
-                        neg,
-                        int_num / 10_i64.pow(n as u32),
-                        n
-                    ))
-                }
-            }
-            Some(",") => Ok(format!("{}{}", neg, comma(int_num)?)),
-            _ => {
-                let n = int_lg(abs_num) as i32;
-                let scientific_len = if int_num == 10_i64.pow(n as u32) {
-                    3 + n.to_string().len() // 10^{n}
-                } else {
-                    let coeff = int_num / 10_i64.pow(n as u32);
-                    coeff.to_string().len() + 8 + n.to_string().len() // coeff \times 10^{n}
-                };
-
-                let comma_str = comma(int_num)?;
-                let comma_len = comma_str.len() * 4 / 3; // 近似长度计算
-
-                if comma_len <= scientific_len {
-                    Ok(format!("{}{}", neg, comma_str))
-                } else if int_num == 10_i64.pow(n as u32) {
-                    Ok(format!("{}10^{{{}}}", neg, n))
-                } else {
-                    Ok(format!(
-                        "{}{} \\times 10^{{{}}}",
-                        neg,
-                        int_num / 10_i64.pow(n as u32),
-                        n
-                    ))
-                }
-            }
-        };
-    }
-
-    // 处理浮点数情况
-    match style {
-        Some("x") | None => {
-            let n = int_lg(abs_num) as i32;
-            let coeff = abs_num / 10_f64.powi(n);
-            Ok(format!("{}{} \\times 10^{{{}}}", neg, coeff, n))
-        }
-        Some(",") => Ok(format!("{}{}", neg, abs_num)),
-        _ => Ok(format!("{}{}", neg, abs_num)),
-    }
-}
-
-/// 将数字范围转换为紧凑的表示形式
-///
-/// ## 参数
-/// - `cases`: Vec<i32> - 有序的数字列表
-///
-/// ## 返回值
-/// - String - 格式化后的范围字符串，以$开头和结尾
-pub fn cases(value: Value) -> Result<String, minijinja::Error> {
-    let cases_vec: Vec<i32> = if let Some(i) = value.as_i64() {
-        vec![i as i32]
-    } else {
-        value
-            .try_iter()?
-            .map(|v| {
-                v.as_i64().map(|i| i as i32).ok_or_else(|| {
-                    minijinja::Error::new(
-                        minijinja::ErrorKind::InvalidOperation,
-                        "cases filter expects integers",
-                    )
-                })
-            })
-            .collect::<Result<Vec<i32>, _>>()?
-    };
-
-    if cases_vec.is_empty() {
-        return Ok("$$".to_string());
-    }
-
-    let mut result = Vec::new();
-    let mut start = cases_vec[0];
-    let mut end = cases_vec[0];
-
-    for &num in &cases_vec[1..] {
-        if num == end + 1 {
-            end = num;
-        } else {
-            if start == end {
-                result.push(format!("{}", start));
-            } else if start + 1 == end {
-                result.push(format!("{}", start));
-                result.push(format!("{}", end));
-            } else {
-                result.push(format!("{} \\sim {}", start, end));
-            }
-            start = num;
-            end = num;
-        }
-    }
-
-    // 处理最后一段
-    if start == end {
-        result.push(format!("{}", start));
-    } else if start + 1 == end {
-        result.push(format!("{}", start));
-        result.push(format!("{}", end));
-    } else {
-        result.push(format!("{} \\sim {}", start, end));
-    }
-
-    Ok(format!("${}$", result.join(",")))
+fn handle_lua_table(
+    path: String,
+    problem: &ProblemConfig,
+    day: &ContestDayConfig,
+    contest: &ContestConfig,
+) -> Result<String, minijinja::Error> {
+    let full_path = problem.path.join(&path);
+    super::lua::render_template(&full_path, problem, day, contest).map_err(|e| {
+        minijinja::Error::new(
+            minijinja::ErrorKind::InvalidOperation,
+            format!("Lua 表格渲染失败：{}", e),
+        )
+    })
 }
 
 /// 使用模板渲染函数
@@ -375,20 +190,37 @@ pub fn render_template(
             "hn",
             Value::from_function({
                 move |num: f64, style: Option<&str>| -> Result<String, minijinja::Error> {
-                    hn(num, style)
+                    Ok(tools::hn(num, style))
                 }
             }),
         ),
         (
             "comma",
             Value::from_function({
-                move |num: i64| -> Result<String, minijinja::Error> { comma(num) }
+                move |num: i64| -> Result<String, minijinja::Error> { Ok(tools::comma(num)) }
             }),
         ),
         (
             "cases",
             Value::from_function({
-                move |value: Value| -> Result<String, minijinja::Error> { cases(value) }
+                move |value: Value| -> Result<String, minijinja::Error> {
+                    let cases_vec: Vec<i32> = if let Some(i) = value.as_i64() {
+                        vec![i as i32]
+                    } else {
+                        value
+                            .try_iter()?
+                            .map(|v| {
+                                v.as_i64().map(|i| i as i32).ok_or_else(|| {
+                                    minijinja::Error::new(
+                                        minijinja::ErrorKind::InvalidOperation,
+                                        "cases filter expects integers",
+                                    )
+                                })
+                            })
+                            .collect::<Result<Vec<i32>, _>>()?
+                    };
+                    Ok(tools::cases(&cases_vec))
+                }
             }),
         ),
     ]);
@@ -409,6 +241,17 @@ pub fn render_template(
                 let problem = problem.clone();
                 move || -> Result<String, minijinja::Error> {
                     output_file(&problem, problem.file_io.unwrap_or(manifest.file_io))
+                }
+            }),
+        ),
+        (
+            "table",
+            Value::from_function({
+                let problem = problem.clone();
+                let day = day.clone();
+                let contest = contest.clone();
+                move |path: String| -> Result<String, minijinja::Error> {
+                    handle_lua_table(path, &problem, &day, &contest)
                 }
             }),
         ),

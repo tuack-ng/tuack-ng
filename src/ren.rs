@@ -1,8 +1,10 @@
 use crate::prelude::*;
+pub mod lua;
 pub mod manifest;
 pub mod processors;
 pub mod renderers;
 pub mod template;
+pub mod tools;
 pub mod unwrap;
 pub mod utils;
 use crate::ren::processors::process_ast;
