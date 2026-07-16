@@ -37,7 +37,13 @@ markdown-ppp = { git = "https://github.com/tuack-ng/markdown-ppp.git", rev = "5b
     "typst-printer",
 ] }
 minijinja = "2.14.0"
-mlua = { version = "0.12.0", features = ["luau", "serde", "send", "anyhow"] }
+mlua = { version = "0.12.0", features = [
+    "lua55",
+    "serde",
+    "send",
+    "anyhow",
+    "vendored",
+] }
 natord = "1.0.9"
 nom = "8.0.0"
 opener = "0.8.4"
