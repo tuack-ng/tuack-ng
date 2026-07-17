@@ -45,7 +45,7 @@ Tuack-NG（`Tuack New Generation`）是一套完整的用于辅助 OI/ACM 竞赛
 - [x] 基于 MiniJinja 的模板系统
 - [ ] 支持多语言
 - [x] 支持外置样例
-- [ ] 支持外置表格
+- [x] 支持外置表格
 
 ### 测试题目 (`test`)
 
