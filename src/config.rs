@@ -1,3 +1,5 @@
+use path_clean::PathClean;
+
 use crate::config::msgs::LoadContext;
 use crate::prelude::*;
 
@@ -79,7 +81,7 @@ pub fn load_config(ctx: &mut LoadContext, path: &Path) -> Result<Option<Config>>
 
     // 递归加载子配置
     for day_name in &config.subdir {
-        let day_path = parent_dir.join(day_name).join(CONFIG_FILE_NAME);
+        let day_path = parent_dir.join(day_name).join(CONFIG_FILE_NAME).clean();
         ctx.enter();
         let mut dayconfig = load_day_config(ctx, &day_path)?;
         ctx.set_name(format!("[day] {}", &dayconfig.name));
@@ -91,7 +93,10 @@ pub fn load_config(ctx: &mut LoadContext, path: &Path) -> Result<Option<Config>>
         // 递归加载题目配置
         let day_parent_dir = day_path.parent().context("无法获取配置文件父目录")?;
         for problem_name in &dayconfig.subdir {
-            let problem_path = day_parent_dir.join(problem_name).join(CONFIG_FILE_NAME);
+            let problem_path = day_parent_dir
+                .join(problem_name)
+                .join(CONFIG_FILE_NAME)
+                .clean();
             ctx.enter();
             let mut problemconfig = load_problem_config(ctx, &problem_path)?;
             ctx.set_name(format!("[problem] {}", &problemconfig.name));
