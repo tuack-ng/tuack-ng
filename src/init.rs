@@ -199,14 +199,14 @@ pub fn init(verbose: &bool, cli: &crate::Cli) -> Result<()> {
     if !matches!(cli.command, crate::Commands::Gen(ref args)
        if matches!(args.target, crate::generate::Targets::Complete(_)))
     {
-        let migrating = if !matches!(cli.command, crate::Commands::Conf(ref args)
+        let migrating = if matches!(cli.command, crate::Commands::Conf(ref args)
        if matches!(args.target, crate::conf::Targets::Migrate))
         {
             true
         } else {
             false
         };
-        let validating = if !matches!(cli.command, crate::Commands::Doc(ref args)
+        let validating = if matches!(cli.command, crate::Commands::Doc(ref args)
        if matches!(args.target, crate::doc::Targets::Validate))
         {
             true
