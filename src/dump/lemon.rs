@@ -93,14 +93,16 @@ pub fn main(day: &ContestDayConfig) -> Result<()> {
             let mut input_files: Vec<String> = Vec::new();
             let mut output_files: Vec<String> = Vec::new();
 
-            for case in &task.items {
+            for &idx in &task.items {
+                let case = &prob.data[idx];
                 input_files.push(case_rel_path(&prob.name, case.id, "in"));
                 output_files.push(case_rel_path(&prob.name, case.id, "ans"));
             }
 
             match task.policy {
                 ScorePolicy::Sum => {
-                    for (i, case) in task.items.iter().enumerate() {
+                    for (i, &idx) in task.items.iter().enumerate() {
+                        let case = &prob.data[idx];
                         cases.push(LemonCase {
                             full_score: case.score,
                             time_limit,

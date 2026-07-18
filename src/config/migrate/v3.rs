@@ -77,7 +77,6 @@ struct SampleItem {
     pub dmk: Option<DmkConfig>,
 }
 
-#[allow(unused)]
 pub struct V3Migrater;
 
 impl Migrater for V3Migrater {

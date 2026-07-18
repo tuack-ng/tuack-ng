@@ -10,6 +10,7 @@ use indicatif::ProgressBar;
 
 use crate::config::ExpandedDataItem;
 use crate::config::ScorePolicy;
+use crate::config::SubtaskItem;
 use crate::prelude::*;
 use crate::tuack_lib::utils::testlib::Checker;
 use crate::tuack_lib::utils::testlib::JudgeResult;
@@ -82,7 +83,7 @@ pub struct TestArgs {
 async fn run_test_case(
     runner: &mut Box<dyn Runner>,
     problem_config: &ProblemConfig,
-    case: &Arc<ExpandedDataItem>,
+    case: &ExpandedDataItem,
     data_dir: &str,
     checker: Option<&dyn Checker>,
 ) -> Result<(TestCaseStatus, Option<Duration>, Option<ByteSize>)> {
@@ -129,7 +130,7 @@ async fn run_test_case(
 fn validate_output(
     output: &[u8],
     problem_config: &ProblemConfig,
-    case: &Arc<ExpandedDataItem>,
+    case: &ExpandedDataItem,
     data_dir: &str,
     checker: Option<&dyn Checker>,
 ) -> Result<TestCaseStatus> {
@@ -254,21 +255,19 @@ pub async fn test_problem(
         Target::Sample => "sample",
     };
 
-    let data_items: Vec<Arc<ExpandedDataItem>> = match target {
-        Target::Data => problem_config.data.to_vec(),
+    let data_items: Vec<ExpandedDataItem> = match target {
+        Target::Data => problem_config.data.clone(),
         Target::Sample => problem_config
             .samples
             .iter()
-            .map(|item| {
-                Arc::new(ExpandedDataItem {
-                    id: item.id,
-                    score: 1,
-                    subtask: 0,
-                    input: item.input_path(),
-                    output: item.output_path(),
-                    args: item.args.clone(),
-                    dmk: item.dmk.unwrap_or(problem_config.dmk),
-                })
+            .map(|item| ExpandedDataItem {
+                id: item.id,
+                score: 1,
+                subtask: 0,
+                input: item.input_path(),
+                output: item.output_path(),
+                args: item.args.clone(),
+                dmk: item.dmk.unwrap_or(problem_config.dmk),
             })
             .collect(),
     };
@@ -475,11 +474,15 @@ pub async fn test_problem(
 
         let mut total_score: u32 = 0;
 
-        let mut subtask_scores: HashMap<u32, Vec<u32>> = problem_config
-            .subtasks
-            .keys()
-            .map(|id| (*id, Vec::new()))
-            .collect();
+        let mut subtask_scores: HashMap<u32, Vec<u32>> = if is_sample {
+            HashMap::from([(0, vec![])])
+        } else {
+            problem_config
+                .subtasks
+                .keys()
+                .map(|id| (*id, vec![]))
+                .collect()
+        };
 
         if problem_status == ProblemStatus::Compiled {
             #[allow(unused)]
@@ -580,71 +583,65 @@ pub async fn test_problem(
             case_test_pb.finish_and_clear();
 
             msg_info!("测试结果：");
-            if is_sample {
-                total_score = individual_results.iter().map(|r| r.score).sum();
-                let max_possible = data_items.len() as u32;
-                msg_info!(
-                    "样例得分 {}/{}",
-                    total_score.to_string().cyan().bold(),
-                    max_possible.to_string().green().bold()
-                );
-
-                let problem_result = ProblemTestResult {
-                    tester_name: test_name.to_string(),
-                    test_case_results: individual_results,
-                    total_score,
-                    max_possible_score: max_possible,
-                };
-                all_test_results.push(problem_result);
+            let scoring_subtasks: BTreeMap<u32, SubtaskItem> = if is_sample {
+                BTreeMap::from([(
+                    0,
+                    SubtaskItem {
+                        items: vec![],
+                        max_score: data_items.len() as u32,
+                        policy: ScorePolicy::Sum,
+                    },
+                )])
             } else {
-                for (id, subtask) in &problem_config.subtasks {
-                    let scores = &subtask_scores[id];
-                    let subtask_score = match subtask.policy {
-                        ScorePolicy::Sum => scores.iter().sum(),
-                        ScorePolicy::Max => *scores.iter().max().unwrap_or(&0),
-                        ScorePolicy::Min => *scores.iter().min().unwrap_or(&0),
-                    };
-                    info!(
-                        "Subtask #{} 得分 {}/{}",
-                        id, subtask_score, subtask.max_score
-                    );
-                    msg_info!(
-                        "Subtask {}{} 得分 {}/{}",
-                        "#".bold(),
-                        id.to_string().bold(),
-                        subtask_score.to_string().cyan(),
-                        subtask.max_score.to_string().green()
-                    );
-                    total_score += subtask_score;
-                }
-
-                let problem_result = ProblemTestResult {
-                    tester_name: test_name.to_string(),
-                    test_case_results: individual_results,
-                    total_score,
-                    max_possible_score: problem_config
-                        .subtasks
-                        .iter()
-                        .map(|task| task.1.max_score)
-                        .sum(),
-                };
-                msg_info!(
-                    "总得分 {}/{}",
-                    total_score.to_string().cyan().bold(),
-                    problem_result.max_possible_score.to_string().green().bold()
-                );
-                all_test_results.push(problem_result);
-            }
-        } else {
-            let max_possible = if is_sample {
-                data_items.len() as u32
-            } else {
-                problem_config
-                    .subtasks
-                    .iter()
-                    .map(|task| task.1.max_score)
-                    .sum()
+                problem_config.subtasks.clone()
             };
+            for (id, subtask) in &scoring_subtasks {
+                let scores = &subtask_scores[id];
+                let subtask_score = match subtask.policy {
+                    ScorePolicy::Sum => scores.iter().sum(),
+                    ScorePolicy::Max => *scores.iter().max().unwrap_or(&0),
+                    ScorePolicy::Min => *scores.iter().min().unwrap_or(&0),
+                };
+                info!(
+                    "Subtask #{} 得分 {}/{}",
+                    id, subtask_score, subtask.max_score
+                );
+                msg_info!(
+                    "Subtask {}{} 得分 {}/{}",
+                    "#".bold(),
+                    id.to_string().bold(),
+                    subtask_score.to_string().cyan(),
+                    subtask.max_score.to_string().green()
+                );
+                total_score += subtask_score;
+            }
+
+            let problem_result = ProblemTestResult {
+                tester_name: test_name.to_string(),
+                test_case_results: individual_results,
+                total_score,
+                max_possible_score: scoring_subtasks.iter().map(|task| task.1.max_score).sum(),
+            };
+            msg_info!(
+                "总得分 {}/{}",
+                total_score.to_string().cyan().bold(),
+                problem_result.max_possible_score.to_string().green().bold()
+            );
+            all_test_results.push(problem_result);
+        } else {
+            let scoring_subtasks: BTreeMap<u32, SubtaskItem> = if is_sample {
+                BTreeMap::from([(
+                    0,
+                    SubtaskItem {
+                        items: vec![],
+                        max_score: data_items.len() as u32,
+                        policy: ScorePolicy::Sum,
+                    },
+                )])
+            } else {
+                problem_config.subtasks.clone()
+            };
+            let max_possible: u32 = scoring_subtasks.iter().map(|task| task.1.max_score).sum();
             let problem_result = ProblemTestResult {
                 tester_name: test_name.to_string(),
                 test_case_results: vec![IndividualTestCaseResult {

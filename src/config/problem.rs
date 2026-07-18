@@ -5,7 +5,6 @@ use crate::prelude::*;
 use crate::tuack_lib::utils::testlib::Arg;
 use bytesize::ByteSize;
 use indexmap::IndexMap;
-use std::sync::Arc;
 
 /// 生成器配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -148,10 +147,8 @@ pub struct ProblemConfig {
     /// 当前配置所在路径，运行时生成
     pub path: PathBuf,
     /// 数据
-    #[serde(skip_deserializing, default)] // 这玩意反序列化无意义 (TODO)?
-    pub data: Vec<Arc<ExpandedDataItem>>,
+    pub data: Vec<ExpandedDataItem>,
     /// Subtask 配置
-    #[serde(skip_deserializing, default)] // 同上
     pub subtasks: BTreeMap<u32, SubtaskItem>,
 }
 
@@ -291,8 +288,8 @@ pub struct ExpandedDataItem {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SubtaskItem {
-    /// 数据点
-    pub items: Vec<Arc<ExpandedDataItem>>,
+    /// 数据点在 data 中的下标
+    pub items: Vec<usize>,
     /// 最大分值
     pub max_score: u32,
     /// 评分策略
@@ -366,7 +363,7 @@ pub fn load_problem_config(
 
     // 检查版本
     if version < CONFIG_MIN_VERSION {
-        bail!("配置文件版本过低，可能是 tuack 的配置文件。请迁移到 tuack-ng 配置文件格式再使用。");
+        bail!("配置文件版本过低，可能是 Tuack 的配置文件。请迁移到 Tuack-NG 配置文件格式再使用。");
     }
 
     if version > CONFIG_VERSION {
@@ -413,12 +410,12 @@ pub fn load_problem_config(
     // 先解析为 File 结构
     let problemconfig: ProblemConfigFile = serde_json::from_value(problem_json_value)?;
 
-    let mut expand_data: Vec<Arc<ExpandedDataItem>> = vec![];
+    let mut expand_data: Vec<ExpandedDataItem> = vec![];
 
     for data in &problemconfig.data {
         match data {
             DataItem::Single(item) => {
-                expand_data.push(Arc::new(ExpandedDataItem {
+                expand_data.push(ExpandedDataItem {
                     id: item.id,
                     score: item.score,
                     subtask: item.subtask,
@@ -432,11 +429,11 @@ pub fn load_problem_config(
                         .unwrap_or_else(|| format!("{}.ans", item.id)),
                     args: item.args.clone(),
                     dmk: item.dmk.unwrap_or(problemconfig.dmk),
-                }));
+                });
             }
             DataItem::Bundle(item) => {
                 for id in &item.id {
-                    expand_data.push(Arc::new(ExpandedDataItem {
+                    expand_data.push(ExpandedDataItem {
                         id: *id as u32,
                         score: item.score,
                         subtask: item.subtask,
@@ -444,7 +441,7 @@ pub fn load_problem_config(
                         output: format!("{}.ans", id),
                         args: item.args.clone(),
                         dmk: item.dmk.unwrap_or(problemconfig.dmk),
-                    }));
+                    });
                 }
             }
         }
@@ -457,7 +454,7 @@ pub fn load_problem_config(
             (
                 id,
                 SubtaskItem {
-                    items: Vec::new(),
+                    items: vec![],
                     max_score: 0,
                     policy,
                 },
@@ -465,16 +462,14 @@ pub fn load_problem_config(
         })
         .collect();
 
-    // 将数据点分配到对应的 subtask
-    for data in &expand_data {
-        let subtask_id = data.subtask;
-        if let Some(subtask) = expand_subtasks.get_mut(&subtask_id) {
-            subtask.items.push(data.clone());
+    for (idx, data) in expand_data.iter().enumerate() {
+        if let Some(subtask) = expand_subtasks.get_mut(&data.subtask) {
+            subtask.items.push(idx);
         } else {
             ctx.emit_warn(format!(
                 "数据点 {} 中发现了无效的 Subtask ID {}",
                 data.id.to_string().cyan(),
-                subtask_id.to_string().cyan()
+                data.subtask.to_string().cyan()
             ));
         }
     }
@@ -485,16 +480,16 @@ pub fn load_problem_config(
             ScorePolicy::Max => subtask
                 .items
                 .iter()
-                .map(|item| item.score)
+                .map(|&i| expand_data[i].score)
                 .max()
                 .unwrap_or(0),
             ScorePolicy::Min => subtask
                 .items
                 .iter()
-                .map(|item| item.score)
+                .map(|&i| expand_data[i].score)
                 .min()
                 .unwrap_or(0),
-            ScorePolicy::Sum => subtask.items.iter().map(|item| item.score).sum(),
+            ScorePolicy::Sum => subtask.items.iter().map(|&i| expand_data[i].score).sum(),
         };
     }
 

@@ -8,7 +8,6 @@ use clap::ValueEnum;
 use colored::ColoredString;
 use indicatif::ProgressBar;
 use std::fmt;
-use std::sync::Arc;
 use std::time::Duration;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
@@ -161,8 +160,8 @@ pub struct DmkArgs {
 /// 从字符串解析测试点，返回匹配的 ExpandedDataItem 列表
 pub fn parse_test_object(
     s: &str,
-    all_items: &[Arc<ExpandedDataItem>],
-) -> Result<Vec<Arc<ExpandedDataItem>>> {
+    all_items: &[ExpandedDataItem],
+) -> Result<Vec<ExpandedDataItem>> {
     let s = s.trim().to_lowercase();
 
     if s == "all" {
@@ -257,13 +256,13 @@ pub async fn main(args: DmkArgs) -> Result<()> {
             bail!("本命令只能在题目目录下执行");
         };
 
-    let data_items: Vec<Arc<ExpandedDataItem>> = match &args.target {
-        Target::Data => current_problem.data.to_vec(),
+    let data_items: Vec<ExpandedDataItem> = match &args.target {
+        Target::Data => current_problem.data.clone(),
         Target::Sample => current_problem
             .samples
             .iter()
             .map(|item| {
-                Arc::new(ExpandedDataItem {
+                ExpandedDataItem {
                     id: item.id,
                     score: 0,
                     subtask: 0,
@@ -271,7 +270,7 @@ pub async fn main(args: DmkArgs) -> Result<()> {
                     output: item.output_path(),
                     args: item.args.clone(),
                     dmk: item.dmk.unwrap_or(current_problem.dmk),
-                })
+                }
             })
             .collect(),
     };

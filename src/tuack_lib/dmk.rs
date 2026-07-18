@@ -1,7 +1,5 @@
 use std::collections::BTreeMap;
 use std::str::FromStr;
-use std::sync::Arc;
-
 use rand::Rng;
 use tokio::fs;
 
@@ -103,7 +101,7 @@ pub async fn dmk(
     reporter: &dyn DmkReporter,
     target: &Target,
     action: &DmkCommand,
-    data_items: &[Arc<ExpandedDataItem>],
+    data_items: &[ExpandedDataItem],
     current_problem: &ProblemConfig,
     current_day: &ContestDayConfig,
     generator: &mut impl Generator,
@@ -290,7 +288,7 @@ async fn compile_std(
 async fn get_or_generate_seed(
     target_dir: &Path,
     force: bool,
-    data: &[Arc<ExpandedDataItem>],
+    data: &[ExpandedDataItem],
 ) -> Result<BTreeMap<u32, u64>> {
     let mut rng = gen_rnd()?;
     let mut seeds: BTreeMap<u32, u64> = BTreeMap::new();
