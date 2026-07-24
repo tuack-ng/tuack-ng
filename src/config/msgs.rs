@@ -66,6 +66,22 @@ impl LoadMessages {
         self.messages.len() + self.sub.iter().map(|v| v.count()).sum::<usize>()
     }
 
+    pub fn count_errors(&self) -> usize {
+        self.messages
+            .iter()
+            .filter(|m| matches!(m.level, LoadMessageLevel::Error))
+            .count()
+            + self.sub.iter().map(|v| v.count_errors()).sum::<usize>()
+    }
+
+    pub fn count_warnings(&self) -> usize {
+        self.messages
+            .iter()
+            .filter(|m| matches!(m.level, LoadMessageLevel::Warn))
+            .count()
+            + self.sub.iter().map(|v| v.count_warnings()).sum::<usize>()
+    }
+
     pub fn is_empty(&self) -> bool {
         self.count() == 0
     }
@@ -97,6 +113,33 @@ impl LoadMessages {
             }
             let _branch = tree.add_branch(&branch.name);
             branch.render_tree(tree);
+        }
+    }
+
+    pub fn render_errors(&self, tree: &mut TreeBuilder) {
+        for leaf in &self.messages {
+            if !matches!(leaf.level, LoadMessageLevel::Error) {
+                continue;
+            }
+            let level_string = if colored::control::SHOULD_COLORIZE.should_colorize() {
+                match leaf.level {
+                    LoadMessageLevel::Error => "*".red(),
+                    _ => unreachable!(),
+                }
+                .bold()
+            } else {
+                "[E]".into()
+            };
+
+            tree.add_leaf(&format!("{level_string} {}", leaf.message));
+        }
+
+        for branch in &self.sub {
+            if branch.count_errors() == 0 {
+                continue;
+            }
+            let _branch = tree.add_branch(&branch.name);
+            branch.render_errors(tree);
         }
     }
 }
@@ -177,6 +220,17 @@ impl LoadContext {
                 .indent(2),
         );
         self.root.render_tree(&mut tree);
+        tree.string()
+    }
+
+    pub fn render_errors_tree(&self) -> String {
+        let mut tree = TreeBuilder::new();
+        tree.set_config_override(
+            TreeConfig::new()
+                .symbols(TreeSymbols::new().leaf("─ "))
+                .indent(2),
+        );
+        self.root.render_errors(&mut tree);
         tree.string()
     }
 }

@@ -149,10 +149,18 @@ fn init_context(multi: MultiProgress, migrating: bool, validating: bool) -> Resu
                     }
                 }
                 if ctx.root.count() != 0 && !validating {
-                    msg_warn!(
-                        "配置文件中发现了 {} 个问题。使用 `tuack-ng doc validate` 查看。",
-                        ctx.root.count()
-                    );
+                    let err_count = ctx.root.count_errors();
+                    let warn_count = ctx.root.count_warnings();
+                    if warn_count > 0 {
+                        msg_warn!(
+                            "配置文件中发现了 {} 个警告。使用 `tuack-ng doc validate` 查看。",
+                            warn_count
+                        );
+                    }
+                    if err_count > 0 {
+                        msg_error!("配置文件中发现了 {} 个错误：", err_count);
+                        emsg!("{}", ctx.render_errors_tree());
+                    }
                 }
             }
             res
