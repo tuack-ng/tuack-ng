@@ -249,6 +249,7 @@ pub async fn test_problem(
     day_config: &ContestDayConfig,
     problem_config: &ProblemConfig,
     target: Target,
+    in_problem: bool,
 ) -> Result<()> {
     let data_dir = match target {
         Target::Data => "data",
@@ -503,6 +504,8 @@ pub async fn test_problem(
                     .progress_chars("=> "),
             );
 
+            case_test_pb.set_message(format!("运行测试点：{}/{}", 1, data_items.len()));
+
             for case in &data_items {
                 case_count += 1;
                 info!("运行测试点：{}", case.id);
@@ -574,13 +577,14 @@ pub async fn test_problem(
 
                 case_test_pb.set_message(format!(
                     "运行测试点：{}/{} | #{} {}",
-                    case_count,
+                    case_count + 1,
                     data_items.len(),
                     case.id,
                     status_str
                 ));
                 case_test_pb.inc(1);
             }
+
             case_test_pb.finish_and_clear();
 
             msg_info!("测试结果：");
@@ -683,7 +687,12 @@ pub async fn test_problem(
         runner.cleanup()?;
     }
 
-    tester_pb.finish_and_clear();
+    if in_problem {
+        tester_pb.finish_with_message("测试完成！");
+    } else {
+        tester_pb.finish_and_clear();
+    }
+
     let csv_path = problem_config.path.join(match target {
         Target::Data => "result.csv",
         Target::Sample => "result-sample.csv",
@@ -694,7 +703,7 @@ pub async fn test_problem(
     Ok(())
 }
 
-async fn test_day(day_config: &ContestDayConfig, target: Target) -> Result<()> {
+async fn test_day(day_config: &ContestDayConfig, target: Target, in_day: bool) -> Result<()> {
     let total_problems = day_config.subconfig.len();
     let day_pb = gctx()
         .multiprogress
@@ -707,10 +716,14 @@ async fn test_day(day_config: &ContestDayConfig, target: Target) -> Result<()> {
     );
     for (idx, (_, problem_config)) in day_config.subconfig.iter().enumerate() {
         day_pb.set_message(format!("处理第 {}/{} 题", idx + 1, total_problems));
-        test_problem(day_config, problem_config, target).await?;
+        test_problem(day_config, problem_config, target, false).await?;
         day_pb.inc(1);
     }
-    day_pb.finish_with_message("当天所有题目测试完成");
+    if in_day {
+        day_pb.finish_with_message("测试完成！");
+    } else {
+        day_pb.finish_and_clear();
+    }
     Ok(())
 }
 
@@ -730,14 +743,14 @@ pub async fn main(args: TestArgs) -> Result<()> {
                 .subconfig
                 .get(prob_key)
                 .with_context(|| format!("未找到题目配置：{}", prob_key))?;
-            test_problem(day_config, problem_config, args.target).await?;
+            test_problem(day_config, problem_config, args.target, true).await?;
         }
         CurrentLocation::Day(day_key) => {
             let day_config = config
                 .subconfig
                 .get(day_key)
                 .with_context(|| format!("未找到天配置：{}", day_key))?;
-            test_day(day_config, args.target).await?;
+            test_day(day_config, args.target, true).await?;
         }
         CurrentLocation::Root => {
             let total_days = config.subconfig.len();
@@ -752,10 +765,10 @@ pub async fn main(args: TestArgs) -> Result<()> {
             );
             for (day_idx, (_, day_config)) in config.subconfig.iter().enumerate() {
                 day_pb.set_message(format!("处理第 {}/{} 天", day_idx + 1, total_days));
-                test_day(day_config, args.target).await?; // 复用 test_day
+                test_day(day_config, args.target, false).await?; // 复用 test_day
                 day_pb.inc(1);
             }
-            day_pb.finish_with_message("所有题目测试完成");
+            day_pb.finish_with_message("测试完成！");
         }
         CurrentLocation::None => bail!("此命令必须在工程下执行"),
     }

@@ -87,7 +87,7 @@ impl DmkReporter for CliDmkReporter {
     fn start_dmk(&self, size: u32) {
         self.dmk_pb.set_style(
             indicatif::ProgressStyle::default_bar()
-                .template("  [{bar:40.cyan/blue}] {pos}/{len} {msg}")
+                .template("  [{bar:40.cyan/blue}] {msg}")
                 .unwrap()
                 .progress_chars("=> "),
         );
@@ -95,7 +95,12 @@ impl DmkReporter for CliDmkReporter {
     }
 
     fn start_item(&self, id: u32) {
-        self.dmk_pb.set_message(format!("生成数据点 #{}", id));
+        self.dmk_pb.set_message(format!(
+            "{}/{} | 正在生成数据点 #{}",
+            self.dmk_pb.position(),
+            self.dmk_pb.length().unwrap(),
+            id
+        ));
     }
 
     fn generate_input(&self, id: u32, status: &DmkResult) {
@@ -123,7 +128,7 @@ impl DmkReporter for CliDmkReporter {
     }
 
     fn progress(&self, position: u32) {
-        self.dmk_pb.set_position(position as u64);
+        self.dmk_pb.set_position((position + 1) as u64);
     }
 
     fn completed(&self) {
@@ -158,10 +163,7 @@ pub struct DmkArgs {
 }
 
 /// 从字符串解析测试点，返回匹配的 ExpandedDataItem 列表
-pub fn parse_test_object(
-    s: &str,
-    all_items: &[ExpandedDataItem],
-) -> Result<Vec<ExpandedDataItem>> {
+pub fn parse_test_object(s: &str, all_items: &[ExpandedDataItem]) -> Result<Vec<ExpandedDataItem>> {
     let s = s.trim().to_lowercase();
 
     if s == "all" {
@@ -261,17 +263,15 @@ pub async fn main(args: DmkArgs) -> Result<()> {
         Target::Sample => current_problem
             .samples
             .iter()
-            .map(|item| {
-                ExpandedDataItem {
-                    id: item.id,
-                    score: 0,
-                    subtask: 0,
-                    input: item.input_path(),
-                    output: item.output_path(),
-                    orig_args: item.orig_args.clone(),
-                    args: item.args.clone(),
-                    dmk: item.dmk.unwrap_or(current_problem.dmk),
-                }
+            .map(|item| ExpandedDataItem {
+                id: item.id,
+                score: 0,
+                subtask: 0,
+                input: item.input_path(),
+                output: item.output_path(),
+                orig_args: item.orig_args.clone(),
+                args: item.args.clone(),
+                dmk: item.dmk.unwrap_or(current_problem.dmk),
             })
             .collect(),
     };
