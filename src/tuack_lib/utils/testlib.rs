@@ -13,7 +13,7 @@ pub enum Arg {
 /// 数据生成器
 pub trait Generator: Send {
     fn prepare(&mut self) -> Result<()>;
-    fn run(&self, args: HashMap<String, Arg>, seed: u64) -> Result<Vec<u8>>;
+    fn run(&self, args: IndexMap<String, Arg>, seed: u64) -> Result<Vec<u8>>;
 }
 
 /// Checker（SPJ）结果类型

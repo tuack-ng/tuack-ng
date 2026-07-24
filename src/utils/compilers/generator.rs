@@ -82,7 +82,7 @@ impl Generator for CppGenerator {
         Ok(())
     }
 
-    fn run(&self, args: HashMap<String, Arg>, seed: u64) -> Result<Vec<u8>> {
+    fn run(&self, args: IndexMap<String, Arg>, seed: u64) -> Result<Vec<u8>> {
         let binary = self
             .binary_path
             .as_ref()

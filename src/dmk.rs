@@ -268,6 +268,7 @@ pub async fn main(args: DmkArgs) -> Result<()> {
                     subtask: 0,
                     input: item.input_path(),
                     output: item.output_path(),
+                    orig_args: item.orig_args.clone(),
                     args: item.args.clone(),
                     dmk: item.dmk.unwrap_or(current_problem.dmk),
                 }

@@ -359,7 +359,7 @@ fn gen_data(args: GenConfirmArgs) -> Result<()> {
                         output: Some(format!("{}.ans", name)),
                         score: 100 / count,
                         subtask: 0,
-                        args: HashMap::new(),
+                        orig_args: IndexMap::new(),
                         dmk: None,
                     })
                 })
@@ -435,7 +435,8 @@ fn gen_sample(args: GenConfirmArgs) -> Result<()> {
                     id: id as u32 + 1,
                     input: Some(format!("{}.in", name)),
                     output: Some(format!("{}.ans", name)),
-                    args: HashMap::new(),
+                    orig_args: IndexMap::new(),
+                    args: IndexMap::new(),
                     dmk: None,
                 })
                 .collect();

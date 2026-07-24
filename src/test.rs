@@ -266,6 +266,7 @@ pub async fn test_problem(
                 subtask: 0,
                 input: item.input_path(),
                 output: item.output_path(),
+                orig_args: item.orig_args.clone(),
                 args: item.args.clone(),
                 dmk: item.dmk.unwrap_or(problem_config.dmk),
             })

@@ -192,12 +192,9 @@ pub async fn dmk(
         let gen_output = data_item.dmk == DmkConfig::Output || data_item.dmk == DmkConfig::On;
 
         if (!matches!(action, DmkCommand::Gen) || !input_path.exists()) && gen_input {
-            let mut args_map = current_problem.args.clone();
-            args_map.extend(data_item.args.clone());
-
             let seed = seeds.get(&data_item.id).unwrap();
 
-            match generator.run(args_map, *seed) {
+            match generator.run(data_item.args.clone(), *seed) {
                 Ok(output) => {
                     if let Err(e) = fs::write(&input_path, &output).await {
                         reporter.generate_input(data_item.id, &DmkResult::Fail(e.into()));

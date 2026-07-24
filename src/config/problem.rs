@@ -75,8 +75,8 @@ pub struct ProblemConfigFile {
     /// 数据生成行为
     pub dmk: DmkConfig,
     /// 数据点参数 (全局部分)
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub args: HashMap<String, Arg>,
+    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    pub args: IndexMap<String, Arg>,
     /// 交互
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub interactive: Option<InteractiveConfig>,
@@ -120,7 +120,7 @@ pub struct ProblemConfig {
     /// 数据生成行为
     pub dmk: DmkConfig,
     /// 数据点参数 (全局部分)
-    pub args: HashMap<String, Arg>,
+    pub args: IndexMap<String, Arg>,
     /// 交互
     pub interactive: Option<InteractiveConfig>,
     /// 生成器配置
@@ -198,9 +198,13 @@ pub struct SampleItem {
     /// 输出文件
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub output: Option<String>,
-    /// 参数，会从全局参数继承
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub args: HashMap<String, Arg>,
+    /// 原始参数（来自配置文件）
+    #[serde(rename = "args")]
+    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    pub orig_args: IndexMap<String, Arg>,
+    /// 参数（继承全局参数后的运行时结果）
+    #[serde(skip)]
+    pub args: IndexMap<String, Arg>,
     /// 数据生成行为
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dmk: Option<DmkConfig>,
@@ -243,9 +247,10 @@ pub struct SingleDataItem {
     /// 输出文件
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub output: Option<String>,
-    /// 参数，会从全局参数继承
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub args: HashMap<String, Arg>,
+    /// 原始参数（来自配置文件）
+    #[serde(rename = "args")]
+    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    pub orig_args: IndexMap<String, Arg>,
     /// 数据生成行为
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dmk: Option<DmkConfig>,
@@ -260,9 +265,10 @@ pub struct BundleDataItem {
     /// Subtask 编号
     #[serde(default)]
     pub subtask: u32,
-    /// 参数，会从全局参数继承
-    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub args: HashMap<String, Arg>,
+    /// 原始参数（来自配置文件）
+    #[serde(rename = "args")]
+    #[serde(default, skip_serializing_if = "IndexMap::is_empty")]
+    pub orig_args: IndexMap<String, Arg>,
     /// 数据生成行为
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub dmk: Option<DmkConfig>,
@@ -280,8 +286,10 @@ pub struct ExpandedDataItem {
     pub input: String,
     /// 输出文件
     pub output: String,
-    /// 参数，会从全局参数继承
-    pub args: HashMap<String, Arg>,
+    /// 原始参数（来自配置文件）
+    pub orig_args: IndexMap<String, Arg>,
+    /// 参数（继承全局参数后的运行时结果）
+    pub args: IndexMap<String, Arg>,
     /// 数据生成行为
     pub dmk: DmkConfig,
 }
@@ -408,13 +416,15 @@ pub fn load_problem_config(
     }
 
     // 先解析为 File 结构
-    let problemconfig: ProblemConfigFile = serde_json::from_value(problem_json_value)?;
+    let mut problemconfig: ProblemConfigFile = serde_json::from_value(problem_json_value)?;
 
     let mut expand_data: Vec<ExpandedDataItem> = vec![];
 
     for data in &problemconfig.data {
         match data {
             DataItem::Single(item) => {
+                let mut merged = problemconfig.args.clone();
+                merged.extend(item.orig_args.clone());
                 expand_data.push(ExpandedDataItem {
                     id: item.id,
                     score: item.score,
@@ -427,11 +437,14 @@ pub fn load_problem_config(
                         .output
                         .clone()
                         .unwrap_or_else(|| format!("{}.ans", item.id)),
-                    args: item.args.clone(),
+                    orig_args: item.orig_args.clone(),
+                    args: merged,
                     dmk: item.dmk.unwrap_or(problemconfig.dmk),
                 });
             }
             DataItem::Bundle(item) => {
+                let mut merged = problemconfig.args.clone();
+                merged.extend(item.orig_args.clone());
                 for id in &item.id {
                     expand_data.push(ExpandedDataItem {
                         id: *id as u32,
@@ -439,7 +452,8 @@ pub fn load_problem_config(
                         subtask: item.subtask,
                         input: format!("{}.in", id),
                         output: format!("{}.ans", id),
-                        args: item.args.clone(),
+                        orig_args: item.orig_args.clone(),
+                        args: merged.clone(),
                         dmk: item.dmk.unwrap_or(problemconfig.dmk),
                     });
                 }
@@ -496,6 +510,13 @@ pub fn load_problem_config(
     if problemconfig.problem_type == ProblemType::Interactive && problemconfig.interactive.is_none()
     {
         bail!("交互题目需要配置交互 (interactive)");
+    }
+
+    // 合并全局参数到样例
+    for sample in &mut problemconfig.samples {
+        let mut merged = problemconfig.args.clone();
+        merged.extend(sample.orig_args.clone());
+        sample.args = merged;
     }
 
     Ok(ProblemConfig {
