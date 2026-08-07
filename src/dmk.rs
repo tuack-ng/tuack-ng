@@ -3,6 +3,7 @@ use crate::context::{CurrentLocation, gctx};
 use crate::prelude::*;
 use crate::tuack_lib::dmk::{DmkReporter, DmkResult, dmk};
 use crate::utils::compilers::generator::CppGenerator;
+use crate::utils::test_object::parse_test_object;
 use clap::Args;
 use clap::ValueEnum;
 use indicatif::ProgressBar;
@@ -160,58 +161,10 @@ pub struct DmkArgs {
     /// 操作对象，使用 `,` 和 `-` 分割 (如 1,2-3,4-10)
     #[arg(default_value = "all")]
     object: String,
-}
 
-/// 从字符串解析测试点，返回匹配的 ExpandedDataItem 列表
-pub fn parse_test_object(s: &str, all_items: &[ExpandedDataItem]) -> Result<Vec<ExpandedDataItem>> {
-    let s = s.trim().to_lowercase();
-
-    if s == "all" {
-        return Ok(all_items.to_vec());
-    }
-
-    let mut result = Vec::new();
-    let parts: Vec<&str> = s.split(',').map(|p| p.trim()).collect();
-
-    for part in parts {
-        if part.is_empty() {
-            continue;
-        }
-
-        if let Some(pos) = part.find('-') {
-            let start_str = &part[..pos];
-            let end_str = &part[pos + 1..];
-
-            let start = start_str
-                .parse::<u32>()
-                .with_context(|| format!("无效的起始 ID: {}", start_str))?;
-            let end = end_str
-                .parse::<u32>()
-                .with_context(|| anyhow!("无效的结束 ID: {}", end_str))?;
-
-            if start > end {
-                bail!("起始 ID 不能大于结束 ID: {}", part);
-            }
-
-            // 遍历查找在范围内的测试点
-            for item in all_items.iter() {
-                if item.id >= start && item.id <= end {
-                    result.push(item.clone());
-                }
-            }
-        } else {
-            let id = part
-                .parse::<u32>()
-                .with_context(|| anyhow!("无效的测试点 ID: {}", part))?;
-
-            // 遍历查找匹配的测试点
-            if let Some(item) = all_items.iter().find(|item| item.id == id) {
-                result.push(item.clone());
-            }
-        }
-    }
-
-    Ok(result)
+    /// 生成后校验输入（覆盖配置，如 --validate 或 --validate=false）
+    #[arg(long, num_args = 0..=1, require_equals = true, default_missing_value = "true")]
+    validate: Option<bool>,
 }
 
 use crate::tuack_lib::dmk as tuack_dmk;
@@ -301,11 +254,28 @@ pub async fn main(args: DmkArgs) -> Result<()> {
         let abs = resolve(dep_path);
         let content =
             std::fs::read(&abs).with_context(|| format!("读取依赖文件失败：{}", abs.display()))?;
-        let name = abs.file_name().unwrap_or_default().to_string_lossy().to_string();
+        let name = abs
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .to_string();
         deps.insert(name, content);
     }
 
     let mut generator = CppGenerator::new(&gen_path, &current_day.compile, "gen", deps)?;
+
+    let effective_validate = args.validate.unwrap_or(generator_config.validate);
+    let validator: Option<Box<dyn crate::tuack_lib::utils::testlib::Validator>> =
+        if effective_validate {
+            Some(
+                crate::validate::compile_validator(current_problem, args.target.into())
+                    .with_context(|| {
+                        format!("题目 {} 的 Validator 不可用", current_problem.name)
+                    })?,
+            )
+        } else {
+            None
+        };
 
     let reporter = CliDmkReporter::new();
 
@@ -317,6 +287,7 @@ pub async fn main(args: DmkArgs) -> Result<()> {
         current_problem,
         current_day,
         &mut generator,
+        validator.as_deref(),
     )
     .await
 }

@@ -6,6 +6,7 @@ use crate::generate::GenArgs;
 use crate::prelude::*;
 use crate::ren::RenArgs;
 use crate::test::TestArgs;
+use crate::validate::ValidateArgs;
 use clap::{Parser, Subcommand};
 use clap_i18n_richformatter::clap_i18n;
 
@@ -23,6 +24,7 @@ mod ren;
 mod test;
 mod tuack_lib;
 mod utils;
+mod validate;
 
 #[derive(Debug, Parser)]
 #[clap_i18n]
@@ -51,6 +53,8 @@ enum Commands {
     Conf(ConfArgs),
     /// 生成数据
     Dmk(DmkArgs),
+    /// 校验输入数据
+    Validate(ValidateArgs),
     /// 导出到评测系统
     Dump(DumpArgs),
     /// 文档相关
@@ -81,6 +85,7 @@ async fn tuack_ng(cli: Cli) -> Result<()> {
         Commands::Test(args) => test::main(args).await,
         Commands::Conf(args) => conf::main(args),
         Commands::Dmk(args) => dmk::main(args).await,
+        Commands::Validate(args) => validate::main(args).await,
         Commands::Dump(args) => dump::main(args),
         Commands::Doc(args) => doc::main(args),
         Commands::Develop(args) => develop::main(args),

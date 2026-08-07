@@ -1,8 +1,10 @@
 pub mod checkers;
 pub mod command;
 pub mod compilers;
+pub mod validators;
 pub mod duration;
 pub mod filesystem;
 pub mod message;
 pub mod process;
 pub mod random;
+pub mod test_object;

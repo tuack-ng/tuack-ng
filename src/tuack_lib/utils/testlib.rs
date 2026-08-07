@@ -32,3 +32,18 @@ pub trait Checker: Send {
     fn validate(&self, input: &Path, output: &[u8], answer: &Path)
     -> Result<(JudgeResult, String)>;
 }
+
+/// Validator（输入校验器）结果
+#[derive(Debug, Clone, PartialEq)]
+pub enum ValidatorResult {
+    /// 校验通过
+    Ok,
+    /// 校验失败，附带 stderr 信息
+    Invalid(String),
+}
+
+/// Validator（输入校验器）
+pub trait Validator: Send {
+    fn prepare(&mut self) -> Result<()>;
+    fn validate(&self, input: &[u8]) -> Result<ValidatorResult>;
+}

@@ -60,6 +60,12 @@ Tuack-NG（`Tuack New Generation`）是一套完整的用于辅助 OI/ACM 竞赛
 
 - [x] 支持为样例/数据单独指定数据生成器
 - [x] 支持交互题
+- [x] 支持生成后自动校验输入（Validator）
+
+### 校验输入（`validate`）
+
+- [x] 支持使用 C++ Validator（testlib）校验输入数据
+- [x] 支持从竞赛/场次/题目三个层级递归校验
 
 ### 其他
 

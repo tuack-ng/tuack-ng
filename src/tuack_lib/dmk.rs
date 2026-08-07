@@ -5,7 +5,7 @@ use tokio::fs;
 
 use crate::config::ExpandedDataItem;
 use crate::prelude::*;
-use crate::tuack_lib::utils::testlib::Generator;
+use crate::tuack_lib::utils::testlib::{Generator, Validator, ValidatorResult};
 use crate::utils::compilers::cpp::CppRunner;
 use crate::utils::compilers::general::GeneralRunner;
 use crate::utils::random::gen_rnd;
@@ -97,6 +97,7 @@ pub enum Target {
     Sample,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn dmk(
     reporter: &dyn DmkReporter,
     target: &Target,
@@ -105,6 +106,7 @@ pub async fn dmk(
     current_problem: &ProblemConfig,
     current_day: &ContestDayConfig,
     generator: &mut impl Generator,
+    validator: Option<&dyn Validator>,
 ) -> Result<()> {
     info!("开始生成数据：{}", current_problem.name);
     let target_dir = match target {
@@ -198,6 +200,21 @@ pub async fn dmk(
                 Ok(output) => {
                     if let Err(e) = fs::write(&input_path, &output).await {
                         reporter.generate_input(data_item.id, &DmkResult::Fail(e.into()));
+                    } else if let Some(validator) = validator {
+                        match validator.validate(&output) {
+                            Ok(ValidatorResult::Ok) => {
+                                reporter.generate_input(data_item.id, &action.into());
+                            }
+                            Ok(ValidatorResult::Invalid(message)) => {
+                                reporter.generate_input(
+                                    data_item.id,
+                                    &DmkResult::Fail(anyhow!("输入校验失败：{}", message)),
+                                );
+                            }
+                            Err(e) => {
+                                reporter.generate_input(data_item.id, &DmkResult::Fail(e));
+                            }
+                        }
                     } else {
                         reporter.generate_input(data_item.id, &action.into());
                     }

@@ -40,5 +40,6 @@
     "0": "sum"
   },
   "tests": {},
-  "checker": null
+  "checker": null,
+  "validator": null
 }
