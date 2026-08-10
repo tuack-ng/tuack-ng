@@ -20,6 +20,7 @@ impl Checker for MarkdownChecker {
     }
 }
 pub struct MarkdownCompiler {
+    pub day_config: ContestDayConfig,
     pub tmp_dir: PathBuf,
     pub renderqueue: Vec<RenderQueue>,
 }
@@ -27,19 +28,20 @@ pub struct MarkdownCompiler {
 impl Compiler for MarkdownCompiler {
     fn new(
         _: ContestConfig,
-        _: ContestDayConfig,
+        day_config: ContestDayConfig,
         tmp_dir: PathBuf,
         renderqueue: Vec<RenderQueue>,
         _manifest: TemplateManifest,
     ) -> Self {
         MarkdownCompiler {
+            day_config,
             tmp_dir,
             renderqueue,
         }
     }
 
     fn compile(&self) -> Result<PathBuf> {
-        let output_dir = &self.tmp_dir.join("output");
+        let output_dir = &self.tmp_dir.join("output").join(&self.day_config.name);
         if !output_dir.exists() {
             fs::create_dir_all(output_dir)?;
         }
@@ -57,6 +59,6 @@ impl Compiler for MarkdownCompiler {
             copy_dir_recursive(self.tmp_dir.join("img"), &target)?;
             info!("复制图片目录到：{}", target.display());
         }
-        Ok(output_dir.clone())
+        Ok(output_dir.parent().unwrap().to_path_buf())
     }
 }
