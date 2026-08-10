@@ -2126,7 +2126,7 @@ dependencies = [
 
 [[package]]
 name = "tuack-ng"
-version = "1.0.1"
+version = "1.0.2"
 dependencies = [
  "anstream",
  "anyhow",
