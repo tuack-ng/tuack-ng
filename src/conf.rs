@@ -29,7 +29,8 @@ use crate::{
 };
 use clap::Args;
 
-#[derive(Args, Debug, Clone)]
+#[derive(Args, Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 #[command(version)]
 pub struct ConfValuesArgs {
     /// 值
@@ -37,7 +38,12 @@ pub struct ConfValuesArgs {
     value: Vec<String>,
 }
 
-#[derive(Subcommand, Debug)]
+#[derive(Subcommand, Debug, Serialize, Deserialize)]
+#[serde(
+    tag = "type",
+    rename_all = "snake_case",
+    rename_all_fields = "snake_case"
+)]
 #[command(infer_subcommands = false)]
 pub enum Targets {
     /// 设置标题
@@ -57,7 +63,8 @@ pub enum Targets {
     Migrate,
 }
 
-#[derive(Args, Debug)]
+#[derive(Args, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 #[command(version)]
 pub struct ConfArgs {
     /// 目标对象
@@ -65,7 +72,8 @@ pub struct ConfArgs {
     pub target: Targets,
 }
 
-#[derive(Args, Debug, Clone)]
+#[derive(Args, Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 #[command(version)]
 pub struct ConfCustomArgs {
     /// 键

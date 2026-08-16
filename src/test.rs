@@ -19,7 +19,8 @@ use crate::utils::compilers::cpp::CppRunner;
 use crate::utils::compilers::general::*;
 use crate::utils::duration::format_duration;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Target {
     /// 正式测试数据
     Data,
@@ -79,7 +80,8 @@ pub struct ProblemTestResult {
     pub full_score: u32,
 }
 
-#[derive(Args, Debug)]
+#[derive(Args, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 #[command(version)]
 pub struct TestArgs {
     /// 目标类型

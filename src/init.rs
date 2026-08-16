@@ -11,7 +11,7 @@ use log4rs::{
 use crate::config::msgs::LoadContext;
 use crate::{config::load_config, context};
 use chrono::Local;
-use indicatif::MultiProgress;
+use indicatif::{MultiProgress, ProgressDrawTarget};
 use indicatif_log_bridge::LogWrapper;
 use owo_colors::OwoColorize;
 use std::panic::{self, PanicHookInfo};
@@ -58,23 +58,40 @@ fn custom_panic_handler(panic_info: &PanicHookInfo, verbose: bool) {
     panic_log!("详见：https://docs.tuack-ng.ink/app/faq/panic.html");
 }
 
-fn init_log(verbose: &bool) -> Result<MultiProgress> {
+pub(crate) fn init_log(verbose: &bool) -> Result<MultiProgress> {
     let format = if *verbose {
         "{d(%Y-%m-%d %H:%M:%S)} | {h({l})} | {t} | {m}{n}"
     } else {
         "{h({l})} | {m}{n}"
     };
 
-    let stdout = ConsoleAppender::builder()
-        .target(Target::Stderr)
-        .encoder(Box::new(PatternEncoder::new(format)))
-        .build();
-
     let loglevel = if *verbose {
         LevelFilter::Trace
     } else {
         LevelFilter::Warn
     };
+
+    // RPC 模式：日志与进度条均改道为通知（否则会污染 stdout 的 JSON 流）
+    if crate::rpc::is_enabled() {
+        let config = Config::builder()
+            .appender(Appender::builder().build("rpc", Box::new(RpcLogAppender)))
+            .build(Root::builder().appender("rpc").build(loglevel))?;
+
+        let logger: log4rs::Logger = Logger::new(config);
+        let level = logger.max_log_level();
+        let multi = MultiProgress::with_draw_target(ProgressDrawTarget::term_like(Box::new(
+            RpcTermLike::default(),
+        )));
+        LogWrapper::new(multi.clone(), logger).try_init().unwrap();
+        log::set_max_level(level);
+
+        return Ok(multi);
+    }
+
+    let stdout = ConsoleAppender::builder()
+        .target(Target::Stderr)
+        .encoder(Box::new(PatternEncoder::new(format)))
+        .build();
 
     let config = Config::builder()
         .appender(Appender::builder().build("stdout", Box::new(stdout)))
@@ -89,7 +106,73 @@ fn init_log(verbose: &bool) -> Result<MultiProgress> {
     Ok(multi)
 }
 
-fn init_context(multi: MultiProgress, migrating: bool, validating: bool) -> Result<()> {
+/// RPC 模式：log 输出转为 output 通知
+#[derive(Debug)]
+struct RpcLogAppender;
+
+impl log4rs::append::Append for RpcLogAppender {
+    fn append(&self, record: &log::Record) -> anyhow::Result<()> {
+        crate::rpc::emit_output("stderr", &format!("{} | {}", record.level(), record.args()));
+        Ok(())
+    }
+
+    fn flush(&self) {}
+}
+
+/// RPC 模式：捕获 indicatif 的绘制输出并转为 progress 通知。
+/// 多进度条场景仅保留最近绘制的一行（v1 简化）。
+#[derive(Debug, Default)]
+struct RpcTermLike {
+    line: std::sync::Mutex<String>,
+}
+
+impl indicatif::TermLike for RpcTermLike {
+    fn width(&self) -> u16 {
+        120
+    }
+
+    fn move_cursor_up(&self, _n: usize) -> std::io::Result<()> {
+        Ok(())
+    }
+
+    fn move_cursor_down(&self, _n: usize) -> std::io::Result<()> {
+        Ok(())
+    }
+
+    fn move_cursor_right(&self, _n: usize) -> std::io::Result<()> {
+        Ok(())
+    }
+
+    fn move_cursor_left(&self, _n: usize) -> std::io::Result<()> {
+        Ok(())
+    }
+
+    fn write_line(&self, s: &str) -> std::io::Result<()> {
+        *self.line.lock().unwrap() = s.trim_end_matches('\r').to_string();
+        Ok(())
+    }
+
+    fn write_str(&self, s: &str) -> std::io::Result<()> {
+        self.line.lock().unwrap().push_str(s);
+        Ok(())
+    }
+
+    fn clear_line(&self) -> std::io::Result<()> {
+        Ok(())
+    }
+
+    fn flush(&self) -> std::io::Result<()> {
+        let mut line = self.line.lock().unwrap();
+        let text = line.trim().to_string();
+        if !text.is_empty() {
+            crate::rpc::emit_progress(&text);
+            line.clear();
+        }
+        Ok(())
+    }
+}
+
+pub(crate) fn init_context(multi: MultiProgress, migrating: bool, validating: bool) -> Result<()> {
     let home_dir = dirs::home_dir().context("无法获取 HOME 环境变量")?;
 
     debug!(

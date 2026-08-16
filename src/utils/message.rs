@@ -3,23 +3,44 @@ use anstream::{AutoStream, stderr, stdout};
 pub use owo_colors::OwoColorize;
 
 pub fn supports_color() -> bool {
+    // RPC 模式由请求参数 color 决定；否则按 anstream 的终端检测
+    if crate::rpc::is_enabled() {
+        return crate::rpc::is_color_enabled();
+    }
     !matches!(
         anstream::stdout().current_choice(),
         anstream::ColorChoice::Never
     )
 }
 
+/// 实际写入 stdout/stderr（绕过宏的上下文暂停逻辑）
+pub fn raw_print(stream: &str, text: &str) {
+    if stream == "stderr" {
+        anstream::eprintln!("{}", text);
+    } else {
+        anstream::println!("{}", text);
+    }
+}
+
 #[macro_export]
 macro_rules! _internal_print {
-    ($stream:ident, $($arg:tt)*) => {
-        if let Some(ctx) = $crate::context::GLOBAL_CONTEXT.get() {
-            ctx.multiprogress.suspend(|| {
-                anstream::$stream!($($arg)*);
+    ($stream:ident, $($arg:tt)*) => {{
+        let __text = ::std::format!($($arg)*);
+        let __stream = if stringify!($stream) == "eprintln" {
+            "stderr"
+        } else {
+            "stdout"
+        };
+        if $crate::rpc::emit_output(__stream, &__text) {
+            // JSON-RPC 模式：已作为 output 通知发出
+        } else if let Some(__ctx) = $crate::context::try_gctx() {
+            __ctx.multiprogress.suspend(|| {
+                $crate::utils::message::raw_print(__stream, &__text);
             });
         } else {
-            anstream::$stream!($($arg)*);
+            $crate::utils::message::raw_print(__stream, &__text);
         }
-    };
+    }};
 }
 
 #[macro_export]

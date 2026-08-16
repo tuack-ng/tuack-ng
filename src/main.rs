@@ -22,6 +22,7 @@ mod generate;
 mod init;
 mod prelude;
 mod ren;
+mod rpc;
 mod test;
 mod tuack_lib;
 mod utils;
@@ -62,9 +63,18 @@ enum Commands {
     Doc(DocArgs),
     /// 开发工具
     Develop(develop::DevelopArgs),
+    /// 以 JSON-RPC 方式运行（供图形前端使用）
+    #[command(version, hide = true)]
+    Rpc,
 }
 
 async fn tuack_ng(cli: Cli) -> Result<()> {
+    // RPC 模式自行初始化（日志/进度改道、按请求重建上下文），
+    // 不走常规的单次 CLI 初始化
+    if matches!(cli.command, Commands::Rpc) {
+        return rpc::main().await;
+    }
+
     init::init(
         &{
             #[cfg(debug_assertions)]
@@ -90,6 +100,7 @@ async fn tuack_ng(cli: Cli) -> Result<()> {
         Commands::Dump(args) => dump::main(args),
         Commands::Doc(args) => doc::main(args),
         Commands::Develop(args) => develop::main(args),
+        Commands::Rpc => rpc::main().await,
     }
 }
 

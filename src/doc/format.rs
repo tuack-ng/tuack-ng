@@ -1,9 +1,11 @@
 use crate::tuack_lib::doc::rules::*;
 use crate::{config::CONFIG_FILE_NAME, doc::rules::*, prelude::*};
 use clap::Args;
+use serde::{Deserialize, Serialize};
 use tuack_ng_parser::parse;
 
-#[derive(Args, Debug, Clone)]
+#[derive(Args, Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 #[command(version)]
 pub struct FormatArgs {
     /// 解释这个规则
@@ -73,7 +75,7 @@ fn explain(id: String) -> Result<()> {
 
     for formatter in formatters {
         if formatter.manifest().name == id {
-            println!("规则 {}: {}", id, formatter.manifest().description);
+            msg!("规则 {}: {}", id, formatter.manifest().description);
             return Ok(());
         }
     }

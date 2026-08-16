@@ -11,7 +11,8 @@ use owo_colors::OwoColorize;
 use std::fmt;
 use std::time::Duration;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Target {
     /// 正式测试数据
     Data,
@@ -137,7 +138,8 @@ impl DmkReporter for CliDmkReporter {
     }
 }
 
-#[derive(Debug, Clone, ValueEnum)]
+#[derive(Debug, Clone, ValueEnum, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum DmkCommand {
     /// 生成（未生成的）数据
     Gen,
@@ -147,7 +149,8 @@ pub enum DmkCommand {
     Reset,
 }
 
-#[derive(Args, Debug)]
+#[derive(Args, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 #[command(version)]
 pub struct DmkArgs {
     /// 目标类型

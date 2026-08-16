@@ -5,13 +5,15 @@ use clap::ValueEnum;
 mod arbiter;
 mod lemon;
 
-#[derive(Debug, Clone, Copy, ValueEnum)]
+#[derive(Debug, Clone, Copy, ValueEnum, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Target {
     Lemon,
     Arbiter,
 }
 
-#[derive(Args, Debug)]
+#[derive(Args, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 #[command(version)]
 pub struct DumpArgs {
     /// 渲染目标模板

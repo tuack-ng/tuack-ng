@@ -10,7 +10,8 @@ use crate::tuack_lib::data::Data;
 use crate::tuack_lib::utils::testlib::{Validator, ValidatorResult};
 use crate::utils::validators::cpp::CppValidator;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Target {
     /// 正式测试数据
     Data,
@@ -18,7 +19,8 @@ pub enum Target {
     Sample,
 }
 
-#[derive(Args, Debug)]
+#[derive(Args, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 #[command(version)]
 pub struct ValidateArgs {
     /// 目标类型

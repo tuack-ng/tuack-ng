@@ -14,7 +14,12 @@ use std::io;
 
 const CONFIG_FILE_NAME: &str = "conf.json";
 
-#[derive(Debug, Clone, Subcommand)]
+#[derive(Debug, Clone, Subcommand, Serialize, Deserialize)]
+#[serde(
+    tag = "type",
+    rename_all = "snake_case",
+    rename_all_fields = "snake_case"
+)]
 #[command(version)]
 #[command(infer_subcommands = false)]
 pub enum Targets {
@@ -50,7 +55,8 @@ pub enum Targets {
     Complete(GenCompleteArgs),
 }
 
-#[derive(Args, Debug, Clone)]
+#[derive(Args, Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 #[command(version)]
 pub struct GenStatementArgs {
     /// 对象名称
@@ -58,7 +64,8 @@ pub struct GenStatementArgs {
     name: Vec<String>,
 }
 
-#[derive(Args, Debug, Clone)]
+#[derive(Args, Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 #[command(version)]
 pub struct GenConfirmArgs {
     /// 跳过确认提示
@@ -66,7 +73,8 @@ pub struct GenConfirmArgs {
     confirm: bool,
 }
 
-#[derive(Args, Debug, Clone)]
+#[derive(Args, Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 #[command(version)]
 pub struct GenCompleteArgs {
     /// 对象名称
@@ -74,7 +82,8 @@ pub struct GenCompleteArgs {
     name: String,
 }
 
-#[derive(Args, Debug, Clone)]
+#[derive(Args, Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 #[command(version)]
 pub struct GenArgs {
     /// 生成的对象

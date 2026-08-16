@@ -9,7 +9,12 @@ pub mod format;
 pub mod rules;
 pub mod span;
 
-#[derive(Debug, Clone, Subcommand)]
+#[derive(Debug, Clone, Subcommand, Serialize, Deserialize)]
+#[serde(
+    tag = "type",
+    rename_all = "snake_case",
+    rename_all_fields = "snake_case"
+)]
 #[command(version)]
 #[command(infer_subcommands = false)]
 pub enum Targets {
@@ -24,7 +29,8 @@ pub enum Targets {
     Validate,
 }
 
-#[derive(Args, Debug, Clone)]
+#[derive(Args, Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 #[command(version)]
 pub struct DocArgs {
     /// 生成的对象
@@ -36,7 +42,7 @@ pub fn main(args: DocArgs) -> Result<()> {
     match args.target {
         Targets::Format(args) => format::main(args)?,
         Targets::Check(args) => check::main(args)?,
-        Targets::Validate => println!("{}", gctx().loadctx.render_tree()),
+        Targets::Validate => msg!("{}", gctx().loadctx.render_tree()),
     }
 
     Ok(())

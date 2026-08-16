@@ -7,23 +7,23 @@ pub mod template;
 pub mod tools;
 pub mod unwrap;
 pub mod utils;
-use crate::ren::unwrap::unwrap_template;
 use crate::ren::processors::process_ast;
-use crate::tuack_lib::ren::base::Checker;
-use crate::tuack_lib::ren::base::Compiler;
 use crate::ren::renderers::markdown::MarkdownChecker;
 use crate::ren::renderers::markdown::MarkdownCompiler;
 use crate::ren::renderers::typst::{TypstChecker, TypstCompiler};
+use crate::ren::unwrap::unwrap_template;
 use crate::ren::utils::{process_image_urls, process_images_with_unique_ids};
+use crate::tuack_lib::ren::base::Checker;
+use crate::tuack_lib::ren::base::Compiler;
 use clap::Args;
 use indexmap::IndexMap;
 use manifest::TargetType;
 use manifest::TemplateManifest;
-use tuack_ng_parser::ast::Document;
-use tuack_ng_parser::parse;
 use opener::open;
 use owo_colors::OwoColorize;
 use std::time::Duration;
+use tuack_ng_parser::ast::Document;
+use tuack_ng_parser::parse;
 
 use crate::ren::template::render_template;
 
@@ -34,7 +34,8 @@ use indicatif::ProgressBar;
 use crate::context;
 use crate::context::{CurrentLocation, gctx};
 
-#[derive(Args, Debug)]
+#[derive(Args, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 #[command(version)]
 pub struct RenArgs {
     /// 渲染目标模板
