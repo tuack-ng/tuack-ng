@@ -3,10 +3,10 @@ use indicatif::ProgressBar;
 use owo_colors::OwoColorize;
 use std::time::Duration;
 
-use tuack_utils::data::FsTestData;
 use crate::prelude::*;
 use tuack_lib::data::Data;
 use tuack_lib::utils::testlib::{Validator, ValidatorResult};
+use tuack_utils::data::FsTestData;
 use tuack_utils::validators::cpp::CppValidator;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]

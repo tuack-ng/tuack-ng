@@ -10,14 +10,14 @@ use std::rc::Rc;
 
 use rushdown::context::{ContextKey, ContextKeyRegistry, UsizeValue};
 use rushdown::parser::{
-    parse_attributes, AnyBlockParser, BlockParser, Context, NoParserOptions, Parser,
-    ParserExtension, ParserExtensionFn, State, PRIORITY_LIST,
+    AnyBlockParser, BlockParser, Context, NoParserOptions, PRIORITY_LIST, Parser, ParserExtension,
+    ParserExtensionFn, State, parse_attributes,
 };
-use rushdown::text::{self, BlockReader, Reader as _, EOS};
+use rushdown::text::{self, BlockReader, EOS, Reader as _};
 use rushdown::util::{is_punct, is_space};
 use rushdown::{
-    ast::{Arena, Attributes, KindData, NodeRef, NodeType, PrettyPrint},
     Result,
+    ast::{Arena, Attributes, KindData, NodeRef, NodeType, PrettyPrint},
 };
 
 const OPEN_DIV_DEPTH: &str = "tuack-ng-parser-fenced-div-depth";

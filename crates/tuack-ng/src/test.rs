@@ -9,15 +9,15 @@ use owo_colors::OwoColorize;
 
 pub mod policy;
 
-use tuack_utils::data::FsTestData;
 use crate::prelude::*;
 use crate::test::policy::{DataPolicy, SamplePolicy, ScorePolicy as _};
+use crate::utils::duration::format_duration;
 use tuack_lib::test::{TaskParams, TestCaseStatus, TestSession};
 use tuack_lib::utils::testlib::Checker;
 use tuack_utils::checkers::{cpp::CppChecker, prebuilt::PrebuiltChecker};
 use tuack_utils::compilers::cpp::CppRunner;
 use tuack_utils::compilers::general::*;
-use crate::utils::duration::format_duration;
+use tuack_utils::data::FsTestData;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum Target {

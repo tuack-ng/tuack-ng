@@ -1,5 +1,3 @@
-use tuack_config::SingleDataItem;
-use tuack_config::msgs::LoadContext;
 use crate::prelude::*;
 use crate::utils::filesystem::copy_dir_recursive;
 use clap::Args;
@@ -11,6 +9,8 @@ use indexmap::IndexMap;
 use natord::compare;
 use regex::Regex;
 use std::io;
+use tuack_config::SingleDataItem;
+use tuack_config::msgs::LoadContext;
 
 const CONFIG_FILE_NAME: &str = "conf.json";
 

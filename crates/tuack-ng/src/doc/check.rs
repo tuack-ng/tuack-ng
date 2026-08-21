@@ -1,11 +1,11 @@
 use crate::prelude::*;
+use clap::Args;
+use tuack_ng_parser::parse;
 use tuack_utils::doc::rules::*;
 use tuack_utils::doc::rules::{
     autocorrect, html, invisible, latex, samples_not_found, samples_should_be_external,
     samples_too_large,
 };
-use clap::Args;
-use tuack_ng_parser::parse;
 
 #[derive(Args, Debug, Clone)]
 #[command(version)]

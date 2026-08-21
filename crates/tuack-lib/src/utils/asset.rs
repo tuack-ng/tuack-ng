@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 
-use crate::prelude::*;
 use crate::data::AsyncReader;
+use crate::prelude::*;
 
 /// 资源提供方：按"题目编号 + 逻辑路径"惰性返回资源字节流。
 ///

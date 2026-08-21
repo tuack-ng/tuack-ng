@@ -4,10 +4,10 @@
 //! - 块元素与复合行内元素：span 可为 `None`，若为 `Some` 则仅要求 `start` 精确。
 //! - 叶子行内元素（Text/Code/Latex/Html）：span 必须为 `Some`，且 `start` 指向内容起始。
 
+use tuack_ng_parser::Span;
 use tuack_ng_parser::ast::block::BlockKind;
 use tuack_ng_parser::ast::inline::InlineKind;
 use tuack_ng_parser::visitor::{VisitWith, Visitor};
-use tuack_ng_parser::Span;
 
 /// 收集的节点：kind 名称 + 行内/块 + span + 内容文本。
 #[derive(Debug)]
@@ -361,6 +361,10 @@ fn strong_inner_cjk_span_precision() {
     assert_eq!(text, "世界");
     let span = span.expect("文本应有 span");
     // "你好，**世界**！"：你=0..3 好=3..6，=6..9 *=9..11 世=11..14 界=14..17
-    assert_eq!((span.start, span.stop), (11, 17), "span 应精确到字节 11..17");
+    assert_eq!(
+        (span.start, span.stop),
+        (11, 17),
+        "span 应精确到字节 11..17"
+    );
     assert_eq!(&src[span.start..span.stop], "世界");
 }

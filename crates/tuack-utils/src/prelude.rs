@@ -11,7 +11,9 @@ pub use std::sync::Arc;
 pub use serde::{Deserialize, Serialize};
 pub use serde_many::{AsSerde, DeserializeMany, SerializeMany};
 
-pub use tuack_config::{ContestConfig, ContestDayConfig, FileView, FullView, ProblemConfig, SampleItem};
+pub use tuack_config::{
+    ContestConfig, ContestDayConfig, FileView, FullView, ProblemConfig, SampleItem,
+};
 
 pub use async_trait::async_trait;
 

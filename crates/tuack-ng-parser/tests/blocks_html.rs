@@ -14,9 +14,11 @@ fn html_inline() {
     let doc = tuack_ng_parser::parse("text <span>x</span>");
     match &doc.blocks[0].value {
         BlockKind::Paragraph(inlines) => {
-            assert!(inlines
-                .iter()
-                .any(|i| matches!(&i.value, InlineKind::Html(_))));
+            assert!(
+                inlines
+                    .iter()
+                    .any(|i| matches!(&i.value, InlineKind::Html(_)))
+            );
         }
         _ => panic!("应为段落"),
     }

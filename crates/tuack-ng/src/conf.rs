@@ -1,8 +1,8 @@
-use tuack_config::{CONFIG_FILE_NAME, save_config};
 use crate::prelude::*;
 use chrono::Datelike;
 use chrono::Timelike;
 use chrono::{Duration, NaiveDateTime};
+use tuack_config::{CONFIG_FILE_NAME, save_config};
 
 fn add_minutes(time: [u32; 6], minutes: i64) -> Result<[u32; 6]> {
     let dt = NaiveDateTime::new(
@@ -23,10 +23,7 @@ fn add_minutes(time: [u32; 6], minutes: i64) -> Result<[u32; 6]> {
     ])
 }
 
-use crate::{
-    Subcommand,
-    context::gctx,
-};
+use crate::{Subcommand, context::gctx};
 use clap::Args;
 
 #[derive(Args, Debug, Clone)]

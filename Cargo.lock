@@ -2246,6 +2246,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "tuack-ng-rpc"
+version = "1.1.0-alpha.1"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "bytesize",
+ "dirs",
+ "dunce",
+ "indexmap",
+ "regex",
+ "serde",
+ "serde_json",
+ "serde_many",
+ "tempfile",
+ "tokio",
+ "tuack-config",
+ "tuack-lib",
+ "tuack-ng-parser",
+ "tuack-utils",
+]
+
+[[package]]
 name = "tuack-utils"
 version = "1.1.0-alpha.1"
 dependencies = [

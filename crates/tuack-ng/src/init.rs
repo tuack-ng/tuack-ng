@@ -1,18 +1,18 @@
 use crate::prelude::*;
 use log::LevelFilter;
+use log4rs::Logger;
 use log4rs::append::console::{ConsoleAppender, Target};
 use log4rs::config::{Appender, Config, Root};
 use log4rs::encode::pattern::PatternEncoder;
-use log4rs::Logger;
 
-use tuack_config::load_config;
-use tuack_config::msgs::LoadContext;
 use crate::context;
 use chrono::Local;
 use indicatif::MultiProgress;
 use indicatif_log_bridge::LogWrapper;
 use owo_colors::OwoColorize;
 use std::panic::{self, PanicHookInfo};
+use tuack_config::load_config;
+use tuack_config::msgs::LoadContext;
 
 #[cfg(debug_assertions)]
 const DEBUG: bool = true;

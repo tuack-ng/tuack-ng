@@ -1,5 +1,5 @@
-use crate::prelude::*;
 use crate::data::DmkData;
+use crate::prelude::*;
 use crate::utils::compiler::{IoMode, ResourceLimits, RunStatus, Runner};
 use crate::utils::testlib::{Generator, Validator, ValidatorResult};
 

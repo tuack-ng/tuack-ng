@@ -1,9 +1,9 @@
 use crate::{
-    prelude::*,
     doc::rules::{
         CheckImportance, CheckInfo, CheckManifest, CheckResult, CheckRule, FormatManifest,
         FormatRule, RuleFile,
     },
+    prelude::*,
 };
 use regex::Regex;
 use std::sync::OnceLock;

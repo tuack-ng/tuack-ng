@@ -3,12 +3,12 @@
 pub use anyhow::{Context, Result, anyhow, bail};
 pub use log::{debug, error, info, trace, warn};
 
+pub use crate::context::gctx;
+pub use crate::utils::message::*;
 pub use tuack_config::{
     Config, ContestConfig, ContestDayConfig, CurrentLocation, DataItem, DmkConfig, ExpectedScore,
     FileView, FullView, ProblemConfig, ProblemType, SampleItem, ScorePolicy, SubtaskItem, TestCase,
 };
-pub use crate::context::gctx;
-pub use crate::utils::message::*;
 
 pub use indexmap::IndexMap;
 pub use std::collections::{BTreeMap, HashMap};

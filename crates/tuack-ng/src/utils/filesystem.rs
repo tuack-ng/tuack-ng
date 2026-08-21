@@ -1,7 +1,7 @@
 use crate::prelude::*;
-use tuack_lib::utils::output::OutputFile;
 use std::fs;
 use std::path::Path;
+use tuack_lib::utils::output::OutputFile;
 
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;

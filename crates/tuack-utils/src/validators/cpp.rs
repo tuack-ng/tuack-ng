@@ -3,9 +3,9 @@ use std::process::{Command, Stdio};
 use tempfile::{NamedTempFile, TempDir};
 
 use crate::prelude::*;
+use async_trait::async_trait;
 use tuack_lib::data::AsyncReader;
 use tuack_lib::utils::testlib::{Validator, ValidatorResult};
-use async_trait::async_trait;
 
 pub struct CppValidator {
     tmp_dir: TempDir,

@@ -4,8 +4,8 @@
 mod common;
 
 use common::*;
-use tuack_ng_parser::ast::list::{ListBulletKind, ListKind};
 use tuack_ng_parser::ast::BlockKind;
+use tuack_ng_parser::ast::list::{ListBulletKind, ListKind};
 
 #[test]
 fn list_ordered() {
@@ -133,7 +133,8 @@ fn list_item_with_indented_continuation() {
         other => panic!("应为段落，实际 {other:?}"),
     };
     assert!(
-        para.iter().any(|i| matches!(i.value, tuack_ng_parser::ast::InlineKind::SoftBreak)),
+        para.iter()
+            .any(|i| matches!(i.value, tuack_ng_parser::ast::InlineKind::SoftBreak)),
         "应含软换行（续行属同一段落），实际 {para:#?}"
     );
 }
@@ -148,8 +149,14 @@ fn list_item_blank_line_separated_paragraphs() {
     };
     let blocks = &list.items[0].value.blocks;
     assert_eq!(blocks.len(), 2, "空行分隔应产生 2 个段落，实际 {blocks:#?}");
-    assert!(matches!(&blocks[0].value, BlockKind::Paragraph(_)), "块 0 应为段落");
-    assert!(matches!(&blocks[1].value, BlockKind::Paragraph(_)), "块 1 应为段落");
+    assert!(
+        matches!(&blocks[0].value, BlockKind::Paragraph(_)),
+        "块 0 应为段落"
+    );
+    assert!(
+        matches!(&blocks[1].value, BlockKind::Paragraph(_)),
+        "块 1 应为段落"
+    );
 }
 
 #[test]
@@ -161,8 +168,15 @@ fn list_nested_with_indent() {
         other => panic!("应为列表，实际 {other:?}"),
     };
     let blocks = &list.items[0].value.blocks;
-    assert_eq!(blocks.len(), 2, "列表项应含段落 a + 嵌套列表，实际 {blocks:#?}");
-    assert!(matches!(&blocks[0].value, BlockKind::Paragraph(_)), "块 0 应为段落 a");
+    assert_eq!(
+        blocks.len(),
+        2,
+        "列表项应含段落 a + 嵌套列表，实际 {blocks:#?}"
+    );
+    assert!(
+        matches!(&blocks[0].value, BlockKind::Paragraph(_)),
+        "块 0 应为段落 a"
+    );
     let nested = match &blocks[1].value {
         BlockKind::List(list) => list,
         other => panic!("块 1 应为嵌套列表，实际 {other:?}"),
@@ -198,5 +212,9 @@ fn list_excess_indent_is_not_nested() {
         other => panic!("应为列表，实际 {other:?}"),
     };
     let blocks = &list.items[0].value.blocks;
-    assert_eq!(blocks.len(), 1, "6 空格缩进不应产生嵌套列表，实际 {blocks:#?}");
+    assert_eq!(
+        blocks.len(),
+        1,
+        "6 空格缩进不应产生嵌套列表，实际 {blocks:#?}"
+    );
 }

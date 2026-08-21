@@ -1,9 +1,9 @@
 use crate::{
-    prelude::*,
     doc::rules::{
         CheckImportance, CheckInfo, CheckManifest, CheckResult, CheckRule, FormatManifest,
         FormatRule, RuleFile,
     },
+    prelude::*,
 };
 use lazy_static::lazy_static;
 use regex::Regex;

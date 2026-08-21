@@ -1,7 +1,7 @@
 //! 冒烟测试：核心链路端到端——解析后渲染 Markdown 与 Typst 均正常。
 
-use tuack_ng_parser::printers::{render_markdown, render_typst};
 use tuack_ng_parser::parse;
+use tuack_ng_parser::printers::{render_markdown, render_typst};
 
 #[test]
 fn render_roundtrip() {

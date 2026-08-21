@@ -4,8 +4,8 @@ use std::path::PathBuf;
 use async_trait::async_trait;
 use tokio::fs::File;
 
-use tuack_config::{DmkConfig, ExpandedDataItem, ExpandedSampleItem, ProblemConfig};
 use crate::prelude::*;
+use tuack_config::{DmkConfig, ExpandedDataItem, ExpandedSampleItem, ProblemConfig};
 use tuack_lib::data::{AsyncReader, Data, DmkData};
 use tuack_lib::utils::testlib::Arg;
 

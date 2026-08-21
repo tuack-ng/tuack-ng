@@ -1,0 +1,44 @@
+[package]
+name = "tuack-ng-rpc"
+description = "tuack-ng 竞赛工具后端协议（JSON-RPC 2.0 over stdio）"
+edition.workspace = true
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "tuack-ng-rpc"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+bytesize.workspace = true
+indexmap.workspace = true
+serde.workspace = true
+serde_many.workspace = true
+serde_json = { version = "1.0.145", features = ["preserve_order"] }
+tokio = { version = "1.49.0", features = [
+    "fs",
+    "io-std",
+    "io-util",
+    "macros",
+    "rt-multi-thread",
+    "sync",
+    "time",
+] }
+tuack-config = { path = "../tuack-config" }
+tuack-lib = { path = "../tuack-lib" }
+tuack-utils = { path = "../tuack-utils" }
+
+dirs = "6.0.0"
+dunce = "1.0.5"
+regex = "1.12.2"
+tempfile = "3.27.0"
+
+[dependencies.tuack-ng-parser]
+workspace = true
+
+[features]
+nix = []

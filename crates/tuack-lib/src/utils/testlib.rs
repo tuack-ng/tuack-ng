@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 
-use crate::prelude::*;
 use crate::data::AsyncReader;
+use crate::prelude::*;
 
 /// 数据生成器参数
 #[derive(Debug, Clone, Serialize, Deserialize)]

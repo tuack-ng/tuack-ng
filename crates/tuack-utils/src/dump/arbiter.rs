@@ -201,10 +201,8 @@ impl Dumper for ArbiterDumper {
                             "SOURCE".into()
                         }
                         ProblemType::Interactive => {
-                            warnings.push(format!(
-                                "题目 {} 是交互型，Arbiter 可能不支持。",
-                                prob.name
-                            ));
+                            warnings
+                                .push(format!("题目 {} 是交互型，Arbiter 可能不支持。", prob.name));
                             "SOURCE".into()
                         }
                     },

@@ -1,9 +1,9 @@
 use tempfile::NamedTempFile;
 
 use crate::prelude::*;
+use quick_xml::de::from_str;
 use tuack_lib::data::AsyncReader;
 pub use tuack_lib::utils::testlib::JudgeResult;
-use quick_xml::de::from_str;
 
 #[derive(Debug, Deserialize, PartialEq)]
 struct XmlResult {

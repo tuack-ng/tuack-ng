@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 use std::time::Duration;
 
-use crate::prelude::*;
 use crate::data::AsyncReader;
+use crate::prelude::*;
 
 /// 运行器元信息。
 pub struct RunnerManifest {

@@ -63,12 +63,10 @@ pub fn process_spans(rows: &mut [Vec<TableCell>]) {
                     {
                         let source_rowspan = rows[j][i].value.rowspan.unwrap_or(1);
                         let source_colspan = rows[j][i].value.colspan;
-                        let target_rowspan =
-                            rows[target_row_idx][i].value.rowspan.get_or_insert(1);
+                        let target_rowspan = rows[target_row_idx][i].value.rowspan.get_or_insert(1);
                         *target_rowspan += source_rowspan;
 
-                        let target_colspan =
-                            rows[target_row_idx][i].value.colspan.get_or_insert(1);
+                        let target_colspan = rows[target_row_idx][i].value.colspan.get_or_insert(1);
                         if let Some(source_colspan) = source_colspan {
                             *target_colspan = (*target_colspan).max(source_colspan);
                         }

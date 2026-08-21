@@ -2,10 +2,10 @@ use std::process::{Command as StdCommand, Stdio};
 use tempfile::TempDir;
 
 use crate::prelude::*;
-use tuack_lib::data::AsyncReader;
-use tuack_lib::utils::testlib::{Arg, Generator};
 use async_trait::async_trait;
 use tokio::process::Command;
+use tuack_lib::data::AsyncReader;
+use tuack_lib::utils::testlib::{Arg, Generator};
 
 pub struct CppGenerator {
     tmp_dir: TempDir,

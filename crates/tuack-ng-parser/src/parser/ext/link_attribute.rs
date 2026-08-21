@@ -5,10 +5,10 @@
 
 use core::fmt;
 
+use rushdown::Result;
 use rushdown::ast::{Arena, KindData, NodeRef, NodeType, PrettyPrint};
 use rushdown::parser::{InlineParser, ParserExtension, ParserOptions};
 use rushdown::text::{self, Reader as _};
-use rushdown::Result;
 
 /// link-attribute 扩展节点：存储解析出的 `{key=value}` 属性。
 #[derive(Debug)]

@@ -2,8 +2,8 @@ use std::time::Duration;
 
 use bytesize::ByteSize;
 
-use crate::prelude::*;
 use crate::data::Data;
+use crate::prelude::*;
 use crate::utils::compiler::{IoMode, ResourceLimits, RunStatus, Runner};
 use crate::utils::testlib::{Checker, JudgeResult};
 

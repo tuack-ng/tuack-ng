@@ -51,7 +51,10 @@ fn thematic_break_basic() {
 #[test]
 fn parse_basic() {
     // 混合结构冒烟：标题 + 段落（含强调/加粗）+ 列表。
-    let doc =
-        tuack_ng_parser::parse("# 标题\n\n段落 *强调* 和 **加粗**。\n\n- 列表项\n- 第二项\n");
-    assert!(doc.blocks.len() >= 3, "期望 3+ 块，实际 {}", doc.blocks.len());
+    let doc = tuack_ng_parser::parse("# 标题\n\n段落 *强调* 和 **加粗**。\n\n- 列表项\n- 第二项\n");
+    assert!(
+        doc.blocks.len() >= 3,
+        "期望 3+ 块，实际 {}",
+        doc.blocks.len()
+    );
 }

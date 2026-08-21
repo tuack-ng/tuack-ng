@@ -24,9 +24,11 @@ fn latex_inline_multiple() {
     let doc = tuack_ng_parser::parse("a $x$ b");
     match &doc.blocks[0].value {
         BlockKind::Paragraph(inlines) => {
-            assert!(inlines
-                .iter()
-                .any(|i| matches!(&i.value, InlineKind::Latex(c) if c == "x")));
+            assert!(
+                inlines
+                    .iter()
+                    .any(|i| matches!(&i.value, InlineKind::Latex(c) if c == "x"))
+            );
         }
         _ => panic!("应为段落"),
     }

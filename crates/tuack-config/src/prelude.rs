@@ -12,4 +12,4 @@ pub use std::path::{Path, PathBuf};
 pub use std::sync::Arc;
 pub use tuack_lib::utils::many::IndexMapMany;
 
-pub use crate::config::{FileView, FullView, DmkConfig, ScorePolicy};
+pub use crate::config::{DmkConfig, FileView, FullView, ScorePolicy};

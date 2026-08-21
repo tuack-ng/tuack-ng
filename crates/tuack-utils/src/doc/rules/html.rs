@@ -1,7 +1,7 @@
 use crate::doc::span::span_to_line_col;
 use crate::{
-    prelude::*,
     doc::rules::{CheckImportance, CheckInfo, CheckManifest, CheckResult, CheckRule},
+    prelude::*,
 };
 use tuack_ng_parser::ast::block::BlockKind;
 use tuack_ng_parser::ast::inline::InlineKind;

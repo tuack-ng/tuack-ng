@@ -3,14 +3,14 @@ use std::process::Stdio;
 use tempfile::TempDir;
 use tokio::process::Command as TokioCommand;
 
-use tuack_config::lang::Language;
-use crate::prelude::*;
-use tuack_lib::data::AsyncReader;
-use tuack_lib::utils::compiler::{IoMode, ResourceLimits, RunResult, RunnerManifest};
 use crate::command::string_to_command;
+use crate::prelude::*;
 use crate::process::ProcessSupervisor;
 use async_trait::async_trait;
 use strfmt::strfmt;
+use tuack_config::lang::Language;
+use tuack_lib::data::AsyncReader;
+use tuack_lib::utils::compiler::{IoMode, ResourceLimits, RunResult, RunnerManifest};
 
 pub struct GeneralRunner {
     tmp_dir: TempDir,
@@ -45,10 +45,7 @@ impl GeneralRunner {
                 .get(&ext)
                 .context("没有该语言编译选项")?
                 .to_string(),
-            language: languages
-                .get(&ext)
-                .context("未知格式文件")?
-                .to_owned(),
+            language: languages.get(&ext).context("未知格式文件")?.to_owned(),
             program_name,
             limits: None,
             input: None,

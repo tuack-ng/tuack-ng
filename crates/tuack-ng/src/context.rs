@@ -1,9 +1,9 @@
 use crate::prelude::*;
+use indicatif::MultiProgress;
+use std::sync::OnceLock;
 use tuack_config::Config;
 use tuack_config::lang::Language;
 use tuack_config::msgs::LoadContext;
-use indicatif::MultiProgress;
-use std::sync::OnceLock;
 
 pub struct Context {
     pub assets_dirs: Vec<PathBuf>,

@@ -1,9 +1,9 @@
 use crate::{
-    prelude::*,
     doc::rules::{
         CheckImportance, CheckInfo, CheckManifest, CheckResult, CheckRule, FormatManifest,
         FormatRule, RuleFile,
     },
+    prelude::*,
 };
 use autocorrect::{Severity, format_for, lint_for};
 use tuack_ng_parser::ast::Document;

@@ -1,9 +1,9 @@
 use crate::prelude::*;
 use crate::ren::manifest::TemplateManifest;
 use crate::ren::renderers::{rewrite_images, unwrap_template};
+use std::collections::HashSet;
 use tuack_lib::ren::{ProblemType, RenderDocument, Renderer};
 use tuack_lib::utils::output::OutputFile;
-use std::collections::HashSet;
 use tuack_ng_parser::printers::render_typst;
 
 mod datajson;

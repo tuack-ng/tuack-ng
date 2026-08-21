@@ -9,13 +9,11 @@ use tuack_ng_parser::ast::BlockKind;
 fn container_basic() {
     assert_blocks(
         ":::note\n内容\n:::",
-        vec![b(BlockKind::Container(
-            tuack_ng_parser::ast::Container {
-                kind: "note".to_string(),
-                params: vec![],
-                blocks: vec![b(para(vec![text("内容")]))],
-            },
-        ))],
+        vec![b(BlockKind::Container(tuack_ng_parser::ast::Container {
+            kind: "note".to_string(),
+            params: vec![],
+            blocks: vec![b(para(vec![text("内容")]))],
+        }))],
     );
 }
 

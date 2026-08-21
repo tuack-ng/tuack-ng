@@ -52,6 +52,13 @@
           cargoExtraArgs = "-p tuack-ng --locked --no-default-features --features=nix";
         };
 
+        cargoArtifactsRpc = craneLib.buildDepsOnly {
+          inherit src;
+          pname = "tuack-ng-rpc";
+          inherit version;
+          cargoExtraArgs = "-p tuack-ng-rpc --locked --no-default-features --features=nix";
+        };
+
         tuack-ng = craneLib.buildPackage {
           inherit src cargoArtifacts;
           pname = "tuack-ng";
@@ -106,15 +113,39 @@
             mainProgram = "tuack-ng";
           };
         };
+
+        # tuack-ng-rpc：强制性依赖 tuack-ng，复用后者的资源产物
+        # （assets / checkers / templates），不重复构建
+        tuack-ng-rpc = craneLib.buildPackage {
+          inherit src cargoArtifactsRpc;
+          pname = "tuack-ng-rpc";
+          inherit version;
+
+          cargoExtraArgs = "-p tuack-ng-rpc --locked --no-default-features --features=nix";
+
+          postInstall = ''
+            mkdir -p $out/share
+            ln -s ${tuack-ng}/share/tuack-ng $out/share/tuack-ng
+          '';
+
+          meta = with pkgs.lib; {
+            description = "tuack-ng 竞赛工具后端协议服务（JSON-RPC 2.0 over stdio）";
+            homepage = "https://github.com/tuack-ng/tuack-ng";
+            license = licenses.agpl3Plus;
+            platforms = platforms.unix;
+            mainProgram = "tuack-ng-rpc";
+          };
+        };
       in
       {
         packages = {
           default = tuack-ng;
           tuack-ng = tuack-ng;
+          tuack-ng-rpc = tuack-ng-rpc;
         };
 
         devShells.default = craneLib.devShell {
-          inputsFrom = [ tuack-ng ];
+          inputsFrom = [ tuack-ng tuack-ng-rpc ];
 
           nativeBuildInputs = with pkgs; [
             rustToolchain

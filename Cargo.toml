@@ -5,6 +5,7 @@ members = [
     "crates/tuack-config",
     "crates/tuack-utils",
     "crates/tuack-ng-parser",
+    "crates/tuack-ng-rpc",
 ]
 resolver = "3"
 

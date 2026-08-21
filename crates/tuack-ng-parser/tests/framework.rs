@@ -61,10 +61,10 @@ fn visitor_heading_and_table() {
     impl Visitor for V<'_> {
         fn visit_block(&mut self, block: &tuack_ng_parser::ast::Block) {
             if let BlockKind::Heading(_) = &block.value {
-                self.0 .0 += 1;
+                self.0.0 += 1;
             }
             if let BlockKind::Table(_) = &block.value {
-                self.0 .1 += 1;
+                self.0.1 += 1;
             }
             self.walk_block(block);
         }

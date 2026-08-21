@@ -1,8 +1,8 @@
 use std::collections::BTreeMap;
 
 use tuack_config::{ProblemConfig, ScorePolicy as ConfigScorePolicy, SubtaskItem};
-use tuack_utils::data::FsTestData;
 use tuack_lib::test::TestCaseResult;
+use tuack_utils::data::FsTestData;
 
 /// 组的得分
 #[derive(Debug, Clone)]

@@ -1,11 +1,11 @@
 use std::process::{Command, Stdio};
 use tempfile::TempDir;
 
+use crate::checkers::helper::{JudgeResult, parse_result, write_temp};
 use crate::prelude::*;
+use async_trait::async_trait;
 use tuack_lib::data::AsyncReader;
 use tuack_lib::utils::testlib::Checker;
-use crate::checkers::helper::{JudgeResult, parse_result, write_temp};
-use async_trait::async_trait;
 
 pub struct CppChecker {
     tmp_dir: TempDir,

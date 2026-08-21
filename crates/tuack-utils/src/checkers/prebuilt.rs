@@ -1,10 +1,10 @@
 use std::process::{Command, Stdio};
 
+use crate::checkers::helper::{JudgeResult, parse_result, write_temp};
 use crate::prelude::*;
+use async_trait::async_trait;
 use tuack_lib::data::AsyncReader;
 use tuack_lib::utils::testlib::Checker;
-use crate::checkers::helper::{JudgeResult, parse_result, write_temp};
-use async_trait::async_trait;
 
 /// 使用预编译的 Checker（如 `assets/checkers/normal`）
 pub struct PrebuiltChecker {

@@ -8,8 +8,8 @@ use core::fmt;
 
 use rushdown::ast::{Arena, KindData, NodeRef, NodeType, PrettyPrint};
 use rushdown::parser::{
-    AnyBlockParser, AnyInlineParser, BlockParser, Context, InlineParser, NoParserOptions, Parser,
-    ParserExtension, ParserExtensionFn, State, PRIORITY_LINK, PRIORITY_LIST,
+    AnyBlockParser, AnyInlineParser, BlockParser, Context, InlineParser, NoParserOptions,
+    PRIORITY_LINK, PRIORITY_LIST, Parser, ParserExtension, ParserExtensionFn, State,
 };
 use rushdown::text::{self, Reader as _};
 
