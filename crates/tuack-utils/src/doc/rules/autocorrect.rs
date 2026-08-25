@@ -78,16 +78,17 @@ impl CheckRule for Autocorrect {
         }
         let mut messages: Vec<CheckInfo> = vec![];
         for info in check_result.lines {
-            messages.push(CheckInfo {
-                line: Some(info.line),
-                col: Some(info.col),
-                info: format!("原文为 '{}', 应为 '{}'", info.old, info.new),
-                importance: match info.severity {
+            let mut message = CheckInfo::new(
+                crate::doc::span::line_to_byte_span(markdown_text, info.line),
+                "文本混排错误".to_string(),
+                match info.severity {
                     Severity::Warning => CheckImportance::Warn,
                     Severity::Error => CheckImportance::Error,
                     _ => unreachable!(),
                 },
-            })
+            );
+            message.note = Some(format!("应为 '{}'", info.new));
+            messages.push(message);
         }
         Ok(CheckResult::Tagged(messages))
     }

@@ -8,6 +8,7 @@ use crate::{
 use lazy_static::lazy_static;
 use regex::Regex;
 use tuack_ng_parser::ast::Document;
+use tuack_ng_parser::span::Span;
 
 lazy_static! {
     static ref SAMPLE_TEXT_PATTERN: Regex =
@@ -143,7 +144,7 @@ impl CheckRule for SamplesTooLarge {
         for caps in SAMPLE_TEXT_PATTERN.captures_iter(markdown_text) {
             let full_match = caps.get(0).unwrap();
             let id = caps.get(1).unwrap().as_str().parse::<u32>().unwrap_or(0);
-            let col_num = full_match.start();
+            let span = Span::new(full_match.start(), full_match.end());
 
             // 查找对应的样本配置
             if let Some(sample) = problem_config.samples.iter().find(|s| s.id == id) {
@@ -168,17 +169,16 @@ impl CheckRule for SamplesTooLarge {
                 }
 
                 if !violations.is_empty() {
-                    messages.push(CheckInfo {
-                        line: None, // 可以传 None，或者从上下文中获取行号
-                        col: Some(col_num + 1),
-                        info: format!(
+                    messages.push(CheckInfo::new(
+                        Some(span),
+                        format!(
                             "sample.text({}) 的 {} 超过限制，建议替换为 sample.file({})",
                             id,
                             violations.join("和"),
                             id
                         ),
-                        importance: CheckImportance::Warn,
-                    });
+                        CheckImportance::Warn,
+                    ));
                 }
             }
         }

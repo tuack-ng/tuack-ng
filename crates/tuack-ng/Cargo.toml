@@ -16,6 +16,7 @@ chrono = "0.4.42"
 clap = { version = "4.5.53", features = ["cargo", "derive"] }
 clap-i18n-richformatter = { version = "0.3.0", features = ["derive"] }
 clap_complete = "4.5.65"
+codespan-reporting.workspace = true
 csv = "1.3.0"
 debug_tree = "0.4.0"
 dialoguer = "0.12.0"
@@ -44,6 +45,7 @@ shellwords = "1.1.0"
 strfmt = "0.2.5"
 sysinfo = "0.37.2"
 tempfile = "3.27.0"
+termcolor.workspace = true
 tokio = { version = "1.49.0", features = [
     "fs",
     "io-util",

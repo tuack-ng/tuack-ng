@@ -1,5 +1,9 @@
 use crate::prelude::*;
 use clap::Args;
+use codespan_reporting::diagnostic::{Diagnostic, Label, LabelStyle, Severity};
+use codespan_reporting::files::SimpleFile;
+use codespan_reporting::term::{Chars, Config, emit_to_write_style};
+use termcolor::Buffer;
 use tuack_ng_parser::parse;
 use tuack_utils::doc::rules::*;
 use tuack_utils::doc::rules::{
@@ -27,7 +31,70 @@ fn get_checkers() -> Vec<Box<dyn CheckRule>> {
     ]
 }
 
-fn print_messages(messages: CheckResult, path: &Path, checker: &dyn CheckRule) {
+fn severity(importance: CheckImportance) -> Severity {
+    match importance {
+        CheckImportance::Error => Severity::Error,
+        CheckImportance::Warn => Severity::Warning,
+    }
+}
+
+/// 计算整行字节区间（不含换行符），用于 span 缺失/零长度时的兜底定位。
+fn whole_line_range(markdown: &str, offset: Option<usize>) -> std::ops::Range<usize> {
+    let target = offset.unwrap_or(0).min(markdown.len());
+    let line_start = markdown[..target].rfind('\n').map(|i| i + 1).unwrap_or(0);
+    let line_end = markdown[target..]
+        .find('\n')
+        .map(|i| target + i)
+        .unwrap_or(markdown.len());
+    line_start..line_end
+}
+
+fn render_message(markdown: &str, path: &Path, rule_id: &str, message: &CheckInfo) {
+    let display = path
+        .strip_prefix(&gctx().config.as_ref().unwrap().config.path)
+        .unwrap_or(path)
+        .display()
+        .to_string();
+
+    let range = match message.span {
+        Some(span) if span.stop > span.start => span.start..span.stop,
+        span => whole_line_range(markdown, span.map(|s| s.start)),
+    };
+
+    let mut labels = vec![Label::new(LabelStyle::Primary, (), range)];
+    if let Some(secondary) = message.secondary_span {
+        let secondary_range = if secondary.stop > secondary.start {
+            secondary.start..secondary.stop
+        } else {
+            whole_line_range(markdown, Some(secondary.start))
+        };
+        labels.push(
+            Label::new(LabelStyle::Secondary, (), secondary_range).with_message("样例输出块在此"),
+        );
+    }
+
+    let mut diagnostic = Diagnostic::new(severity(message.importance))
+        .with_code(rule_id)
+        .with_message(&message.info)
+        .with_labels(labels);
+    if let Some(note) = &message.note {
+        diagnostic = diagnostic.with_note(note.clone());
+    }
+
+    let files = SimpleFile::new(display, markdown);
+    let mut buffer = Buffer::ansi();
+    let config = Config {
+        chars: Chars::box_drawing(),
+        ..Config::default()
+    };
+    if emit_to_write_style(&mut buffer, &config, &files, &diagnostic).is_ok()
+        && let Ok(s) = String::from_utf8(buffer.into_inner())
+    {
+        crate::_internal_print!(eprintln, "{}", s);
+    }
+}
+
+fn print_messages(messages: CheckResult, path: &Path, checker: &dyn CheckRule, markdown: &str) {
     match messages {
         CheckResult::Untagged(num) => {
             if num > 0 {
@@ -46,58 +113,8 @@ fn print_messages(messages: CheckResult, path: &Path, checker: &dyn CheckRule) {
             }
         }
         CheckResult::Tagged(result) => {
-            if !result.is_empty() {
-                msg_warn!(
-                    "{} 检查器在文件 {} 中检测到 {} 个问题，下面是详细信息",
-                    checker.manifest().name,
-                    format!(
-                        "{}",
-                        path.strip_prefix(&gctx().config.as_ref().unwrap().config.path)
-                            .unwrap()
-                            .display()
-                    )
-                    .cyan(),
-                    result.len()
-                );
-                for message in result {
-                    if let Some(col) = message.col
-                        && let Some(line) = message.line
-                    {
-                        msg_warn!(
-                            "在 {}:{}:{} 等级 {}, 消息：{}",
-                            format!(
-                                "{}",
-                                path.strip_prefix(&gctx().config.as_ref().unwrap().config.path)
-                                    .unwrap()
-                                    .display()
-                            )
-                            .cyan(),
-                            line.to_string().magenta(),
-                            col.to_string().magenta(),
-                            match message.importance {
-                                CheckImportance::Warn => "警告".yellow().to_string(),
-                                CheckImportance::Error => "错误".red().to_string(),
-                            },
-                            message.info
-                        )
-                    } else {
-                        msg_warn!(
-                            "在 {} 等级 {}, 消息：{}",
-                            format!(
-                                "{}",
-                                path.strip_prefix(&gctx().config.as_ref().unwrap().config.path)
-                                    .unwrap()
-                                    .display()
-                            )
-                            .cyan(),
-                            match message.importance {
-                                CheckImportance::Warn => "警告".yellow().to_string(),
-                                CheckImportance::Error => "错误".red().to_string(),
-                            },
-                            message.info
-                        )
-                    }
-                }
+            for message in result {
+                render_message(markdown, path, &checker.manifest().name, &message);
             }
         }
     }
@@ -117,13 +134,13 @@ pub fn check(problem_config: &ProblemConfig) -> Result<()> {
         if checker.manifest().markdown_checker {
             debug!("正在应用文本检查器 {}", checker.manifest().name);
             let messages = checker.check_markdown(&markdown_text, problem_config)?;
-            print_messages(messages, &markdown_path, checker.as_ref());
+            print_messages(messages, &markdown_path, checker.as_ref(), &markdown_text);
         }
 
         if checker.manifest().ast_checker {
             debug!("正在应用检查器 {}", checker.manifest().name);
             let messages = checker.check_ast(&ast, &markdown_text, problem_config)?;
-            print_messages(messages, &markdown_path, checker.as_ref());
+            print_messages(messages, &markdown_path, checker.as_ref(), &markdown_text);
         }
     }
 

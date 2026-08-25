@@ -96,7 +96,7 @@ fn render_block(block: &BlockKind, footnotes: &HashMap<String, Vec<Block>>, out:
                 CodeBlockKind::Fenced { info } => info.clone().unwrap_or_default(),
                 CodeBlockKind::Indented => String::new(),
             };
-            let literal = cb.literal.trim_end_matches('\n');
+            let literal = cb.literal.trim_end_matches(['\n', '\r']);
             out.push_str("#raw(block: true");
             if !lang.is_empty() {
                 out.push_str(&format!(", lang: \"{lang}\""));

@@ -40,17 +40,34 @@ pub trait FormatRule {
 }
 
 // Check
-#[derive(PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum CheckImportance {
     Warn,
     Error,
 }
 
 pub struct CheckInfo {
-    pub line: Option<usize>,
-    pub col: Option<usize>,
+    pub span: Option<tuack_ng_parser::span::Span>,
+    pub secondary_span: Option<tuack_ng_parser::span::Span>,
     pub info: String,
+    pub note: Option<String>,
     pub importance: CheckImportance,
+}
+
+impl CheckInfo {
+    pub fn new(
+        span: Option<tuack_ng_parser::span::Span>,
+        info: String,
+        importance: CheckImportance,
+    ) -> Self {
+        Self {
+            span,
+            secondary_span: None,
+            info,
+            note: None,
+            importance,
+        }
+    }
 }
 
 pub enum CheckResult {

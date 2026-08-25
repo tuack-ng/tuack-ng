@@ -19,6 +19,8 @@ repository = "https://github.com/tuack-ng/tuack-ng"
 [workspace.dependencies]
 anyhow = { version = "1.0.100", features = ["backtrace"] }
 async-trait = "0.1.89"
+codespan-reporting = "0.13.1"
+termcolor = "1"
 bytesize = { version = "2.3.1", features = ["serde"] }
 indexmap = { version = "2.13.0", features = ["serde"] }
 serde = { version = "1.0.228", features = ["rc"] }

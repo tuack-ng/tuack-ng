@@ -51,16 +51,20 @@ impl From<LatexNode> for KindData {
     }
 }
 
-/// 块级 LaTeX 扩展节点（`$$...$$` 跨行公式）。
+/// 块级 LaTeX 扩展节点（`$$...$$` 跨行公式）。`start`/`stop` 覆盖整块（含两端 `$$`）。
 #[derive(Debug)]
 pub struct LatexBlockNode {
     pub content: String,
+    pub start: usize,
+    pub stop: usize,
 }
 
 impl LatexBlockNode {
     fn new() -> Self {
         Self {
             content: String::new(),
+            start: 0,
+            stop: 0,
         }
     }
 }
@@ -184,8 +188,10 @@ impl BlockParser for LatexBlockParser {
             return None;
         }
         // 跨行公式：跳过开头 `$$`，内容由 cont 累积。
+        let start = reader.position().1.start();
         let node = arena.new_node(LatexBlockNode::new());
-        arena[node].set_pos(reader.position().1.start());
+        arena[node].set_pos(start);
+        rushdown::as_extension_data_mut!(arena, node, LatexBlockNode).start = start;
         reader.advance_to_eol();
         Some((node, State::NO_CHILDREN))
     }
@@ -201,6 +207,12 @@ impl BlockParser for LatexBlockParser {
         let trimmed = trim_ascii_space(line.as_ref());
         // 闭合 fence：以 `$$` 开头。
         if trimmed.starts_with(b"$$") {
+            let (_, seg) = reader.position();
+            let mut stop = seg.stop();
+            if reader.source().as_bytes().get(stop.wrapping_sub(1)) == Some(&b'\n') {
+                stop -= 1;
+            }
+            rushdown::as_extension_data_mut!(arena, node_ref, LatexBlockNode).stop = stop;
             reader.advance_to_eol();
             return None;
         }

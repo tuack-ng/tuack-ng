@@ -101,14 +101,13 @@ impl CheckRule for Invisible {
         for (line_num, line) in markdown_text.lines().enumerate() {
             let line_number = line_num + 1;
 
-            for (col_num, c) in line.chars().enumerate() {
+            for c in line.chars() {
                 if INVISIBLE_CHARS.contains(&c) {
-                    messages.push(CheckInfo {
-                        line: Some(line_number),
-                        col: Some(col_num + 1),
-                        info: format!("发现不可见字符：{} (U+{:04X})", get_char_name(c), c as u32),
-                        importance: CheckImportance::Error,
-                    });
+                    messages.push(CheckInfo::new(
+                        crate::doc::span::line_to_byte_span(markdown_text, line_number),
+                        format!("发现不可见字符：{} (U+{:04X})", get_char_name(c), c as u32),
+                        CheckImportance::Error,
+                    ));
                 }
             }
         }

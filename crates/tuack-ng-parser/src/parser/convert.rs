@@ -196,7 +196,7 @@ impl<'a> Ctx<'a> {
                     .downcast_ref::<super::ext::latex::LatexBlockNode>()
                 {
                     let content = block_latex.content.clone();
-                    let span = self.span_of(node);
+                    let span = Some(Span::new(block_latex.start, block_latex.stop));
                     self.blocks.push(Spanned {
                         value: BlockKind::LatexBlock(content),
                         span,
@@ -558,11 +558,12 @@ impl<'a> Ctx<'a> {
     /// 计算节点 span。
     fn span_of(&self, node: NodeRef) -> Option<Span> {
         let start = self.arena[node].pos()?;
-        // 从最后一个后代推算 end。
+        // 从最后一个后代推算 end。遍历所有直接子节点及其子树。
         let mut end = start;
         let mut stack: VecDeque<NodeRef> = VecDeque::new();
-        if let Some(fc) = self.arena[node].first_child() {
-            stack.push_back(fc);
+        let children: Vec<NodeRef> = self.arena[node].children(self.arena).collect();
+        for c in children {
+            stack.push_back(c);
         }
         while let Some(n) = stack.pop_front() {
             if let Some(p) = self.arena[n].pos() {
