@@ -1,0 +1,49 @@
+[package]
+name = "tuack-utils"
+description = "tuack-ng 具体实现（渲染器、导出器、运行器等）"
+edition.workspace = true
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+indexmap.workspace = true
+serde.workspace = true
+serde_many.workspace = true
+tokio = { workspace = true, features = [
+    "fs",
+    "io-util",
+    "macros",
+    "process",
+    "rt",
+    "time",
+] }
+tuack-lib = { path = "../tuack-lib" }
+tuack-config = { path = "../tuack-config" }
+
+autocorrect = "2.14.2"
+html-builder = "0.5.1"
+lazy_static = "1.5.0"
+log = "0.4.29"
+minijinja = "2.14.0"
+mlua = { version = "0.12.0", features = [
+    "lua55",
+    "serde",
+    "send",
+    "anyhow",
+    "vendored",
+] }
+owo-colors = "4.3.0"
+quick-xml = { version = "0.39.0", features = ["serialize"] }
+regex = "1.12.2"
+serde_json = { version = "1.0.145", features = ["preserve_order"] }
+shellwords = "1.1.0"
+strfmt = "0.2.5"
+sysinfo = "0.37.2"
+tempfile = "3.27.0"
+
+[dependencies.tuack-ng-parser]
+workspace = true

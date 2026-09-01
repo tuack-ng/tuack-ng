@@ -1,0 +1,90 @@
+[package]
+name = "tuack-ng"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "重构后的 tuack 项目，旨在提供更加高效和轻量的出题体验。"
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+anstream = "1.0.0"
+anyhow = { version = "1.0.100", features = ["backtrace"] }
+async-trait = "0.1.89"
+bytesize = { version = "2.3.1", features = ["serde"] }
+chrono = "0.4.42"
+clap = { version = "4.5.53", features = ["cargo", "derive"] }
+clap-i18n-richformatter = { version = "0.3.0", features = ["derive"] }
+clap_complete = "4.5.65"
+codespan-reporting.workspace = true
+csv = "1.3.0"
+debug_tree = "0.4.0"
+dialoguer = "0.12.0"
+dirs = "6.0.0"
+dunce = "1.0.5"
+evalexpr = "13.1.0"
+indexmap = { version = "2.13.0", features = ["serde"] }
+indicatif = "0.18.3"
+indicatif-log-bridge = "0.2.3"
+log = "0.4.29"
+log4rs = "1.4.0"
+natord = "1.0.9"
+nom = "8.0.0"
+opener = "0.8.4"
+owo-colors = "4.3.0"
+path-clean = "1.0.1"
+path-slash = "0.2.1"
+quick-xml = { version = "0.39.0", features = ["serialize"] }
+rand = "0.9.2"
+regex = "1.12.2"
+serde = { version = "1.0.228", features = ["rc"] }
+serde_json = { version = "1.0.145", features = ["preserve_order"] }
+serde_many = { version = "0.1.0", features = ["derive"] }
+sha2 = "0.10.9"
+shellwords = "1.1.0"
+strfmt = "0.2.5"
+sysinfo = "0.37.2"
+tempfile = "3.27.0"
+termcolor.workspace = true
+tokio = { version = "1.49.0", features = [
+    "fs",
+    "io-util",
+    "macros",
+    "process",
+    "rt",
+    "sync",
+    "time",
+    "tokio-macros",
+    "rt-multi-thread",
+] }
+
+[dependencies.tuack-ng-parser]
+workspace = true
+
+[dependencies.tuack-lib]
+path = "../tuack-lib"
+
+[dependencies.tuack-config]
+path = "../tuack-config"
+
+[dependencies.tuack-utils]
+path = "../tuack-utils"
+
+[build-dependencies]
+vergen = { version = "9.1.0", features = ["build", "cargo", "rustc", "si"] }
+
+[features]
+nix = []
+
+[package.metadata.deb]
+assets = [
+    "$auto",
+    ["../../assets/**/*", "usr/share/tuack-ng/", "755"],
+]
+maintainer-scripts = "../../doc/debian/"
+
+[package.metadata.aur]
+files = [
+    ["../../assets/", "/usr/share/tuack-ng/", "755"],
+]
+depends = ["gcc-libs", "glibc"]

@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Tuack-NG 文档反馈
+    url: https://github.com/tuack-ng/tuack-ng-docs/issues/new
+    about: 反馈 Tuack-NG 文档相关问题
+  - name: 讨论区
+    url: https://github.com/tuack-ng/tuack-ng/discussions/
+    about: 使用中若遇到问题或有新点子新需求，请先在这里求助和征求意见。
+  # - name: 加入 QQ 群
+  #   url: https://qm.qq.com/q/TODO
+  #   about: 在 QQ 群和开发者以及其它用户交流讨论。

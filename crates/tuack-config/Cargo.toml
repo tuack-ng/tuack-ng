@@ -1,0 +1,24 @@
+[package]
+name = "tuack-config"
+description = "tuack-ng 配置文件数据结构"
+edition.workspace = true
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+bytesize.workspace = true
+indexmap.workspace = true
+serde.workspace = true
+serde_many.workspace = true
+tuack-lib = { path = "../tuack-lib" }
+
+anstream = "1.0.0"
+debug_tree = "0.4.0"
+dunce = "1.0.5"
+log = "0.4.29"
+owo-colors = "4.3.0"
+path-clean = "1.0.1"
+serde_json = { version = "1.0.145", features = ["preserve_order"] }

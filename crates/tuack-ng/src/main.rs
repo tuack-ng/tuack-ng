@@ -1,0 +1,106 @@
+use crate::conf::ConfArgs;
+use crate::dmk::DmkArgs;
+use crate::doc::DocArgs;
+use crate::dump::DumpArgs;
+use crate::generate::GenArgs;
+use crate::prelude::*;
+use crate::ren::RenArgs;
+use crate::test::TestArgs;
+use crate::validate::ValidateArgs;
+use clap::{Parser, Subcommand};
+use clap_i18n_richformatter::clap_i18n;
+
+mod conf;
+mod context;
+mod develop;
+mod dmk;
+mod doc;
+mod dump;
+mod generate;
+mod init;
+mod prelude;
+mod ren;
+mod test;
+mod utils;
+mod validate;
+
+#[derive(Debug, Parser)]
+#[clap_i18n]
+#[command(version, about = "Tuack-NG", disable_help_subcommand = true)]
+struct Cli {
+    #[command(subcommand)]
+    pub command: Commands,
+    #[arg(short, long, global = true)]
+    /// 详细模式
+    verbose: bool,
+    #[arg(long, global = true)]
+    /// 静默模式，无视详细
+    silent: bool,
+}
+
+#[derive(Subcommand, Debug)]
+#[command(infer_subcommands = false)]
+enum Commands {
+    /// 渲染题面
+    Ren(RenArgs),
+    /// 生成工程文件夹
+    Gen(GenArgs),
+    /// 使用题解代码测试
+    Test(TestArgs),
+    /// 批量修改配置文件
+    Conf(ConfArgs),
+    /// 生成数据
+    Dmk(DmkArgs),
+    /// 校验输入数据
+    Validate(ValidateArgs),
+    /// 导出到评测系统
+    Dump(DumpArgs),
+    /// 文档相关
+    Doc(DocArgs),
+    /// 开发工具
+    Develop(develop::DevelopArgs),
+}
+
+async fn tuack_ng(cli: Cli) -> Result<()> {
+    init::init(
+        &{
+            #[cfg(debug_assertions)]
+            {
+                !cli.silent
+            }
+            #[cfg(not(debug_assertions))]
+            {
+                cli.verbose
+            }
+        },
+        &cli,
+    )?;
+    info!("booting up");
+
+    match cli.command {
+        Commands::Ren(args) => ren::main(args).await,
+        Commands::Gen(args) => generate::main(args),
+        Commands::Test(args) => test::main(args).await,
+        Commands::Conf(args) => conf::main(args),
+        Commands::Dmk(args) => dmk::main(args).await,
+        Commands::Validate(args) => validate::main(args).await,
+        Commands::Dump(args) => dump::main(args).await,
+        Commands::Doc(args) => doc::main(args),
+        Commands::Develop(args) => develop::main(args),
+    }
+}
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    let cli = Cli::parse_i18n_or_exit();
+
+    let result = tuack_ng(cli).await;
+
+    if cfg!(debug_assertions) {
+        result?;
+    } else if let Err(e) = result {
+        msg_error!("程序执行出错：{:#}", e);
+        std::process::exit(1);
+    }
+    Ok(())
+}

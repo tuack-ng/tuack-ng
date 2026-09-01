@@ -4,50 +4,92 @@
 
 # <image src="doc/assets/icon.svg" height="26" width="26"/> Tuack-NG
 
+![Banner](doc/assets/banner.png)
+
 [![Stars](https://img.shields.io/github/stars/tuack-ng/tuack-ng?label=Stars)](https://github.com/tuack-ng/tuack-ng)
-<!-- [![正式版 Release](https://img.shields.io/github/v/release/tuack-ng/tuack-ng?style=flat-square&color=%233fb950&label=正式版)](https://github.com/tuack-ng/tuack-ng/releases/latest) -->
+[![正式版 Release](https://img.shields.io/github/v/release/tuack-ng/tuack-ng?style=flat-square&color=%233fb950&label=正式版)](https://github.com/tuack-ng/tuack-ng/releases/latest)
 [![测试版 Release](https://img.shields.io/github/v/release/tuack-ng/tuack-ng?include_prereleases&style=flat-square&label=测试版)](https://github.com/tuack-ng/tuack-ng/releases/)
 [![下载量](https://img.shields.io/github/downloads/tuack-ng/tuack-ng/total?style=social&label=下载量&logo=github)](https://github.com/tuack-ng/tuack-ng/releases/latest)<br/>
 ![GitHub Repo size](https://img.shields.io/github/repo-size/tuack-ng/tuack-ng?style=flat-square&color=3cb371)
-[![GitHub Repo Languages](https://img.shields.io/github/languages/top/tuack-ng/tuack-ng?style=flat-square)](https://github.com/tuack-ng/tuack-ng/search?l=c%23)
+[![GitHub Repo Languages](https://img.shields.io/github/languages/top/tuack-ng/tuack-ng?style=flat-square)](https://github.com/tuack-ng/tuack-ng/search?l=Rust)
 
 Tuack-NG（`Tuack New Generation`）是一套完整的用于辅助 OI/ACM 竞赛题目开发的套件，它的思想来自于 Tuack 项目。这个项目的目标是增强原 Tuack 的效率与易用性。
 
-详见：[项目 / 计划：tuack-ng](https://pulsar33550336.github.io/2025/12/10/%E9%A1%B9%E7%9B%AE-%E8%AE%A1%E5%88%92%EF%BC%9Atuack-ng/)
-
 <!-- #### 💬[Tuack-NG QQ 频道](https://pd.qq.com/s/grr6qwqwj) | [Tuack-NG QQ 群组](https://qm.qq.com/q/4NsDQKiAuQ) -->
 
-#### [🌐 官方网站 ~~（没做）~~](https://tuack-ng.ink/) <!-- | [🚀 软件下载](https://tuack-ng.ink/download) -->｜[📚 项目文档](https://docs.tuack-ng.ink)<!-- ｜[🗳 功能投票](https://github.com/Tuack-NG/voting/discussions?discussions_q=is%3Aopen+sort%3Atop) -->
+#### [🌐 官方网站 ~~（没做）~~](https://tuack-ng.ink/) | [🚀 软件下载](https://github.com/tuack-ng/tuack-ng/releases)｜[📚 项目文档](https://docs.tuack-ng.ink)
 
 </div>
 
 ## 功能
 
+### 基本功能
+
+- [x] 支持样例、数据
+- [ ] 支持预测试数据点
+- [x] 支持交互题出题流程
+
 ### 生成题目工程 (`gen`)
 
-- [x] 生成比赛/比赛日/题目 配置
-- [ ] 生成与检测样例/预测试/数据
-- [ ] 统一修改题目数据
+- [x] 生成工程：比赛、比赛日、赛题
+- [x] 自动检测样例/数据
+- [x] 统一修改题目数据
 
 ### 渲染题目 (`ren`)
 
 - [x] 渲染到 PDF（使用 Typst）
   - [x] NOI 格式
+  - [x] CCPC 格式
 - [x] 渲染到 Markdown
-- [ ] 渲染到 Html
-- [ ] （...）
+- [ ] 渲染到 HTML
+- [ ] 渲染到 (...)
 - [x] 基于 MiniJinja 的模板系统
+- [ ] 支持多语言
+- [x] 支持外置样例
+- [x] 支持外置表格
 
 ### 测试题目 (`test`)
 
 - [x] 测试 C++/C/Rust
 - [x] 支持 Subtask
+- [x] 支持交互题评测
+- [x] 支持 Special Judge
+- [x] 支持生成评测结果 CSV
+
+### 数据生成（`dmk`）
+
+- [x] 支持为样例/数据单独指定数据生成器
+- [x] 支持交互题
+- [x] 支持生成后自动校验输入（Validator）
+
+### 校验输入（`validate`）
+
+- [x] 支持使用 C++ Validator（testlib）校验输入数据
+- [x] 支持从竞赛/场次/题目三个层级递归校验
+
+### 其他
+
+#### 导出（`dump`）
+
+- [x] 支持导出到 Lemon/Arbiter
+- [ ] 支持导出到 Hydro/Syzoj(Loj)/洛谷（？）
+
+#### 配置文件前端（`conf`）
+
+- [x] 支持批量修改配置文件字段/标题/起止持续时间
+
+#### 文档（`doc`）
+
+- [x] 支持检测题目中不规范的问题
+- [x] 支持在可行的情况下自动修复问题
+- [ ] 支持导入
+- [x] [**支持从 Tuack 导入**](https://github.com/tuack-ng/Tuack-Migrater)
 
 > [!TIP]
 >
 > 您可以点击下方链接或查看 [Tuack-NG 文档](https://docs.tuack-ng.ink) 了解更多。
 
-## 软件截图
+<!-- ## 软件截图
 
 - 题目渲染
 
@@ -55,15 +97,16 @@ Tuack-NG（`Tuack New Generation`）是一套完整的用于辅助 OI/ACM 竞赛
 
 - 测试
 
-![2](https://pulsar33550336.github.io/img/2.svg)
+![2](https://pulsar33550336.github.io/img/2.svg) -->
 
 ## 开始使用
 
 **首先，请确保您的设备满足以下推荐需求：**
 
+- Windows（建议 Windows 10 及以上版本）
 - Debian（或其衍生版）或 Arch Linux。
 - 对于其他系统及发行版的支持将在稍后添加。
-  
+
 > [!IMPORTANT]
 > **详细安装说明请参阅 [Tuack-NG 文档](https://docs.tuack-ng.ink/guide/install)。**
 
@@ -77,7 +120,7 @@ Tuack-NG（`Tuack New Generation`）是一套完整的用于辅助 OI/ACM 竞赛
 
 您可以访问以下页面来**获取帮助**：
 
-- [Tuack-NG 帮助文档](https://docs.tuack-ng.ink/guide/install)
+- [Tuack-NG 帮助文档](https://docs.tuack-ng.ink/app/install)
 
 您也可以加入这些社区**寻求帮助**：
 
@@ -94,20 +137,29 @@ Tuack-NG（`Tuack New Generation`）是一套完整的用于辅助 OI/ACM 竞赛
 
 本项目目前开发状态：
 
-| 分支 | 开发状态 | 状态 |
-| :-: | :-: | :-: |
-| `master` | 正在此分支上开发 [1.0 - Kaslana](https://github.com/tuack-ng/tuack-ng/milestone/1) | [![Build](https://github.com/tuack-ng/tuack-ng/actions/workflows/rust.yml/badge.svg?branch=master&style=flat_square)](<https://github.com/tuack-ng/tuack-ng/actions/workflows/rust.yml>) |
+|   分支   |             开发状态             |              状态              |
+| :------: | :------------------------------: | :----------------------------: |
+| `master` | 正在此分支上开发 [1.1 - Sparkle] | [![master-badge]][master-link] |
+|  `1.0`   | 正在此分支上维护 [1.0 - Kaslana] |    [![1.0-badge]][1.0-link]    |
 
-<!-- 要在本地编译应用，请参考文档[配置 Tuack-NG 本体开发环境](https://docs.tuack-ng.ink/dev/get-started/devlopment.html)。 -->
+[1.1 - Sparkle]: https://github.com/tuack-ng/tuack-ng/milestone/3
+[master-badge]: https://github.com/tuack-ng/tuack-ng/actions/workflows/rust.yml/badge.svg?branch=master&style=flat_square
+[master-link]: https://github.com/tuack-ng/tuack-ng/actions/workflows/rust.yml?query=branch%master
 
-如果您有意愿为 Tuack-NG 做出代码贡献，请先阅读 ~~[贡献指南](CONTRIBUTING.md)~~ 没写 来了解如何为 Tuack-NG 做代码贡献。我们欢迎想要为本应用实现新功能或进行改进的同学提交 [Pull Request](https://github.com/tuack-ng/tuack-ng/pulls)。
+[1.0 - Kaslana]: https://github.com/tuack-ng/tuack-ng/milestone/1
+[1.0-badge]: https://github.com/tuack-ng/tuack-ng/actions/workflows/rust.yml/badge.svg?branch=1.0&style=flat_square
+[1.0-link]: https://github.com/tuack-ng/tuack-ng/actions/workflows/rust.yml?query=branch%3A1.0
+
+<!-- 要在本地编译应用，请参考文档 [配置 Tuack-NG 本体开发环境](https://docs.tuack-ng.ink/dev/get-started/devlopment.html)。 -->
+
+如果您有意愿为 Tuack-NG 做出代码贡献，请先阅读 [贡献指南](CONTRIBUTING.md) 来了解如何为 Tuack-NG 做代码贡献。我们欢迎想要为本应用实现新功能或进行改进的同学提交 [Pull Request](https://github.com/tuack-ng/tuack-ng/pulls)。
 
 您可以参考 [DeepWiki](https://deepwiki.com/tuack-ng/tuack-ng) 来了解项目结构。 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/tuack-ng/tuack-ng)
 
 ## 致谢
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-3-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-4-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 感谢以下同学为本项目的开发提供支持（[✨](https://allcontributors.org/docs/zh-cn/emoji-key)）：
@@ -120,8 +172,9 @@ Tuack-NG（`Tuack New Generation`）是一套完整的用于辅助 OI/ACM 竞赛
   <tbody>
     <tr>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/Pulsar33550336"><img src="https://avatars.githubusercontent.com/u/226428598?v=4?s=60" width="60px;" alt="Pulsar"/><br /><sub><b>Pulsar</b></sub></a><br /><a href="https://github.com/tuack-ng/tuack-ng//tuack-ng/tuack-ng/commits?author=Pulsar33550336" title="Code">💻</a> <a href="#ideas-Pulsar33550336" title="Ideas, Planning, & Feedback">🤔</a> <a href="https://github.com/tuack-ng/tuack-ng//tuack-ng/tuack-ng/commits?author=Pulsar33550336" title="Documentation">📖</a> <a href="#design-Pulsar33550336" title="Design">🎨</a> <a href="#maintenance-Pulsar33550336" title="Maintenance">🚧</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Cwhirly"><img src="https://avatars.githubusercontent.com/u/247487531?v=4?s=60" width="60px;" alt="Cwhirly"/><br /><sub><b>Cwhirly</b></sub></a><br /><a href="#design-Cwhirly" title="Design">🎨</a> <a href="https://github.com/tuack-ng/tuack-ng//tuack-ng/tuack-ng/commits?author=Cwhirly" title="Tests">⚠️</a> <a href="https://github.com/tuack-ng/tuack-ng//tuack-ng/tuack-ng/pulls?q=is%3Apr+reviewed-by%3ACwhirly" title="Reviewed Pull Requests">👀</a> <a href="https://github.com/tuack-ng/tuack-ng//tuack-ng/tuack-ng/commits?author=Cwhirly" title="Code">💻</a></td>
-      <td align="center" valign="top" width="14.28%"><a href="https://github.com/951753yyswys"><img src="https://avatars.githubusercontent.com/u/175310223?v=4?s=60" width="60px;" alt="Qaaxaap"/><br /><sub><b>Qaaxaap</b></sub></a><br /><a href="https://github.com/tuack-ng/tuack-ng//tuack-ng/tuack-ng/commits?author=951753yyswys" title="Tests">⚠️</a> <a href="https://github.com/tuack-ng/tuack-ng//tuack-ng/tuack-ng/pulls?q=is%3Apr+reviewed-by%3A951753yyswys" title="Reviewed Pull Requests">👀</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Cwhirly"><img src="https://avatars.githubusercontent.com/u/247487531?v=4?s=60" width="60px;" alt="Cwhirly"/><br /><sub><b>Cwhirly</b></sub></a><br /><a href="#design-Cwhirly" title="Design">🎨</a> <a href="https://github.com/tuack-ng/tuack-ng//tuack-ng/tuack-ng/commits?author=Cwhirly" title="Tests">⚠️</a> <a href="https://github.com/tuack-ng/tuack-ng//tuack-ng/tuack-ng/pulls?q=is%3Apr+reviewed-by%3ACwhirly" title="Reviewed Pull Requests">👀</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/951753yyswys"><img src="https://avatars.githubusercontent.com/u/175310223?v=4?s=60" width="60px;" alt="Qaaxaap"/><br /><sub><b>Qaaxaap</b></sub></a><br /><a href="https://github.com/tuack-ng/tuack-ng//tuack-ng/tuack-ng/commits?author=951753yyswys" title="Tests">⚠️</a> <a href="https://github.com/tuack-ng/tuack-ng//tuack-ng/tuack-ng/pulls?q=is%3Apr+reviewed-by%3A951753yyswys" title="Reviewed Pull Requests">👀</a> <a href="#financial-951753yyswys" title="Financial">💵</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Qaaxaap"><img src="https://avatars.githubusercontent.com/u/175310223?v=4?s=60" width="60px;" alt="Qaaxaap"/><br /><sub><b>Qaaxaap</b></sub></a><br /><a href="https://github.com/tuack-ng/tuack-ng//tuack-ng/tuack-ng/commits?author=Qaaxaap" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>
@@ -131,15 +184,61 @@ Tuack-NG（`Tuack New Generation`）是一套完整的用于辅助 OI/ACM 竞赛
 
 <!-- ALL-CONTRIBUTORS-LIST:END -->
 <!-- autocorrect-enable -->
+
+- [Tuack](https://github.com/mulab11/tuack) —— 本项目的设计思想来源，并借鉴了部分代码与接口风格。
+- [CNOI Statement Generator](https://github.com/Mr-Python-in-China/cnoi-statement-generator) —— 本项目的 NOI 模板来自此项目。
+
 <!--markdownlint-disable MD001 MD033 MD041 MD051-->
+
+## 赞助商
+
+感谢以下赞助商对本项目的支持。
+
+<table>
+  <tr>
+    <td>
+      <img alt="Qaaxaap" src="https://avatars.githubusercontent.com/u/175310223?v=4?s=60" width=100 />
+    </td>
+    <td>
+    本项目使用的 LLM API 服务由 <a href="https://github.com/951753yyswys">Qaaxaap</a> 提供资金支持
+    </td>
+  </tr>
+</table>
 
 ## 许可证
 
+Copyright (C) 2025-2026 Tuack-NG Develop Team.
+
 本项目以 Affero General Public License 3.0 或更高版本获得许可。
+
+---
+
+Tuack-NG 的部分代码衍生自 [Tuack](https://gitee.com/mulab/oi_tools)（GPL-3.0），原作者：Chenxu Min, Zhang Ruizhe, Liu Xiaoyi, Chen Junkun, Chen Shengqi, Luo Lingxiao, Cheng Yuxuan。原 LICENSE 中的版权声明原样保留如下：
+
+<!-- autocorrect-disable -->
+```txt
+tuack
+Copyright (C) 2018  publish
+```
+<!-- autocorrect-enable -->
+
+移植部分保留原 GPL-3.0 许可，并作为 AGPL-3.0 项目的组成部分分发。
+
+---
+
+Tuack-NG 的 NOI 模板衍生自 [CNOI Statement Generator](https://github.com/Mr-Python-in-China/cnoi-statement-generator)（AGPL-3.0）。
+
+其模板亦源自 Tuack（GPL-3.0），详见其 README。
 
 ## Stars 历史
 
-[![Star 历史](https://starchart.cc/tuack-ng/tuack-ng.svg?variant=adaptive)](https://starchart.cc/tuack-ng/tuack-ng)
+<a href="https://www.star-history.com/?repos=tuack-ng%2Ftuack-ng&type=date&legend=top-left">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=tuack-ng/tuack-ng&type=date&theme=dark&legend=top-left&sealed_token=RbSB5lr1gLqwQsAoggMmo60ci-CYzMAk6tdmQkA_uCNnU_c-3pFVheB7-e8amwyGS_77th0pPi6ev9bgK1AynptuW7S4tu_qsj2S4H-10IVrGPZUfmLontMeF01xr1bK517eYA0fbWLQe5U_QaopsGIO7rxFJ9ROnT1ifJyVlbd00aogPjnBiaANSQ-f" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=tuack-ng/tuack-ng&type=date&legend=top-left&sealed_token=RbSB5lr1gLqwQsAoggMmo60ci-CYzMAk6tdmQkA_uCNnU_c-3pFVheB7-e8amwyGS_77th0pPi6ev9bgK1AynptuW7S4tu_qsj2S4H-10IVrGPZUfmLontMeF01xr1bK517eYA0fbWLQe5U_QaopsGIO7rxFJ9ROnT1ifJyVlbd00aogPjnBiaANSQ-f" />
+   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=tuack-ng/tuack-ng&type=date&legend=top-left&sealed_token=RbSB5lr1gLqwQsAoggMmo60ci-CYzMAk6tdmQkA_uCNnU_c-3pFVheB7-e8amwyGS_77th0pPi6ev9bgK1AynptuW7S4tu_qsj2S4H-10IVrGPZUfmLontMeF01xr1bK517eYA0fbWLQe5U_QaopsGIO7rxFJ9ROnT1ifJyVlbd00aogPjnBiaANSQ-f" />
+ </picture>
+</a>
 
 <div align="center">
 

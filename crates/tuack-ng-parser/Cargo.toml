@@ -1,0 +1,16 @@
+[package]
+name = "tuack-ng-parser"
+version = "1.0.2"
+edition = "2024"
+description = "Markdown parser for Tuack-NG, based on rushdown"
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/tuack-ng/tuack-ng"
+homepage = "https://github.com/tuack-ng/tuack-ng"
+keywords = ["markdown", "parser", "ast", "tuack-ng", "typst"]
+categories = ["parser-implementations", "text-processing"]
+rust-version = "1.85"
+
+[dependencies]
+rushdown = "0.18"
+unicode-width = "0.1"

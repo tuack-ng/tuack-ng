@@ -1,0 +1,20 @@
+[package]
+name = "tuack-lib"
+description = "tuack-ng 后端公共逻辑库"
+edition.workspace = true
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+bytesize.workspace = true
+indexmap.workspace = true
+serde.workspace = true
+serde_many.workspace = true
+tokio.workspace = true
+
+[dependencies.tuack-ng-parser]
+workspace = true

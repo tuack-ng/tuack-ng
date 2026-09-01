@@ -1,0 +1,622 @@
+use crate::prelude::*;
+use crate::utils::filesystem::copy_dir_recursive;
+use clap::Args;
+use clap::Subcommand;
+use clap_complete::Shell;
+use dialoguer::Select;
+use dialoguer::theme::ColorfulTheme;
+use indexmap::IndexMap;
+use natord::compare;
+use regex::Regex;
+use std::io;
+use tuack_config::SingleDataItem;
+use tuack_config::msgs::LoadContext;
+
+const CONFIG_FILE_NAME: &str = "conf.json";
+
+#[derive(Debug, Clone, Subcommand)]
+#[command(version)]
+#[command(infer_subcommands = false)]
+pub enum Targets {
+    /// 生成竞赛文件夹
+    #[command(version, aliases = ["n"])]
+    Contest(GenStatementArgs),
+    /// 生成竞赛日文件夹
+    #[command(version, alias = "d")]
+    Day(GenStatementArgs),
+    /// 生成题目文件夹
+    #[command(version, aliases = ["p", "prob"])]
+    Problem(GenStatementArgs),
+
+    /// 自动检测数据
+    #[command(version, alias = "t")]
+    Data(GenConfirmArgs),
+    /// 自动检测样例
+    #[command(version, alias = "s")]
+    Samples(GenConfirmArgs),
+    /// 自动检测题解
+    #[command(version, alias = "c")]
+    Code(GenConfirmArgs),
+    /// 自动检测所有
+    #[command(version, alias = "a")]
+    All(GenConfirmArgs),
+
+    /// 生成 lfs 文件
+    #[command(version)]
+    Lfs,
+
+    /// 生成 Shell 补全文件
+    #[command(version, hide = true)]
+    Complete(GenCompleteArgs),
+}
+
+#[derive(Args, Debug, Clone)]
+#[command(version)]
+pub struct GenStatementArgs {
+    /// 对象名称
+    #[arg(required = true)]
+    name: Vec<String>,
+}
+
+#[derive(Args, Debug, Clone)]
+#[command(version)]
+pub struct GenConfirmArgs {
+    /// 跳过确认提示
+    #[arg(short = 'y')]
+    confirm: bool,
+}
+
+#[derive(Args, Debug, Clone)]
+#[command(version)]
+pub struct GenCompleteArgs {
+    /// 对象名称
+    #[arg(required = true)]
+    name: String,
+}
+
+#[derive(Args, Debug, Clone)]
+#[command(version)]
+pub struct GenArgs {
+    /// 生成的对象
+    #[command(subcommand)]
+    pub target: Targets,
+}
+
+fn gen_contest(args: GenStatementArgs) -> Result<()> {
+    let current_dir = std::env::current_dir()?;
+
+    // 查找 scaffold/contest 目录（在程序上下文中的列表中第一个存在的）
+    let scaffold_path = find_in_scaffold("contest", true)?;
+
+    for contest_name in &args.name {
+        copy_dir_recursive(&scaffold_path, current_dir.join(contest_name))?;
+
+        let mut _ctx = LoadContext::new();
+        let mut contest_json: ContestConfig = ContestConfig::load(
+            &mut _ctx,
+            &current_dir.join(contest_name).join(CONFIG_FILE_NAME),
+        )?;
+
+        contest_json.name = contest_name.to_string();
+
+        let updated_content = contest_json.save()?;
+        std::fs::write(
+            current_dir.join(contest_name).join(CONFIG_FILE_NAME),
+            updated_content,
+        )?;
+    }
+    Ok(())
+}
+
+fn gen_day(args: GenStatementArgs) -> Result<()> {
+    // 检查是否在 contest 目录下执行
+    let current_dir = std::env::current_dir()?;
+    let config_path = current_dir.join(CONFIG_FILE_NAME);
+
+    // 检查当前目录是否存在 contest 配置文件
+    if !config_path.exists() {
+        bail!("day 命令必须在 contest 目录下执行");
+    }
+
+    // 检查配置文件是否为 contest 类型
+    let content = std::fs::read_to_string(&config_path)?;
+    let json_value: serde_json::Value = serde_json::from_str(&content)?;
+
+    if let Some(folder) = json_value.get("folder").and_then(|v| v.as_str()) {
+        if folder != "contest" {
+            bail!("day 命令必须在 contest 目录下执行");
+        }
+    } else {
+        bail!("无效的配置文件");
+    }
+
+    // 查找 scaffold/day 目录（在程序上下文中的列表中第一个存在的）
+    let scaffold_path = find_in_scaffold("day", true)?;
+
+    for day_name in &args.name {
+        copy_dir_recursive(&scaffold_path, current_dir.join(day_name))?;
+
+        let mut _ctx = LoadContext::new();
+        let mut day_json: ContestDayConfig = ContestDayConfig::load(
+            &mut _ctx,
+            &current_dir.join(day_name).join(CONFIG_FILE_NAME),
+        )?;
+
+        day_json.name = day_name.to_string();
+
+        let updated_content = day_json.save()?;
+        std::fs::write(
+            current_dir.join(day_name).join(CONFIG_FILE_NAME),
+            updated_content,
+        )?;
+    }
+
+    // 更新 contest 配置文件的 subdir 字段
+    let mut contest_config: serde_json::Value = serde_json::from_str(&content)?;
+    if let Some(subdir) = contest_config
+        .get_mut("subdir")
+        .and_then(|v| v.as_array_mut())
+    {
+        for day_name in &args.name {
+            subdir.push(serde_json::Value::String(day_name.clone()));
+        }
+    }
+
+    let updated_content = serde_json::to_string_pretty(&contest_config)?;
+    std::fs::write(&config_path, updated_content)?;
+    Ok(())
+}
+
+fn gen_problem(args: GenStatementArgs) -> Result<()> {
+    // 检查是否在 day 目录下执行
+    let current_dir = std::env::current_dir()?;
+    let config_path = current_dir.join(CONFIG_FILE_NAME);
+
+    // 检查当前目录是否存在 day 配置文件
+    if !config_path.exists() {
+        bail!("problem 命令必须在 day 目录下执行");
+    }
+
+    // 检查配置文件是否为 day 类型
+    let content = std::fs::read_to_string(&config_path)?;
+    let json_value: serde_json::Value = serde_json::from_str(&content)?;
+
+    if let Some(folder) = json_value.get("folder").and_then(|v| v.as_str()) {
+        if folder != "day" {
+            bail!("problem 命令必须在 day 目录下执行");
+        }
+    } else {
+        bail!("无效的配置文件");
+    }
+
+    // 查找 scaffold/problem 目录（在程序上下文中的列表中第一个存在的）
+    let scaffold_path = find_in_scaffold("problem", true)?;
+
+    for problem_name in &args.name {
+        copy_dir_recursive(&scaffold_path, current_dir.join(problem_name))?;
+
+        let mut _ctx = LoadContext::new();
+        let mut problem_json: ProblemConfig = ProblemConfig::load(
+            &mut _ctx,
+            &current_dir.join(problem_name).join(CONFIG_FILE_NAME),
+        )?;
+
+        problem_json.name = problem_name.to_string();
+
+        let updated_content = problem_json.save()?;
+        std::fs::write(
+            current_dir.join(problem_name).join(CONFIG_FILE_NAME),
+            updated_content,
+        )?;
+    }
+
+    // 更新 day 配置文件的 subdir 字段
+    let mut day_config: serde_json::Value = serde_json::from_str(&content)?;
+    if let Some(subdir) = day_config.get_mut("subdir").and_then(|v| v.as_array_mut()) {
+        for problem_name in &args.name {
+            subdir.push(serde_json::Value::String(problem_name.clone()));
+        }
+    }
+
+    let updated_content = serde_json::to_string_pretty(&day_config)?;
+    std::fs::write(&config_path, updated_content)?;
+    Ok(())
+}
+
+fn gen_lfs() -> Result<()> {
+    let attributes_path = find_in_scaffold("problem.gitattributes", false)?;
+
+    // 统一获取配置，避免重复调用
+    let config = &gctx().config.as_ref().context("没有有效的配置文件")?.config;
+
+    // 根据当前位置获取需要处理的问题列表
+    let problems_to_process = match gctx()
+        .config
+        .as_ref()
+        .context("没有有效的配置文件")?
+        .location
+    {
+        CurrentLocation::Root => {
+            // 获取所有问题
+            config
+                .subconfig
+                .values()
+                .flat_map(|day| day.subconfig.values())
+                .collect()
+        }
+        CurrentLocation::Day(ref day_name) => config
+            .subconfig
+            .get(day_name)
+            .map(|day| day.subconfig.values().collect())
+            .context(format!("找不到天 '{}'", day_name))?,
+        CurrentLocation::Problem(ref day_name, ref problem_name) => config
+            .subconfig
+            .get(day_name)
+            .and_then(|day| day.subconfig.get(problem_name))
+            .map(|problem| vec![problem])
+            .context(format!("找不到问题 '{}/{}'", day_name, problem_name))?,
+        CurrentLocation::None => bail!("没有有效的配置文件"),
+    };
+
+    for problem in problems_to_process {
+        let target_path = problem.path.join(".gitattributes");
+
+        if !target_path.exists() {
+            fs::copy(&attributes_path, &target_path)
+                .with_context(|| format!("复制文件到 {} 失败", target_path.display()))?;
+            info!("已生成 .gitattributes 到 {}", target_path.display());
+        } else {
+            msg_warn!(
+                "目录 {} 已存在 .gitattributes, 跳过",
+                problem.path.display()
+            );
+        }
+    }
+
+    Ok(())
+}
+
+fn confirm_overwrite() -> bool {
+    let theme = ColorfulTheme::default();
+
+    let items = vec!["No", "Yes"];
+
+    let selection = Select::with_theme(&theme)
+        .with_prompt(
+            "警告：这个操作将不可逆转地覆盖您的数据点和/或子任务配置。
+请谨慎运行，并且建议执行前备份您的配置文件。
+是否确认继续（使用 -y 跳过提示）？",
+        )
+        .items(&items)
+        .default(0)
+        .interact()
+        .unwrap();
+
+    selection == 1
+}
+
+fn gen_data(args: GenConfirmArgs) -> Result<()> {
+    if !args.confirm && !confirm_overwrite() {
+        return Ok(());
+    }
+
+    let config = gctx().config.clone().context("没有有效的配置")?;
+    for (now_day_name, day) in config.config.subconfig {
+        let day_name: Option<String> = match config.location {
+            CurrentLocation::Day(ref name) => Some(name.clone()),
+            CurrentLocation::Problem(ref day_name, _) => Some(day_name.clone()),
+            _ => None,
+        };
+        if day_name.is_some() && now_day_name != day_name.unwrap() {
+            continue;
+        }
+        for (now_problem_name, problem) in day.subconfig {
+            let problem_name: Option<String> = match config.location {
+                CurrentLocation::Problem(_, ref name) => Some(name.clone()),
+                _ => None,
+            };
+            if problem_name.is_some() && now_problem_name != problem_name.unwrap() {
+                continue;
+            }
+
+            let data_dir = problem.path.join("data");
+            if !data_dir.exists() {
+                msg_warn!("题目 {} 不存在 data 目录，跳过数据生成", problem.name);
+                continue;
+            }
+            let mut data_entries = Vec::<String>::new();
+            for entry in fs::read_dir(&data_dir)? {
+                let entry = entry?;
+                let path = entry.path();
+                if path.is_file()
+                    && let Some(ext) = path.extension()
+                    && ext == "in"
+                {
+                    let output_file = path.file_stem().unwrap().to_string_lossy() + ".ans";
+                    let output_path = data_dir.join(output_file.as_ref());
+
+                    if output_path.exists() {
+                        data_entries.push(path.file_stem().unwrap().to_string_lossy().to_string());
+                    }
+                }
+            }
+            data_entries.sort_by(|a, b| compare(a, b));
+            let count = data_entries.len() as u32;
+
+            let mut data: Vec<DataItem> = data_entries
+                .into_iter()
+                .enumerate()
+                .map(|(id, name)| {
+                    DataItem::Single(SingleDataItem {
+                        id: id as u32 + 1,
+                        input: Some(format!("{}.in", name)),
+                        output: Some(format!("{}.ans", name)),
+                        score: 100 / count,
+                        subtask: 0,
+                        orig_args: IndexMap::new(),
+                        dmk: None,
+                    })
+                })
+                .collect();
+
+            if let Some(last) = data.last_mut()
+                && let DataItem::Single(item) = last
+            {
+                item.score += 100 % count;
+            }
+
+            let subtasks: BTreeMap<u32, ScorePolicy> = BTreeMap::from([(0, ScorePolicy::Sum)]);
+
+            let mut _ctx = LoadContext::new();
+            let mut now_problem =
+                ProblemConfig::load(&mut _ctx, &problem.path.join(CONFIG_FILE_NAME))?;
+            now_problem.data = data;
+            now_problem.subtasks = subtasks;
+
+            let updated_content = now_problem.save()?;
+            fs::write(problem.path.join(CONFIG_FILE_NAME), updated_content)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn gen_sample(args: GenConfirmArgs) -> Result<()> {
+    if !args.confirm && !confirm_overwrite() {
+        return Ok(());
+    }
+
+    let config = gctx().config.clone().context("没有有效的配置")?;
+    for (now_day_name, day) in config.config.subconfig {
+        let day_name: Option<String> = match config.location {
+            CurrentLocation::Day(ref name) => Some(name.clone()),
+            CurrentLocation::Problem(ref day_name, _) => Some(day_name.clone()),
+            _ => None,
+        };
+        if day_name.is_some() && now_day_name != day_name.unwrap() {
+            continue;
+        }
+        for (now_problem_name, problem) in day.subconfig {
+            let problem_name: Option<String> = match config.location {
+                CurrentLocation::Problem(_, ref name) => Some(name.clone()),
+                _ => None,
+            };
+            if problem_name.is_some() && now_problem_name != problem_name.unwrap() {
+                continue;
+            }
+
+            let sample_dir = problem.path.join("sample");
+            if !sample_dir.exists() {
+                msg_warn!("题目 {} 不存在 sample 目录，跳过数据生成", problem.name);
+                continue;
+            }
+            let mut sample_entries = Vec::<String>::new();
+            for entry in fs::read_dir(&sample_dir)? {
+                let entry = entry?;
+                let path = entry.path();
+                if path.is_file()
+                    && let Some(ext) = path.extension()
+                    && ext == "in"
+                {
+                    let output_file = path.file_stem().unwrap().to_string_lossy() + ".ans";
+                    let output_path = sample_dir.join(output_file.as_ref());
+
+                    if output_path.exists() {
+                        sample_entries
+                            .push(path.file_stem().unwrap().to_string_lossy().to_string());
+                    }
+                }
+            }
+            sample_entries.sort_by(|a, b| compare(a, b));
+
+            let samples: Vec<SampleItem> = sample_entries
+                .into_iter()
+                .enumerate()
+                .map(|(id, name)| SampleItem {
+                    id: id as u32 + 1,
+                    input: Some(format!("{}.in", name)),
+                    output: Some(format!("{}.ans", name)),
+                    args: IndexMap::new(),
+                    dmk: None,
+                })
+                .collect();
+
+            let mut _ctx = LoadContext::new();
+            let mut now_problem =
+                ProblemConfig::load(&mut _ctx, &problem.path.join(CONFIG_FILE_NAME))?;
+            now_problem.samples = samples;
+
+            let updated_content = now_problem.save()?;
+            fs::write(problem.path.join(CONFIG_FILE_NAME), updated_content)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn gen_code(args: GenConfirmArgs) -> Result<()> {
+    let user_skip = Regex::new(r"(^|/|\\)(data|down|sample|pre|val|.*validate.*|gen|chk|checker|report|check.*|make_data|data_maker|data_make|make|dmk|generate|generator|makedata|spj|judge|tables|tmp|cp|copy|mv|move|rm|remove|.*\.tmp|.*\.temp|temp|.*\.test|.*\.dir)(\..*)?$").unwrap();
+    fn find_code(path: &PathBuf, user_skip: &Regex) -> Result<Vec<(PathBuf, bool)>> {
+        if user_skip.is_match(&dunce::canonicalize(path)?.to_string_lossy()) {
+            return Ok(vec![]);
+        }
+        if path.is_dir() {
+            let mut result = Vec::<(PathBuf, bool)>::new();
+            for entry in fs::read_dir(path)? {
+                let entry = entry?;
+                let entry_path = entry.path();
+                result.extend(find_code(&entry_path, user_skip)?);
+            }
+            Ok(result)
+        } else {
+            for (key, _) in gctx().languages.iter() {
+                if let Some(ext) = path.extension()
+                    && ext.to_string_lossy().as_ref() == key
+                {
+                    return Ok(vec![(
+                        path.clone(),
+                        path.file_stem().unwrap().to_string_lossy().as_ref() == "std",
+                    )]);
+                }
+            }
+            Ok(vec![])
+        }
+    }
+    if !args.confirm && !confirm_overwrite() {
+        return Ok(());
+    }
+
+    let config = gctx().config.clone().context("没有有效的配置")?;
+    for (now_day_name, day) in config.config.subconfig {
+        let day_name: Option<String> = match config.location {
+            CurrentLocation::Day(ref name) => Some(name.clone()),
+            CurrentLocation::Problem(ref day_name, _) => Some(day_name.clone()),
+            _ => None,
+        };
+        if day_name.is_some() && now_day_name != day_name.unwrap() {
+            continue;
+        }
+        for (now_problem_name, problem) in day.subconfig {
+            let problem_name: Option<String> = match config.location {
+                CurrentLocation::Problem(_, ref name) => Some(name.clone()),
+                _ => None,
+            };
+            if problem_name.is_some() && now_problem_name != problem_name.unwrap() {
+                continue;
+            }
+
+            let mut codes = find_code(&problem.path, &user_skip)?;
+            if codes.is_empty() {
+                msg_warn!("题目 {} 不存在题解文件，跳过题解生成", problem.name);
+                continue;
+            }
+
+            codes.sort_by(|a, b| {
+                compare(
+                    a.0.to_string_lossy().as_ref(),
+                    b.0.to_string_lossy().as_ref(),
+                )
+            });
+
+            let mut tests = IndexMap::<String, TestCase>::new();
+
+            for (path, is_std) in codes {
+                let name = if is_std {
+                    "std".to_string()
+                } else {
+                    // 相对路径作为名称
+                    path.strip_prefix(&problem.path)
+                        .unwrap()
+                        .to_string_lossy()
+                        .to_string()
+                };
+                let expected = if is_std {
+                    ExpectedScore::Single("== 100".to_string())
+                } else {
+                    ExpectedScore::Multiple(vec![])
+                };
+                tests.insert(
+                    name,
+                    TestCase {
+                        expected,
+                        path: path
+                            .strip_prefix(&problem.path)
+                            .unwrap()
+                            .to_string_lossy()
+                            .to_string(),
+                    },
+                );
+            }
+
+            let mut _ctx = LoadContext::new();
+            let mut now_problem =
+                ProblemConfig::load(&mut _ctx, &problem.path.join(CONFIG_FILE_NAME))?;
+            now_problem.tests = tests;
+
+            let updated_content = now_problem.save()?;
+            fs::write(problem.path.join(CONFIG_FILE_NAME), updated_content)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn gen_all(args: GenConfirmArgs) -> Result<()> {
+    if !args.confirm && !confirm_overwrite() {
+        return Ok(());
+    }
+    gen_data(GenConfirmArgs { confirm: true })?;
+    gen_sample(GenConfirmArgs { confirm: true })?;
+    gen_code(GenConfirmArgs { confirm: true })?;
+
+    Ok(())
+}
+
+fn gen_complete(args: GenCompleteArgs) -> Result<()> {
+    let shell = match args.name.to_lowercase().as_str() {
+        "bash" => Shell::Bash,
+        "zsh" => Shell::Zsh,
+        "fish" => Shell::Fish,
+        _ => {
+            error!("不支持的 shell 类型：{}", args.name);
+            bail!("不支持的 shell 类型")
+        }
+    };
+    let mut cmd = crate::Cli::command_i18n();
+    clap_complete::generate(shell, &mut cmd, "tuack-ng", &mut io::stdout());
+
+    Ok(())
+}
+
+pub fn main(args: GenArgs) -> Result<()> {
+    match args.target {
+        Targets::Contest(args) => gen_contest(args)?,
+        Targets::Day(args) => gen_day(args)?,
+        Targets::Problem(args) => gen_problem(args)?,
+        Targets::Data(args) => gen_data(args)?,
+        Targets::Samples(args) => gen_sample(args)?,
+        Targets::All(args) => gen_all(args)?,
+        Targets::Code(args) => gen_code(args)?,
+        Targets::Lfs => gen_lfs()?,
+        Targets::Complete(args) => gen_complete(args)?,
+    }
+
+    Ok(())
+}
+
+fn find_in_scaffold(name: &str, is_dir: bool) -> Result<PathBuf> {
+    let context = crate::context::gctx();
+
+    for assets_dir in &context.assets_dirs {
+        let path = assets_dir.join("scaffold").join(name);
+        if path.exists() {
+            // 根据需求检查类型
+            if (is_dir && path.is_dir()) || (!is_dir && path.is_file()) {
+                return Ok(path);
+            }
+        }
+    }
+
+    let item_type = if is_dir { "目录" } else { "文件" };
+    bail!("找不到 scaffold/{} {}", name, item_type);
+}

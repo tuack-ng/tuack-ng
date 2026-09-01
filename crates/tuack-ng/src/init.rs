@@ -1,0 +1,221 @@
+use crate::prelude::*;
+use log::LevelFilter;
+use log4rs::Logger;
+use log4rs::append::console::{ConsoleAppender, Target};
+use log4rs::config::{Appender, Config, Root};
+use log4rs::encode::pattern::PatternEncoder;
+
+use crate::context;
+use chrono::Local;
+use indicatif::MultiProgress;
+use indicatif_log_bridge::LogWrapper;
+use owo_colors::OwoColorize;
+use std::panic::{self, PanicHookInfo};
+use tuack_config::load_config;
+use tuack_config::msgs::LoadContext;
+
+#[cfg(debug_assertions)]
+const DEBUG: bool = true;
+#[cfg(not(debug_assertions))]
+const DEBUG: bool = false;
+
+fn custom_panic_handler(panic_info: &PanicHookInfo, verbose: bool) {
+    macro_rules! panic_log {
+        ($($arg:tt)*) => {
+            if verbose {
+                eprintln!("{} | {} | {}",
+                Local::now().format("%Y-%m-%d %H:%M:%S"),
+                "PANIC".bright_red().bold(), format!($($arg)*));
+            }else{
+                eprintln!("{} {}", "!!!".bright_red().bold(), format!($($arg)*));
+            }
+        };
+    }
+
+    panic_log!("程序发生了无法挽回的异常 (Panic)，即将退出");
+    panic_log!("如果你想要报告这个问题，请保留以下信息：");
+
+    if let Some(location) = panic_info.location() {
+        panic_log!(
+            "Panic 发生在：{}:{}:{}",
+            location.file(),
+            location.line(),
+            location.column()
+        );
+    } else {
+        panic_log!("无法获取 Panic 位置");
+    }
+
+    if let Some(message) = panic_info.payload().downcast_ref::<&str>() {
+        panic_log!("Panic 信息：{}", message);
+    } else if let Some(message) = panic_info.payload().downcast_ref::<String>() {
+        panic_log!("Panic 信息：{}", message);
+    } else {
+        panic_log!("无法获取 Panic 信息");
+    }
+    panic_log!("详见：https://docs.tuack-ng.ink/app/faq/panic.html");
+}
+
+fn init_log(verbose: &bool) -> Result<MultiProgress> {
+    let format = if *verbose {
+        "{d(%Y-%m-%d %H:%M:%S)} | {h({l})} | {t} | {m}{n}"
+    } else {
+        "{h({l})} | {m}{n}"
+    };
+
+    let stdout = ConsoleAppender::builder()
+        .target(Target::Stderr)
+        .encoder(Box::new(PatternEncoder::new(format)))
+        .build();
+
+    let loglevel = if *verbose {
+        LevelFilter::Trace
+    } else {
+        LevelFilter::Warn
+    };
+
+    let config = Config::builder()
+        .appender(Appender::builder().build("stdout", Box::new(stdout)))
+        .build(Root::builder().appender("stdout").build(loglevel))?;
+
+    let logger: log4rs::Logger = Logger::new(config);
+    let level = logger.max_log_level();
+    let multi = MultiProgress::new();
+    LogWrapper::new(multi.clone(), logger).try_init().unwrap();
+    log::set_max_level(level);
+
+    Ok(multi)
+}
+
+fn init_context(multi: MultiProgress, migrating: bool, validating: bool) -> Result<()> {
+    let home_dir = dirs::home_dir().context("无法获取 HOME 环境变量")?;
+
+    debug!(
+        "{:#?}",
+        dirs::data_local_dir()
+            .unwrap_or_else(|| home_dir.join(".local/share"))
+            .join("tuack-ng")
+    );
+
+    let assets_dirs = vec![
+        // 开发资源目录（workspace 根的 assets/）
+        #[cfg(debug_assertions)]
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .parent()
+            .unwrap()
+            .join("assets"),
+        // 用户目录
+        dirs::data_local_dir()
+            .unwrap_or_else(|| home_dir.join(".local/share"))
+            .join("tuack-ng"),
+        // 系统目录
+        #[cfg(not(windows))]
+        {
+            // Nix 下，使用相对路径探测
+            #[cfg(feature = "nix")]
+            let path = std::env::current_exe()
+                .ok()
+                .and_then(|p| p.parent()?.parent()?.join("share/tuack-ng").into())
+                .context("找不到资源")?;
+
+            #[cfg(not(feature = "nix"))]
+            let path = PathBuf::from("/usr/share/tuack-ng/");
+
+            path
+        },
+        #[cfg(windows)]
+        {
+            use std::env;
+            let exe_path = env::current_exe().expect("Failed to get executable path");
+            exe_path.parent().unwrap().join("assets")
+        },
+    ];
+
+    let mut ctx = if migrating {
+        LoadContext::new_force_migrate()
+    } else {
+        LoadContext::new()
+    };
+
+    let config = match load_config(&mut ctx, Path::new(".")) {
+        Ok(res) => {
+            if res.as_ref().is_some() {
+                info!("当前路径：{:#?}", res.as_ref().unwrap().location);
+                for (&from, message) in &ctx.migrated_notices {
+                    let to = from + 1;
+                    if message.is_empty() {
+                        msg_warn!("来自从 {} 版本迁移到 {} 版本的信息", from, to);
+                    } else {
+                        msg_warn!("来自从 {} 版本迁移到 {} 版本的信息：{}", from, to, message);
+                    }
+                }
+                if ctx.root.count() != 0 && !validating {
+                    let err_count = ctx.root.count_errors();
+                    let warn_count = ctx.root.count_warnings();
+                    if warn_count > 0 {
+                        msg_warn!(
+                            "配置文件中发现了 {} 个警告。使用 `tuack-ng doc validate` 查看。",
+                            warn_count
+                        );
+                    }
+                    if err_count > 0 {
+                        msg_error!("配置文件中发现了 {} 个错误：", err_count);
+                        msg!("{}", ctx.render_errors_tree());
+                    }
+                }
+            }
+            res
+        }
+        Err(e) => {
+            msg_warn!("配置文件解析失败，可能导致问题：{}", e);
+            None
+        }
+    };
+
+    let langs = assets_dirs
+        .iter()
+        .find_map(|dir| {
+            dir.join("langs.json")
+                .exists()
+                .then(|| dir.join("langs.json"))
+        })
+        .unwrap_or_else(|| assets_dirs[0].join("langs.json"));
+
+    let langs_content = fs::read_to_string(langs).unwrap();
+
+    let languages = serde_json::from_str(&langs_content)?;
+
+    context::setup_context(context::Context {
+        assets_dirs,
+        multiprogress: multi,
+        config,
+        loadctx: ctx,
+        languages,
+    })?;
+    Ok(())
+}
+
+pub fn init(verbose: &bool, cli: &crate::Cli) -> Result<()> {
+    if !DEBUG {
+        let verbose_value = *verbose;
+        panic::set_hook(Box::new(move |panic_info| {
+            custom_panic_handler(panic_info, verbose_value);
+        }));
+    }
+    let multi = init_log(verbose)?;
+    // 生成补全文件时，有可能还没有全局配置文件亦或者不合法，所以可能会失败
+    // 因此，跳过初始化逻辑
+    if !matches!(cli.command, crate::Commands::Gen(ref args)
+       if matches!(args.target, crate::generate::Targets::Complete(_)))
+    {
+        let migrating = matches!(cli.command, crate::Commands::Conf(ref args)
+       if matches!(args.target, crate::conf::Targets::Migrate));
+        let validating = matches!(cli.command, crate::Commands::Doc(ref args)
+       if matches!(args.target, crate::doc::Targets::Validate));
+
+        init_context(multi, migrating, validating)?;
+    }
+    Ok(())
+}
