@@ -159,7 +159,7 @@ Tuack-NG（`Tuack New Generation`）是一套完整的用于辅助 OI/ACM 竞赛
 ## 致谢
 
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
-[![All Contributors](https://img.shields.io/badge/all_contributors-3-orange.svg?style=flat-square)](#contributors-)
+[![All Contributors](https://img.shields.io/badge/all_contributors-4-orange.svg?style=flat-square)](#contributors-)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 感谢以下同学为本项目的开发提供支持（[✨](https://allcontributors.org/docs/zh-cn/emoji-key)）：
@@ -174,6 +174,7 @@ Tuack-NG（`Tuack New Generation`）是一套完整的用于辅助 OI/ACM 竞赛
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/Pulsar33550336"><img src="https://avatars.githubusercontent.com/u/226428598?v=4?s=60" width="60px;" alt="Pulsar"/><br /><sub><b>Pulsar</b></sub></a><br /><a href="https://github.com/tuack-ng/tuack-ng//tuack-ng/tuack-ng/commits?author=Pulsar33550336" title="Code">💻</a> <a href="#ideas-Pulsar33550336" title="Ideas, Planning, & Feedback">🤔</a> <a href="https://github.com/tuack-ng/tuack-ng//tuack-ng/tuack-ng/commits?author=Pulsar33550336" title="Documentation">📖</a> <a href="#design-Pulsar33550336" title="Design">🎨</a> <a href="#maintenance-Pulsar33550336" title="Maintenance">🚧</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/Cwhirly"><img src="https://avatars.githubusercontent.com/u/247487531?v=4?s=60" width="60px;" alt="Cwhirly"/><br /><sub><b>Cwhirly</b></sub></a><br /><a href="#design-Cwhirly" title="Design">🎨</a> <a href="https://github.com/tuack-ng/tuack-ng//tuack-ng/tuack-ng/commits?author=Cwhirly" title="Tests">⚠️</a> <a href="https://github.com/tuack-ng/tuack-ng//tuack-ng/tuack-ng/pulls?q=is%3Apr+reviewed-by%3ACwhirly" title="Reviewed Pull Requests">👀</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/951753yyswys"><img src="https://avatars.githubusercontent.com/u/175310223?v=4?s=60" width="60px;" alt="Qaaxaap"/><br /><sub><b>Qaaxaap</b></sub></a><br /><a href="https://github.com/tuack-ng/tuack-ng//tuack-ng/tuack-ng/commits?author=951753yyswys" title="Tests">⚠️</a> <a href="https://github.com/tuack-ng/tuack-ng//tuack-ng/tuack-ng/pulls?q=is%3Apr+reviewed-by%3A951753yyswys" title="Reviewed Pull Requests">👀</a> <a href="#financial-951753yyswys" title="Financial">💵</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Qaaxaap"><img src="https://avatars.githubusercontent.com/u/175310223?v=4?s=60" width="60px;" alt="Qaaxaap"/><br /><sub><b>Qaaxaap</b></sub></a><br /><a href="https://github.com/tuack-ng/tuack-ng//tuack-ng/tuack-ng/commits?author=Qaaxaap" title="Code">💻</a></td>
     </tr>
   </tbody>
 </table>
