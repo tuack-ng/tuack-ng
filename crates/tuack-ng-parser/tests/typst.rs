@@ -145,6 +145,44 @@ fn typst_figure_no_caption() {
     assert!(out.contains("#figure["), "应输出 #figure[，实际：{out:?}");
 }
 
+#[test]
+fn typst_align_right() {
+    let src = ":::align{right}\n内容\n:::";
+    let out = render_typst(&tuack_ng_parser::parse(src));
+    assert!(
+        out.contains("#align(right)[#par[#\"内容\"]]"),
+        "应输出 #align(right)[...]，实际：{out:?}"
+    );
+}
+
+#[test]
+fn typst_align_center() {
+    let src = ":::align{center}\n内容\n:::";
+    let out = render_typst(&tuack_ng_parser::parse(src));
+    assert!(
+        out.contains("#align(center)[#par[#\"内容\"]]"),
+        "应输出 #align(center)[...]，实际：{out:?}"
+    );
+}
+
+#[test]
+fn typst_align_left() {
+    let src = ":::align{left}\n内容\n:::";
+    let out = render_typst(&tuack_ng_parser::parse(src));
+    assert!(
+        out.contains("#align(left)[#par[#\"内容\"]]"),
+        "应输出 #align(left)[...]，实际：{out:?}"
+    );
+}
+
+#[test]
+fn typst_align_without_param() {
+    // 无对齐参数时解包渲染内容
+    let src = ":::align\n内容\n:::";
+    let out = render_typst(&tuack_ng_parser::parse(src));
+    assert_eq!(out.trim(), "#par[#\"内容\"]");
+}
+
 // ---- 综合快照 ----
 
 const COMPREHENSIVE_DOC: &str = include_str!("fixtures/comprehensive.md");

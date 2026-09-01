@@ -8,7 +8,7 @@
 //! 表格**处理合并**：colspan/rowspan 通过 `table.cell(colspan:, rowspan:)` 输出，
 //! `removed_by_extended_table` 的单元格跳过。
 
-use crate::ast::block::{BlockKind, CodeBlockKind, HeadingKind, SetextHeading};
+use crate::ast::block::{BlockKind, CodeBlockKind, ContainerParam, HeadingKind, SetextHeading};
 use crate::ast::inline::InlineKind;
 use crate::ast::list::ListKind;
 use crate::ast::{Block, Document, Inline};
@@ -28,7 +28,7 @@ pub fn render_typst(doc: &Document) -> String {
     out
 }
 
-/// 收集所有脚注定义：label → blocks（typst 引用点内联定义内容）。
+/// 收集所有脚注定义：label -> blocks（typst 引用点内联定义内容）。
 fn collect_footnotes(doc: &Document) -> HashMap<String, Vec<Block>> {
     let mut map = HashMap::new();
     for block in &doc.blocks {
@@ -115,7 +115,9 @@ fn render_block(block: &BlockKind, footnotes: &HashMap<String, Vec<Block>>, out:
                 out.push_str("#figure");
                 // caption 参数。
                 let mut args = Vec::new();
-                if let Some((_, caption)) = c.params.iter().find(|(k, _)| k == "caption") {
+                if let Some(ContainerParam::KeyValue(_, caption)) =
+                    c.params.iter().find(|p| p.key() == "caption")
+                {
                     args.push(format!("caption: [{}]", escape_typst(caption)));
                 }
                 if !args.is_empty() {
@@ -129,6 +131,37 @@ fn render_block(block: &BlockKind, footnotes: &HashMap<String, Vec<Block>>, out:
                     render_block(&b.value, footnotes, out);
                 }
                 out.push(']');
+            } else if c.kind == "align" {
+                // `:::align{right}` / `:::align{center}` / `:::align{left}` 对齐容器（裸参数）。
+                let align = c.params.iter().find_map(|p| match p {
+                    ContainerParam::Flag(k)
+                        if matches!(k.as_str(), "left" | "center" | "right") =>
+                    {
+                        Some(k.clone())
+                    }
+                    _ => None,
+                });
+                match align {
+                    Some(align) => {
+                        out.push_str(&format!("#align({align})["));
+                        for (i, b) in c.blocks.iter().enumerate() {
+                            if i > 0 {
+                                out.push('\n');
+                            }
+                            render_block(&b.value, footnotes, out);
+                        }
+                        out.push(']');
+                    }
+                    // 无对齐参数：解包渲染内容。
+                    None => {
+                        for (i, b) in c.blocks.iter().enumerate() {
+                            if i > 0 {
+                                out.push('\n');
+                            }
+                            render_block(&b.value, footnotes, out);
+                        }
+                    }
+                }
             } else {
                 for (i, b) in c.blocks.iter().enumerate() {
                     if i > 0 {
@@ -159,7 +192,7 @@ fn render_inlines(inlines: &[Inline], footnotes: &HashMap<String, Vec<Block>>, o
     for inline in inlines {
         match &inline.value {
             InlineKind::Text(t) => pending.push_str(t),
-            // Markdown 软换行 → typst `#linebreak()`（保留换行）。
+            // Markdown 软换行 -> typst `#linebreak()`（保留换行）。
             InlineKind::SoftBreak => {
                 flush(&mut pending, out);
                 out.push_str("#linebreak()");

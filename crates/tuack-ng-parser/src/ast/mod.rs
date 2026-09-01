@@ -9,8 +9,8 @@ pub mod list;
 pub mod table;
 
 pub use block::{
-    Block, BlockKind, CodeBlock, CodeBlockKind, Container, FootnoteDefinition, Heading,
-    HeadingKind, LinkDefinition, SetextHeading,
+    Block, BlockKind, CodeBlock, CodeBlockKind, Container, ContainerParam, FootnoteDefinition,
+    Heading, HeadingKind, LinkDefinition, SetextHeading,
 };
 pub use inline::{
     Autolink, Image, ImageAttributes, Inline, InlineKind, Link, LinkKind, LinkReference,

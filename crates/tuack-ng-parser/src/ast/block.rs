@@ -43,8 +43,38 @@ pub type Block = Spanned<BlockKind>;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Container {
     pub kind: String,
-    pub params: Vec<(String, String)>,
+    pub params: Vec<ContainerParam>,
     pub blocks: Vec<Block>,
+}
+
+/// 容器参数。
+///
+/// 来源可为键值对（`:::{caption="标题"}`）或无值的裸属性（`:::{right}`）；
+/// 裸属性按布尔标记处理，后续可扩展混合列表（`:::{aa, bb, b=c, c=d}`）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ContainerParam {
+    /// 键值对，如 `caption="标题"`、`id="x"`。
+    KeyValue(String, String),
+    /// 无值单属性（布尔标记），如 `right`。
+    Flag(String),
+}
+
+impl ContainerParam {
+    /// 参数名（键）。
+    pub fn key(&self) -> &str {
+        match self {
+            ContainerParam::KeyValue(k, _) => k,
+            ContainerParam::Flag(k) => k,
+        }
+    }
+
+    /// 参数值：键值对返回 `Some(值)`，裸属性返回 `None`。
+    pub fn value(&self) -> Option<&str> {
+        match self {
+            ContainerParam::KeyValue(_, v) => Some(v),
+            ContainerParam::Flag(_) => None,
+        }
+    }
 }
 
 /// 标题。

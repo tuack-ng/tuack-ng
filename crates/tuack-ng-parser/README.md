@@ -29,21 +29,34 @@ let typ = render_typst(&doc);
 
 ## Supported Syntax
 
-| Category    | Syntax                             | Description                                                        |
-| ----------- | ---------------------------------- | ------------------------------------------------------------------ |
-| Paragraph   | `a\nb`                             | Soft break → SoftBreak; `a  \nb` / `a\\\nb` hard break → LineBreak |
-| Headings    | `# H`, `H\n===`                    | ATX 1–6, Setext 1/2                                                |
-| Lists       | `- a` / `1. a`                     | Unordered (`-`/`*`/`+`), ordered (always rendered from 1), nested  |
-| Blockquotes | `> quote`                          | Nested supported                                                   |
-| Code        | `` `code` ``, fenced block         | Inline, fenced/indented blocks                                     |
-| Tables      | `\| a \| b \|`                     | Merging `<`/`^`, alignment                                         |
-| Emphasis    | `*em*` `**strong**` `~~del~~`      | Strikethrough (GFM)                                                |
-| Links       | `[text](url)` `[ref]` `<https://>` | Inline / reference-style / autolink                                |
-| Images      | `![alt](url){width=..}`            | With attributes                                                    |
-| LaTeX       | `$x$` `$$...$$`                    | Inline / block (own line only)                                     |
-| Footnotes   | `[^label]` `[^label]: content`     | Reference + definition                                             |
-| Containers  | `:::kind`                          | fenced-div, nested with params                                     |
-| HTML        | `<div>` `<span>`                   | Block / inline raw                                                 |
+| Category    | Syntax                             | Description                                                         |
+| ----------- | ---------------------------------- | ------------------------------------------------------------------- |
+| Paragraph   | `a\nb`                             | Soft break → SoftBreak; `a  \nb` / `a\\\nb` hard break → LineBreak  |
+| Headings    | `# H`, `H\n===`                    | ATX 1–6, Setext 1/2                                                 |
+| Lists       | `- a` / `1. a`                     | Unordered (`-`/`*`/`+`), ordered (always rendered from 1), nested   |
+| Blockquotes | `> quote`                          | Nested supported                                                    |
+| Code        | `` `code` ``, fenced block         | Inline, fenced/indented blocks                                      |
+| Tables      | `\| a \| b \|`                     | Merging `<`/`^`, alignment                                          |
+| Emphasis    | `*em*` `**strong**` `~~del~~`      | Strikethrough (GFM)                                                 |
+| Links       | `[text](url)` `[ref]` `<https://>` | Inline / reference-style / autolink                                 |
+| Images      | `![alt](url){width=..}`            | With attributes                                                     |
+| LaTeX       | `$x$` `$$...$$`                    | Inline / block (own line only)                                      |
+| Footnotes   | `[^label]` `[^label]: content`     | Reference + definition                                              |
+| HTML        | `<div>` `<span>`                   | Block / inline raw                                                  |
+
+### Containers
+
+`:::kind` fenced-div blocks — nestable and parameterized. `kind` is taken from the
+`class` attribute (`:::note` / `:::{.note}`); remaining attributes become params.
+
+| Syntax                                                    | Description                                            |
+| --------------------------------------------------------- | ------------------------------------------------------ |
+| `:::note`                                                 | Plain container; `kind` from class                     |
+| `:::figure{caption="caption"}`                            | Figure container; caption → Typst `#figure(caption:)`  |
+| `:::align{right}` / `:::align{center}` / `:::align{left}` | Alignment container; → Typst `#align(...)`             |
+| `:::a{key=val}`                                           | Key-value params                                       |
+| `:::{aa, bb, b=c, c=d}`                                   | Mixed list: bare flags + key-value pairs               |
+| Nested                                                    | Containers can be nested arbitrarily                   |
 
 ## Development
 
