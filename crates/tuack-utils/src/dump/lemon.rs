@@ -135,12 +135,21 @@ impl Dumper for LemonDumper {
             if let Some(checker) = &prob.checker {
                 info!("尝试编译 SPJ");
 
-                // 源码经 assets 取流写 tmp，再 g++ 编译
+                // 源码与依赖经 assets 读取写入 tmp，再 g++ 编译
                 let src_tmp = self.tmp_dir.join("chk-src.cpp");
-                let mut src = doc.assets.load(prob.idx, checker).await?;
+                let mut src = doc.assets.load(prob.idx, &checker.source).await?;
                 let mut f = tokio::fs::File::create(&src_tmp).await?;
                 tokio::io::copy(&mut src, &mut f).await?;
                 drop(f);
+
+                for dep in &checker.deps {
+                    let mut dep_src = doc.assets.load(prob.idx, dep).await?;
+                    let dep_name = dep.file_name().context("依赖路径缺少文件名")?.to_owned();
+                    let dep_tmp = self.tmp_dir.join(&dep_name);
+                    let mut f = tokio::fs::File::create(&dep_tmp).await?;
+                    tokio::io::copy(&mut dep_src, &mut f).await?;
+                    drop(f);
+                }
 
                 let chk_out = self.tmp_dir.join(&chk_name);
                 let compile_status = Command::new("g++")

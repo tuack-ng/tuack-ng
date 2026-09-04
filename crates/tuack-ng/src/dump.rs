@@ -4,8 +4,8 @@ use clap::ValueEnum;
 use std::collections::HashSet;
 use std::time::Duration;
 use tuack_lib::dump::{
-    DumpCase, DumpConfig, DumpDocument, DumpFile, DumpProblem, DumpSample, DumpSubtask, Dumper,
-    ScorePolicy,
+    DumpCase, DumpChecker, DumpConfig, DumpDocument, DumpFile, DumpProblem, DumpSample,
+    DumpSubtask, Dumper, ScorePolicy,
 };
 use tuack_lib::ren::ProblemType;
 use tuack_utils::assets::FsAssetProvider;
@@ -122,7 +122,10 @@ fn build_dump_document(
             })
             .collect();
 
-        let checker = prob.checker.as_ref().map(|c| PathBuf::from(&c.data.source));
+        let checker = prob.checker.as_ref().map(|c| DumpChecker {
+            source: PathBuf::from(&c.data.source),
+            deps: c.data.deps.iter().map(PathBuf::from).collect(),
+        });
 
         let mut extra_down = Vec::new();
         let extra_dir = prob.path.join("down");

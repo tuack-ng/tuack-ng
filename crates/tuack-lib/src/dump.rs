@@ -67,6 +67,15 @@ pub struct DumpFile {
     pub path: PathBuf,
 }
 
+/// 校验器信息（源文件与依赖）
+#[derive(Debug, Clone)]
+pub struct DumpChecker {
+    /// 源文件逻辑路径（如 `data/chk/chk.cpp`）
+    pub source: PathBuf,
+    /// 依赖文件逻辑路径列表（如 `data/chk/testlib.h`），编译时需随源码一起拷贝
+    pub deps: Vec<PathBuf>,
+}
+
 /// 单题导出数据
 #[derive(Debug, Clone)]
 pub struct DumpProblem {
@@ -82,8 +91,8 @@ pub struct DumpProblem {
     pub samples: Vec<DumpSample>,
     /// down/ 下非样例的附加文件
     pub extra_down: Vec<DumpFile>,
-    /// checker 源文件逻辑路径
-    pub checker: Option<PathBuf>,
+    /// 校验器（源文件 + 依赖）
+    pub checker: Option<DumpChecker>,
 }
 
 /// 导出文档：dumper 的唯一输入（day 级）。
@@ -94,7 +103,7 @@ pub struct DumpDocument {
     pub assets: Box<dyn AssetProvider>,
 }
 
-/// 导出器：`DumpDocument -> (产物文件列表, 导出警告)`。
+/// 导出器：`DumpDocument -> (产物文件列表，导出警告)`。
 #[async_trait]
 pub trait Dumper: Send + Sync {
     async fn dump(&self, doc: &DumpDocument) -> Result<(Vec<OutputFile>, Vec<String>)>;

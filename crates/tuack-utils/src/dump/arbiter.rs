@@ -39,15 +39,24 @@ impl ArbiterDumper {
     ) -> Result<Option<Box<dyn tuack_lib::data::AsyncReader>>> {
         let filter_path = self.tmp_dir.join(format!("{}_e", prob.name));
 
-        // 有自定义 SPJ：编译 checker（源码经 assets 取流写 tmp）
+        // 有自定义 SPJ：编译 checker
         if let Some(checker) = &prob.checker {
+            info!("发现 chk，尝试编译。");
             let src_tmp = self.tmp_dir.join("chk-src.cpp");
-            let mut src = doc.assets.load(prob.idx, checker).await?;
+            let mut src = doc.assets.load(prob.idx, &checker.source).await?;
             let mut f = tokio::fs::File::create(&src_tmp).await?;
             tokio::io::copy(&mut src, &mut f).await?;
             drop(f);
 
-            info!("发现 chk，尝试编译。");
+            for dep in &checker.deps {
+                let mut dep_src = doc.assets.load(prob.idx, dep).await?;
+                let dep_name = dep.file_name().context("依赖路径缺少文件名")?.to_owned();
+                let dep_tmp = self.tmp_dir.join(&dep_name);
+                let mut f = tokio::fs::File::create(&dep_tmp).await?;
+                tokio::io::copy(&mut dep_src, &mut f).await?;
+                drop(f);
+            }
+
             let status = Command::new("g++")
                 .arg(&src_tmp)
                 .arg("-o")
@@ -58,7 +67,7 @@ impl ArbiterDumper {
                 .context("执行 g++ 失败")?;
 
             if !status.success() {
-                warnings.push(format!("chk 编译失败，请手动处理：{}", checker.display()));
+                warnings.push(format!("chk 编译失败：{}", checker.source.display()));
                 return Ok(None);
             }
             return Ok(Some(Box::new(tokio::fs::File::open(&filter_path).await?)));
