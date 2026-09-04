@@ -9,12 +9,13 @@ use tuack_lib::dump::{
 };
 use tuack_lib::ren::ProblemType;
 use tuack_utils::assets::FsAssetProvider;
-use tuack_utils::dump::{arbiter, lemon};
+use tuack_utils::dump::{arbiter, ccr_plus, lemon};
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum Target {
     Lemon,
     Arbiter,
+    CcrPlus,
 }
 
 impl Target {
@@ -23,6 +24,7 @@ impl Target {
         match self {
             Target::Lemon => "lemon",
             Target::Arbiter => "arbiter",
+            Target::CcrPlus => "ccr-plus",
         }
     }
 }
@@ -189,6 +191,7 @@ async fn dump_main(
             tmp.path().to_path_buf(),
             gctx().assets_dirs.clone(),
         )),
+        Target::CcrPlus => Box::new(ccr_plus::CcrPlusDumper::new(tmp.path().to_path_buf())),
     };
 
     let (files, warnings) = match dumper.dump(&doc).await {
