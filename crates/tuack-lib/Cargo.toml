@@ -18,3 +18,4 @@ tokio.workspace = true
 
 [dependencies.tuack-ng-parser]
 workspace = true
+features = ["serde"]

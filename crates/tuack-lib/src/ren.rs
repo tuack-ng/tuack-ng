@@ -7,11 +7,13 @@
 //! - 渲染器禁止：访问 `gctx()`（获取资源可能除外）、直接读取用户资源（除非经 `AssetProvider`）、写最终输出目录。
 
 pub mod document;
+pub mod processor;
 
 use crate::utils::output::OutputFile;
 pub use document::{
     DateInfo, Problem, ProblemMeta, ProblemType, RenConfig, RenderDocument, SupportLanguage,
 };
+pub use processor::{ProcessorOutput, RenProcessor};
 
 use crate::prelude::*;
 
