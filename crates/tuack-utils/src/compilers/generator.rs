@@ -2,9 +2,7 @@ use std::process::{Command as StdCommand, Stdio};
 use tempfile::TempDir;
 
 use crate::prelude::*;
-use async_trait::async_trait;
-use tokio::process::Command;
-use tuack_lib::data::AsyncReader;
+use tuack_lib::data::Reader;
 use tuack_lib::utils::testlib::{Arg, Generator};
 
 pub struct CppGenerator {
@@ -41,7 +39,6 @@ impl CppGenerator {
     }
 }
 
-#[async_trait]
 impl Generator for CppGenerator {
     fn prepare(&mut self) -> Result<()> {
         if !self.tmp_dir.path().exists() {
@@ -85,7 +82,7 @@ impl Generator for CppGenerator {
         Ok(())
     }
 
-    async fn run(&self, args: IndexMap<String, Arg>, seed: u64) -> Result<Box<dyn AsyncReader>> {
+    fn run(&self, args: IndexMap<String, Arg>, seed: u64) -> Result<Box<dyn Reader>> {
         let binary = self
             .binary_path
             .as_ref()
@@ -112,21 +109,18 @@ impl Generator for CppGenerator {
         let out_file = std::fs::File::create(&out_path)?;
         let err_file = std::fs::File::create(&err_path)?;
 
-        let status = Command::new(binary)
+        let status = StdCommand::new(binary)
             .args(&cmd_args)
             .stdout(Stdio::from(out_file))
             .stderr(Stdio::from(err_file))
-            .status()
-            .await?;
+            .status()?;
 
         if !status.success() {
-            let err = tokio::fs::read_to_string(&err_path)
-                .await
-                .unwrap_or_default();
+            let err = std::fs::read_to_string(&err_path).unwrap_or_default();
             bail!("生成器运行失败：{}", err);
         }
 
-        let f = tokio::fs::File::open(&out_path).await?;
+        let f = std::fs::File::open(&out_path)?;
         Ok(Box::new(f))
     }
 }

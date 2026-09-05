@@ -1,16 +1,14 @@
 use std::process::Command as StdCommand;
 use std::process::Stdio;
 use tempfile::TempDir;
-use tokio::process::Command as TokioCommand;
 
 use crate::command::string_to_command;
 use crate::prelude::*;
 use crate::process::ProcessSupervisor;
-use async_trait::async_trait;
 use strfmt::strfmt;
 use tuack_config::lang::Language;
-use tuack_lib::data::AsyncReader;
-use tuack_lib::utils::compiler::{IoMode, ResourceLimits, RunResult, RunnerManifest};
+use tuack_lib::data::Reader;
+use tuack_lib::utils::compiler::{IoMode, ResourceLimits, RunResult, Runner, RunnerManifest};
 
 pub struct GeneralRunner {
     tmp_dir: TempDir,
@@ -19,7 +17,7 @@ pub struct GeneralRunner {
     language: Language,
     program_name: String,
     limits: Option<ResourceLimits>,
-    input: Option<Box<dyn AsyncReader>>,
+    input: Option<Box<dyn Reader>>,
     io_mode: IoMode,
 }
 
@@ -142,7 +140,6 @@ impl GeneralRunner {
     }
 }
 
-#[async_trait]
 impl Runner for GeneralRunner {
     fn manifest(&self) -> RunnerManifest {
         RunnerManifest { interactive: false }
@@ -183,48 +180,11 @@ impl Runner for GeneralRunner {
         Ok(())
     }
 
-    async fn prepare_async(&mut self) -> Result<()> {
-        if !self.tmp_dir.path().exists() {
-            tokio::fs::create_dir_all(&self.tmp_dir).await?;
-        }
-
-        if let Some(cmd) = self.get_compile_command()? {
-            let target_path = self
-                .tmp_dir
-                .path()
-                .join(&self.program_name)
-                .with_extension(self.source.extension().unwrap());
-
-            tokio::fs::copy(&self.source, &target_path).await?;
-
-            let mut tokio_cmd = TokioCommand::from(cmd);
-            let output = tokio_cmd
-                .stdout(Stdio::null())
-                .stderr(Stdio::piped())
-                .output()
-                .await?;
-            if !output.status.success() {
-                bail!("编译错误：{}", String::from_utf8_lossy(&output.stderr));
-            }
-
-            tokio::fs::remove_file(&target_path).await?;
-        } else {
-            let target_path = self
-                .tmp_dir
-                .path()
-                .join(self.program_name.clone())
-                .with_extension(self.source.extension().unwrap());
-            tokio::fs::copy(&self.source, target_path).await?;
-        }
-
-        Ok(())
-    }
-
     fn set_limits(&mut self, limits: ResourceLimits) {
         self.limits = Some(limits);
     }
 
-    fn set_input(&mut self, input: Box<dyn AsyncReader>) {
+    fn set_input(&mut self, input: Box<dyn Reader>) {
         self.input = Some(input);
     }
 
@@ -236,13 +196,13 @@ impl Runner for GeneralRunner {
         unreachable!("通用运行器不支持交互");
     }
 
-    async fn execute(&mut self) -> Result<RunResult> {
+    fn execute(&mut self) -> Result<RunResult> {
         let limits = self.limits.take().unwrap_or(ResourceLimits::unlimited());
 
         let mut input = self
             .input
             .take()
-            .unwrap_or_else(|| Box::new(tokio::io::empty()));
+            .unwrap_or_else(|| Box::new(std::io::empty()));
 
         let mut cmd = self.get_run_base_command()?;
         cmd.current_dir(&self.tmp_dir);
@@ -251,9 +211,10 @@ impl Runner for GeneralRunner {
             IoMode::Stdio => {
                 let stdin_path = self.tmp_dir.path().join("pipe_stdin");
                 let stdout_path = self.tmp_dir.path().join("pipe_stdout");
-                let mut stdin_file = tokio::fs::File::create(&stdin_path).await?;
-                tokio::io::copy(&mut input, &mut stdin_file).await?;
-                drop(stdin_file);
+                {
+                    let mut stdin_file = std::fs::File::create(&stdin_path)?;
+                    std::io::copy(&mut input, &mut stdin_file)?;
+                }
                 let stdin_handle = std::fs::File::open(&stdin_path)?;
                 let stdout_handle = std::fs::File::create(&stdout_path)?;
                 cmd.stdin(Stdio::from(stdin_handle));
@@ -261,9 +222,10 @@ impl Runner for GeneralRunner {
             }
             IoMode::File { input_name, .. } => {
                 let input_path = self.tmp_dir.path().join(input_name);
-                let mut input_file = tokio::fs::File::create(&input_path).await?;
-                tokio::io::copy(&mut input, &mut input_file).await?;
-                drop(input_file);
+                {
+                    let mut input_file = std::fs::File::create(&input_path)?;
+                    std::io::copy(&mut input, &mut input_file)?;
+                }
                 cmd.stdin(Stdio::null());
                 cmd.stdout(Stdio::null());
             }
@@ -273,24 +235,21 @@ impl Runner for GeneralRunner {
         let stderr_file = std::fs::File::create(&stderr_path)?;
         cmd.stderr(Stdio::from(stderr_file));
 
-        let mut tokio_cmd = TokioCommand::from(cmd);
-        let mut child = tokio_cmd.spawn()?;
-
-        let (status, time, memory) = ProcessSupervisor::new(limits).supervise(&mut child).await?;
+        let (status, time, memory) = ProcessSupervisor::new(limits).supervise_blocking(cmd)?;
 
         // 读取 stderr
-        let stderr = tokio::fs::read(stderr_path).await?;
+        let stderr = std::fs::read(stderr_path)?;
 
         // 输出流：只有输出文件不存在时视为无输出；权限等其他错误传播
-        let output: Option<Box<dyn AsyncReader>> = {
+        let output: Option<Box<dyn Reader>> = {
             let output_path = match &self.io_mode {
                 IoMode::Stdio => self.tmp_dir.path().join("pipe_stdout"),
                 IoMode::File { output_name, .. } => self.tmp_dir.path().join(output_name),
             };
-            if !tokio::fs::try_exists(&output_path).await? {
+            if !output_path.exists() {
                 None
             } else {
-                Some(Box::new(tokio::fs::File::open(&output_path).await?))
+                Some(Box::new(std::fs::File::open(&output_path)?))
             }
         };
 

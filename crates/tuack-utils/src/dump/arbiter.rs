@@ -31,30 +31,32 @@ impl ArbiterDumper {
 
     /// 生成 filter 可执行文件：有自定义 SPJ 则编译 checker（经 handle 取源码），
     /// 否则编译默认比较器源码；编译失败时 `None`（不产生文件），资源缺失则失败
-    async fn build_filter(
+    fn build_filter(
         &self,
         doc: &tuack_lib::dump::DumpDocument,
         prob: &tuack_lib::dump::DumpProblem,
         warnings: &mut Vec<String>,
-    ) -> Result<Option<Box<dyn tuack_lib::data::AsyncReader>>> {
+    ) -> Result<Option<Box<dyn tuack_lib::data::Reader>>> {
         let filter_path = self.tmp_dir.join(format!("{}_e", prob.name));
 
         // 有自定义 SPJ：编译 checker
         if let Some(checker) = &prob.checker {
             info!("发现 chk，尝试编译。");
             let src_tmp = self.tmp_dir.join("chk-src.cpp");
-            let mut src = doc.assets.load(prob.idx, &checker.source).await?;
-            let mut f = tokio::fs::File::create(&src_tmp).await?;
-            tokio::io::copy(&mut src, &mut f).await?;
-            drop(f);
+            let mut src = doc.assets.load(prob.idx, &checker.source)?;
+            {
+                let mut f = std::fs::File::create(&src_tmp)?;
+                std::io::copy(&mut src, &mut f)?;
+            }
 
             for dep in &checker.deps {
-                let mut dep_src = doc.assets.load(prob.idx, dep).await?;
+                let mut dep_src = doc.assets.load(prob.idx, dep)?;
                 let dep_name = dep.file_name().context("依赖路径缺少文件名")?.to_owned();
                 let dep_tmp = self.tmp_dir.join(&dep_name);
-                let mut f = tokio::fs::File::create(&dep_tmp).await?;
-                tokio::io::copy(&mut dep_src, &mut f).await?;
-                drop(f);
+                {
+                    let mut f = std::fs::File::create(&dep_tmp)?;
+                    std::io::copy(&mut dep_src, &mut f)?;
+                }
             }
 
             let status = Command::new("g++")
@@ -70,7 +72,7 @@ impl ArbiterDumper {
                 warnings.push(format!("chk 编译失败：{}", checker.source.display()));
                 return Ok(None);
             }
-            return Ok(Some(Box::new(tokio::fs::File::open(&filter_path).await?)));
+            return Ok(Some(Box::new(std::fs::File::open(&filter_path)?)));
         }
 
         // 无自定义 SPJ：编译默认比较器源码（跨平台，比预编译二进制更可维护）
@@ -94,7 +96,7 @@ impl ArbiterDumper {
                     warnings.push(format!("默认比较器编译失败：{}", src.display()));
                     return Ok(None);
                 }
-                Ok(Some(Box::new(tokio::fs::File::open(&filter_path).await?)))
+                Ok(Some(Box::new(std::fs::File::open(&filter_path)?)))
             }
             None => {
                 bail!(
@@ -106,12 +108,8 @@ impl ArbiterDumper {
     }
 }
 
-#[async_trait]
 impl Dumper for ArbiterDumper {
-    async fn dump(
-        &self,
-        doc: &tuack_lib::dump::DumpDocument,
-    ) -> Result<(Vec<OutputFile>, Vec<String>)> {
+    fn dump(&self, doc: &tuack_lib::dump::DumpDocument) -> Result<(Vec<OutputFile>, Vec<String>)> {
         if !cfg!(target_os = "linux") {
             bail!("Arbiter 不支持 Linux 之外的操作系统，也不支持在 Linux 之外的操作系统导出");
         }
@@ -233,10 +231,10 @@ impl Dumper for ArbiterDumper {
                 let in_name = format!("{}{}.in", prob.name, idx);
                 let ans_name = format!("{}{}.ans", prob.name, idx);
 
-                let input = doc.assets.load(prob.idx, &case.input).await?;
-                let output = doc.assets.load(prob.idx, &case.output).await?;
-                let eval_input = doc.assets.load(prob.idx, &case.input).await?;
-                let eval_output = doc.assets.load(prob.idx, &case.output).await?;
+                let input = doc.assets.load(prob.idx, &case.input)?;
+                let output = doc.assets.load(prob.idx, &case.output)?;
+                let eval_input = doc.assets.load(prob.idx, &case.input)?;
+                let eval_output = doc.assets.load(prob.idx, &case.output)?;
 
                 files.push(OutputFile::File {
                     path: PathBuf::from(format!("arbiter/main/data/{}", in_name)),
@@ -281,7 +279,7 @@ impl Dumper for ArbiterDumper {
             }
 
             // Checker / filter
-            if let Some(stream) = self.build_filter(doc, prob, &mut warnings).await? {
+            if let Some(stream) = self.build_filter(doc, prob, &mut warnings)? {
                 files.push(OutputFile::File {
                     path: PathBuf::from(format!("arbiter/main/filter/{}_e", prob.name)),
                     bytes: stream,
@@ -323,11 +321,11 @@ impl Dumper for ArbiterDumper {
                 let idx = idx + 1;
                 files.push(OutputFile::File {
                     path: PathBuf::from(format!("{}/{}{}.in", prob_down_dir, prob.name, idx)),
-                    bytes: doc.assets.load(prob.idx, &sample.input).await?,
+                    bytes: doc.assets.load(prob.idx, &sample.input)?,
                 });
                 files.push(OutputFile::File {
                     path: PathBuf::from(format!("{}/{}{}.ans", prob_down_dir, prob.name, idx)),
-                    bytes: doc.assets.load(prob.idx, &sample.output).await?,
+                    bytes: doc.assets.load(prob.idx, &sample.output)?,
                 });
             }
 
@@ -337,7 +335,7 @@ impl Dumper for ArbiterDumper {
                 info!("发现附加文件：{}", rel.display());
                 files.push(OutputFile::File {
                     path: PathBuf::from(format!("{}/{}", prob_down_dir, rel.display())),
-                    bytes: doc.assets.load(prob.idx, &file.path).await?,
+                    bytes: doc.assets.load(prob.idx, &file.path)?,
                 });
             }
         }

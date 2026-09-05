@@ -9,9 +9,8 @@ use tuack_ng_parser::ast::Document;
 use crate::prelude::*;
 
 /// 处理器：对单题 `Document` 做变换，返回变换结果与警告。
-#[async_trait]
 pub trait RenProcessor: Send + Sync {
-    async fn process(&self, doc: &Document) -> Result<ProcessorOutput>;
+    fn process(&self, doc: &Document) -> Result<ProcessorOutput>;
 }
 
 /// 处理器返回的统一协议形状（宿主与插件两端共用，JSON 编解码）。

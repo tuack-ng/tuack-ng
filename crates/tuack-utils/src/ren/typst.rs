@@ -112,11 +112,7 @@ impl TypstRenderer {
     }
 
     /// 将各题图片流写入模板目录 img/ 下，供 typst 按相对路径引用（按目标路径去重）
-    async fn write_images(
-        &self,
-        doc: &RenderDocument,
-        images: &[(u64, PathBuf, PathBuf)],
-    ) -> Result<()> {
+    fn write_images(&self, doc: &RenderDocument, images: &[(u64, PathBuf, PathBuf)]) -> Result<()> {
         let img_dir = self.template_dir.join("img");
         let mut seen = HashSet::new();
         for (idx, url, target) in images {
@@ -130,18 +126,16 @@ impl TypstRenderer {
             if let Some(parent) = dest.parent() {
                 fs::create_dir_all(parent)?;
             }
-            let mut stream = doc.assets.load(*idx, url).await?;
-            let mut file = tokio::fs::File::create(&dest).await?;
-            tokio::io::copy(&mut stream, &mut file).await?;
-            drop(file);
+            let mut stream = doc.assets.load(*idx, url)?;
+            let mut file = std::fs::File::create(&dest)?;
+            std::io::copy(&mut stream, &mut file)?;
         }
         Ok(())
     }
 }
 
-#[async_trait]
 impl Renderer for TypstRenderer {
-    async fn render(&self, doc: &RenderDocument) -> Result<(PathBuf, Vec<OutputFile>)> {
+    fn render(&self, doc: &RenderDocument) -> Result<(PathBuf, Vec<OutputFile>)> {
         let day_key = doc.config.day_key.clone();
 
         let mut images = Vec::new();
@@ -149,12 +143,11 @@ impl Renderer for TypstRenderer {
             let (ast, map) = rewrite_images(problem.ast.clone(), problem.idx)?;
 
             let typst_output = format!("#import \"utils.typ\": *\n{}", render_typst(&ast));
-            tokio::fs::write(
+            fs::write(
                 self.template_dir
                     .join(format!("problem-{}.typ", problem.idx)),
                 typst_output,
-            )
-            .await?;
+            )?;
 
             for (url, target) in &map {
                 images.push((problem.idx, url.clone(), target.clone()));
@@ -163,31 +156,26 @@ impl Renderer for TypstRenderer {
 
         if let Some(precaution) = &doc.precaution {
             let typst_output = format!("#import \"utils.typ\": *\n{}", render_typst(precaution));
-            tokio::fs::write(self.template_dir.join("precaution.typ"), typst_output).await?;
+            fs::write(self.template_dir.join("precaution.typ"), typst_output)?;
         }
 
         let data_json = self.generate_conf(doc);
         let data_json_str = serde_json::to_string_pretty(&data_json)?;
-        tokio::fs::write(self.template_dir.join("data.json"), data_json_str).await?;
+        fs::write(self.template_dir.join("data.json"), data_json_str)?;
 
-        self.write_images(doc, &images).await?;
+        self.write_images(doc, &images)?;
 
         fs::create_dir(self.template_dir.join("output"))?;
 
-        let template_dir = self.template_dir.clone();
         let output_filename = format!("output/{}.pdf", day_key);
-        let filename = output_filename.clone();
-        let typst_output = tokio::task::spawn_blocking(move || {
-            std::process::Command::new("typst")
-                .arg("compile")
-                .arg("--font-path=fonts")
-                .arg("main.typ")
-                .arg(filename)
-                .current_dir(&template_dir)
-                .output()
-        })
-        .await?
-        .context("typst 命令执行失败")?;
+        let typst_output = std::process::Command::new("typst")
+            .arg("compile")
+            .arg("--font-path=fonts")
+            .arg("main.typ")
+            .arg(&output_filename)
+            .current_dir(&self.template_dir)
+            .output()
+            .context("typst 命令执行失败")?;
 
         if !typst_output.status.success() {
             let stderr = String::from_utf8_lossy(&typst_output.stderr).to_string();
@@ -195,7 +183,7 @@ impl Renderer for TypstRenderer {
         }
 
         let pdf_path = self.template_dir.join(output_filename);
-        let bytes = tokio::fs::File::open(&pdf_path).await?;
+        let bytes = std::fs::File::open(&pdf_path)?;
         Ok((
             PathBuf::from(format!("{}.pdf", day_key)),
             vec![OutputFile::File {

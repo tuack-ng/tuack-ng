@@ -41,23 +41,23 @@ impl<'a> DmkSession<'a> {
     }
 
     /// 生成单点输入
-    pub async fn gen_input(&self, item: &dyn DmkData, seed: u64) -> Result<()> {
-        let stream = self.generator.run(item.args().clone(), seed).await?;
-        item.write_input(stream).await?;
+    pub fn gen_input(&self, item: &dyn DmkData, seed: u64) -> Result<()> {
+        let stream = self.generator.run(item.args().clone(), seed)?;
+        item.write_input(stream)?;
 
         let Some(validator) = self.validator else {
             return Ok(());
         };
-        let mut input = item.input().await?;
-        match validator.validate(&mut *input).await? {
+        let mut input = item.input()?;
+        match validator.validate(&mut *input)? {
             ValidatorResult::Ok => Ok(()),
             ValidatorResult::Invalid(message) => bail!("输入校验失败：{}", message),
         }
     }
 
     /// 用标程生成单点输出
-    pub async fn gen_output(&mut self, item: &dyn DmkData) -> Result<()> {
-        let input = item.input().await?;
+    pub fn gen_output(&mut self, item: &dyn DmkData) -> Result<()> {
+        let input = item.input()?;
 
         self.runner.set_input(input);
         self.runner.set_io_mode(if self.params.file_io {
@@ -70,7 +70,7 @@ impl<'a> DmkSession<'a> {
         });
         self.runner.set_limits(ResourceLimits::unlimited());
 
-        let result = self.runner.execute().await?;
+        let result = self.runner.execute()?;
 
         match result.status {
             RunStatus::Success => {}
@@ -87,6 +87,6 @@ impl<'a> DmkSession<'a> {
             Some(out) => out,
             None => bail!("标程未生成输出"),
         };
-        item.write_output(output).await
+        item.write_output(output)
     }
 }

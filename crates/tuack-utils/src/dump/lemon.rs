@@ -61,12 +61,8 @@ impl LemonDumper {
     }
 }
 
-#[async_trait]
 impl Dumper for LemonDumper {
-    async fn dump(
-        &self,
-        doc: &tuack_lib::dump::DumpDocument,
-    ) -> Result<(Vec<OutputFile>, Vec<String>)> {
+    fn dump(&self, doc: &tuack_lib::dump::DumpDocument) -> Result<(Vec<OutputFile>, Vec<String>)> {
         let mut files = Vec::new();
         let mut prob_jsons: Vec<Value> = Vec::new();
         let mut warnings = Vec::new();
@@ -78,14 +74,14 @@ impl Dumper for LemonDumper {
                         "lemon/data/{}/{}{}.in",
                         prob.name, prob.name, case.id
                     )),
-                    bytes: doc.assets.load(prob.idx, &case.input).await?,
+                    bytes: doc.assets.load(prob.idx, &case.input)?,
                 });
                 files.push(OutputFile::File {
                     path: PathBuf::from(format!(
                         "lemon/data/{}/{}{}.ans",
                         prob.name, prob.name, case.id
                     )),
-                    bytes: doc.assets.load(prob.idx, &case.output).await?,
+                    bytes: doc.assets.load(prob.idx, &case.output)?,
                 });
             }
 
@@ -137,18 +133,20 @@ impl Dumper for LemonDumper {
 
                 // 源码与依赖经 assets 读取写入 tmp，再 g++ 编译
                 let src_tmp = self.tmp_dir.join("chk-src.cpp");
-                let mut src = doc.assets.load(prob.idx, &checker.source).await?;
-                let mut f = tokio::fs::File::create(&src_tmp).await?;
-                tokio::io::copy(&mut src, &mut f).await?;
-                drop(f);
+                let mut src = doc.assets.load(prob.idx, &checker.source)?;
+                {
+                    let mut f = std::fs::File::create(&src_tmp)?;
+                    std::io::copy(&mut src, &mut f)?;
+                }
 
                 for dep in &checker.deps {
-                    let mut dep_src = doc.assets.load(prob.idx, dep).await?;
+                    let mut dep_src = doc.assets.load(prob.idx, dep)?;
                     let dep_name = dep.file_name().context("依赖路径缺少文件名")?.to_owned();
                     let dep_tmp = self.tmp_dir.join(&dep_name);
-                    let mut f = tokio::fs::File::create(&dep_tmp).await?;
-                    tokio::io::copy(&mut dep_src, &mut f).await?;
-                    drop(f);
+                    {
+                        let mut f = std::fs::File::create(&dep_tmp)?;
+                        std::io::copy(&mut dep_src, &mut f)?;
+                    }
                 }
 
                 let chk_out = self.tmp_dir.join(&chk_name);
@@ -165,7 +163,7 @@ impl Dumper for LemonDumper {
                 }
                 files.push(OutputFile::File {
                     path: PathBuf::from(format!("lemon/data/{}/{}", prob.name, chk_name)),
-                    bytes: Box::new(tokio::fs::File::open(&chk_out).await?),
+                    bytes: Box::new(std::fs::File::open(&chk_out)?),
                 });
             }
 

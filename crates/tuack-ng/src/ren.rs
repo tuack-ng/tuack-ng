@@ -235,7 +235,7 @@ fn build_render_document(
     })
 }
 
-async fn ren(
+fn ren(
     config: &ContestConfig,
     manifest: &TemplateManifest,
     day_config: &ContestDayConfig,
@@ -287,7 +287,7 @@ async fn ren(
         TargetType::Markdown => Box::new(MarkdownRenderer::new()),
     };
 
-    let render_result = renderer.render(&doc).await;
+    let render_result = renderer.render(&doc);
 
     compile_pb.finish_and_clear();
 
@@ -301,7 +301,7 @@ async fn ren(
         }
     };
 
-    if let Err(e) = crate::utils::filesystem::write_outputs(statements_dir, files).await {
+    if let Err(e) = crate::utils::filesystem::write_outputs(statements_dir, files) {
         msg_error!("写入渲染结果失败：{:?}", e);
         let kept = tmp.keep();
         msg_info!("保留临时目录以供调试：{}", kept.display());
@@ -323,7 +323,7 @@ async fn ren(
     Ok(())
 }
 
-pub async fn main(args: RenArgs) -> Result<()> {
+pub fn main(args: RenArgs) -> Result<()> {
     debug!(
         "当前目录：{}",
         dunce::canonicalize(Path::new("."))?.to_string_lossy()
@@ -397,9 +397,7 @@ pub async fn main(args: RenArgs) -> Result<()> {
             let mut failed_days = Vec::new();
             for (day_count, (day_name, day_config)) in config.subconfig.iter().enumerate() {
                 day_pb.set_message(format!("处理第 {}/{} 天", day_count, total_days));
-                if let Err(e) =
-                    ren(config, &manifest, day_config, None, &statements_dir, &args).await
-                {
+                if let Err(e) = ren(config, &manifest, day_config, None, &statements_dir, &args) {
                     msg_error!("第 {} 天渲染失败：{:?}", day_name, e);
                     failed_days.push(day_name.clone());
                 }
@@ -418,8 +416,7 @@ pub async fn main(args: RenArgs) -> Result<()> {
                 None,
                 &statements_dir,
                 &args,
-            )
-            .await?;
+            )?;
         }
         CurrentLocation::Problem(day, problem) => {
             ren(
@@ -429,8 +426,7 @@ pub async fn main(args: RenArgs) -> Result<()> {
                 Some(problem.to_string()),
                 &statements_dir,
                 &args,
-            )
-            .await?;
+            )?;
         }
         CurrentLocation::None => bail!("没有有效的配置文件"),
     }

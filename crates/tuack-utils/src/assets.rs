@@ -1,5 +1,5 @@
 use crate::prelude::*;
-use tuack_lib::data::AsyncReader;
+use tuack_lib::data::Reader;
 use tuack_lib::utils::asset::AssetProvider;
 
 /// 前端资源提供方：登记 `题目编号 -> 题目路径` 映射，
@@ -30,9 +30,8 @@ impl Default for FsAssetProvider {
     }
 }
 
-#[async_trait::async_trait]
 impl AssetProvider for FsAssetProvider {
-    async fn load(&self, idx: u64, path: &Path) -> Result<Box<dyn AsyncReader>> {
+    fn load(&self, idx: u64, path: &Path) -> Result<Box<dyn Reader>> {
         use std::path::Component;
 
         let base = self
@@ -49,8 +48,7 @@ impl AssetProvider for FsAssetProvider {
             bail!("资源路径不合法：{}，不允许目录穿越", path.display());
         }
         let src = base.join(path);
-        let file = tokio::fs::File::open(&src)
-            .await
+        let file = std::fs::File::open(&src)
             .with_context(|| format!("打开资源失败：{}", src.display()))?;
         Ok(Box::new(file))
     }

@@ -1,7 +1,6 @@
-use async_trait::async_trait;
 use std::time::Duration;
 
-use crate::data::AsyncReader;
+use crate::data::Reader;
 use crate::prelude::*;
 
 /// 运行器元信息。
@@ -54,7 +53,7 @@ pub struct RunResult {
     /// 峰值内存（字节），TLE/MLE 时为 `None`。
     pub memory: Option<u64>,
     /// 程序输出流；`None` 表示输出文件不存在（文件 IO 程序未写输出）。
-    pub output: Option<Box<dyn AsyncReader>>,
+    pub output: Option<Box<dyn Reader>>,
     /// 程序 stderr。
     pub stderr: Vec<u8>,
 }
@@ -75,20 +74,17 @@ pub enum IoMode {
 
 /// 运行器：编译 + 资源限制执行。
 #[allow(unused)]
-#[async_trait]
 pub trait Runner: Send {
     /// 获取运行器元数据
     fn manifest(&self) -> RunnerManifest;
 
     /// 做必要的准备工作
     fn prepare(&mut self) -> Result<()>;
-    /// 做必要的准备工作（异步）
-    async fn prepare_async(&mut self) -> Result<()>;
 
     /// 设置运行限制
     fn set_limits(&mut self, limits: ResourceLimits);
     /// 设置输入（消耗流）
-    fn set_input(&mut self, input: Box<dyn AsyncReader>);
+    fn set_input(&mut self, input: Box<dyn Reader>);
     /// 设置 IO 模式
     fn set_io_mode(&mut self, io_mode: IoMode);
     /// 设置交互
@@ -98,5 +94,5 @@ pub trait Runner: Send {
     fn cleanup(&mut self) -> Result<()>;
 
     /// 执行程序，**消耗 `set_limits` 和 `set_input` 设置的值**。
-    async fn execute(&mut self) -> Result<RunResult>;
+    fn execute(&mut self) -> Result<RunResult>;
 }

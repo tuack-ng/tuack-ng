@@ -18,7 +18,6 @@ pub use processor::{ProcessorOutput, RenProcessor};
 use crate::prelude::*;
 
 /// 渲染器：`RenderDocument -> (主产物相对路径，产物文件列表)`。
-#[async_trait]
 pub trait Renderer: Send + Sync {
-    async fn render(&self, doc: &RenderDocument) -> Result<(PathBuf, Vec<OutputFile>)>;
+    fn render(&self, doc: &RenderDocument) -> Result<(PathBuf, Vec<OutputFile>)>;
 }

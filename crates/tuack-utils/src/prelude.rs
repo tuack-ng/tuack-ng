@@ -15,6 +15,4 @@ pub use tuack_config::{
     ContestConfig, ContestDayConfig, FileView, FullView, ProblemConfig, SampleItem,
 };
 
-pub use async_trait::async_trait;
-
 pub use tuack_lib::utils::compiler::Runner;

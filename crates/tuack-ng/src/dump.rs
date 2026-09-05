@@ -171,7 +171,7 @@ fn build_dump_document(
     })
 }
 
-async fn dump_main(
+fn dump_main(
     contest: &ContestConfig,
     day: &ContestDayConfig,
     daynum: usize,
@@ -194,7 +194,7 @@ async fn dump_main(
         Target::CcrPlus => Box::new(ccr_plus::CcrPlusDumper::new(tmp.path().to_path_buf())),
     };
 
-    let (files, warnings) = match dumper.dump(&doc).await {
+    let (files, warnings) = match dumper.dump(&doc) {
         Ok(result) => result,
         Err(e) => {
             msg_error!("导出失败:\n{:?}", e);
@@ -214,7 +214,7 @@ async fn dump_main(
         fs::remove_dir_all(&out_dir)?;
     }
 
-    if let Err(e) = crate::utils::filesystem::write_outputs(&dump_dir, files).await {
+    if let Err(e) = crate::utils::filesystem::write_outputs(&dump_dir, files) {
         msg_error!("写入导出结果失败：{:?}", e);
         let kept = tmp.keep();
         msg_info!("保留临时目录以供调试：{}", kept.display());
@@ -225,7 +225,7 @@ async fn dump_main(
     Ok(())
 }
 
-pub async fn main(args: DumpArgs) -> Result<()> {
+pub fn main(args: DumpArgs) -> Result<()> {
     if gctx().config.is_none() {
         bail!("没有有效的配置文件");
     }
@@ -239,12 +239,11 @@ pub async fn main(args: DumpArgs) -> Result<()> {
                 config.config.subconfig.get(&day).unwrap(),
                 1,
                 args.target,
-            )
-            .await?;
+            )?;
         }
         CurrentLocation::Root => {
             for (idx, (_, day_config)) in config.config.subconfig.iter().enumerate() {
-                dump_main(&config.config, day_config, idx + 1, args.target).await?;
+                dump_main(&config.config, day_config, idx + 1, args.target)?;
             }
         }
     }

@@ -104,7 +104,6 @@ pub struct DumpDocument {
 }
 
 /// 导出器：`DumpDocument -> (产物文件列表，导出警告)`。
-#[async_trait]
 pub trait Dumper: Send + Sync {
-    async fn dump(&self, doc: &DumpDocument) -> Result<(Vec<OutputFile>, Vec<String>)>;
+    fn dump(&self, doc: &DumpDocument) -> Result<(Vec<OutputFile>, Vec<String>)>;
 }

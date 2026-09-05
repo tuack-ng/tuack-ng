@@ -72,7 +72,7 @@ impl<'a> TestSession<'a> {
     }
 
     /// 评测单个测试点：设置 limits/io_mode -> 注入输入 -> 执行 -> 校验 -> 返回结果。
-    pub async fn judge(&mut self, data: &dyn Data) -> Result<TestCaseResult> {
+    pub fn judge(&mut self, data: &dyn Data) -> Result<TestCaseResult> {
         self.runner.set_limits(ResourceLimits::new(
             self.params.time_limit,
             self.params.memory_limit.as_u64(),
@@ -86,31 +86,27 @@ impl<'a> TestSession<'a> {
             IoMode::Stdio
         });
 
-        let input = match data.input().await {
+        let input = match data.input() {
             Ok(i) => i,
             Err(e) => return Ok(uke_result(format!("读取输入失败：{e}"))),
         };
         self.runner.set_input(input);
-        let run = self.runner.execute().await?;
+        let run = self.runner.execute()?;
 
         let (status, score, message) = match (run.status, run.output) {
             (RunStatus::Success, None) => {
                 (TestCaseStatus::FE, 0.0, Some("未找到输出文件".to_string()))
             }
             (RunStatus::Success, Some(mut output)) => {
-                let mut input = match data.input().await {
+                let mut input = match data.input() {
                     Ok(i) => i,
                     Err(e) => return Ok(uke_result(format!("读取输入失败：{e}"))),
                 };
-                let mut answer = match data.answer().await {
+                let mut answer = match data.answer() {
                     Ok(a) => a,
                     Err(e) => return Ok(uke_result(format!("读取答案失败：{e}"))),
                 };
-                match self
-                    .checker
-                    .validate(&mut input, &mut output, &mut answer)
-                    .await
-                {
+                match self.checker.validate(&mut input, &mut output, &mut answer) {
                     Ok((JudgeResult::Accepted, msg)) => (TestCaseStatus::AC, 1.0, Some(msg)),
                     Ok((JudgeResult::WrongAnswer, msg)) => (TestCaseStatus::WA, 0.0, Some(msg)),
                     Ok((JudgeResult::PresentationError, msg)) => {

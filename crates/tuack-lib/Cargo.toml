@@ -9,12 +9,10 @@ repository.workspace = true
 
 [dependencies]
 anyhow.workspace = true
-async-trait.workspace = true
 bytesize.workspace = true
 indexmap.workspace = true
 serde.workspace = true
 serde_many.workspace = true
-tokio.workspace = true
 
 [dependencies.tuack-ng-parser]
 workspace = true

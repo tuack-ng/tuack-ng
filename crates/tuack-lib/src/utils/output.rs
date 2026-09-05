@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::data::AsyncReader;
+use crate::data::Reader;
 
 /// 渲染/导出产物：文件（路径 + 字节流）或空目录。
 ///
@@ -11,7 +11,7 @@ pub enum OutputFile {
     File {
         /// 相对路径，如 `img/a.png`、`main.typ`
         path: PathBuf,
-        bytes: Box<dyn AsyncReader>,
+        bytes: Box<dyn Reader>,
     },
     /// 空目录：确保存在
     Dir(PathBuf),

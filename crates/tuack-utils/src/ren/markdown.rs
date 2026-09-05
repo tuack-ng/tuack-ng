@@ -20,9 +20,8 @@ impl Default for MarkdownRenderer {
     }
 }
 
-#[async_trait]
 impl Renderer for MarkdownRenderer {
-    async fn render(&self, doc: &RenderDocument) -> Result<(PathBuf, Vec<OutputFile>)> {
+    fn render(&self, doc: &RenderDocument) -> Result<(PathBuf, Vec<OutputFile>)> {
         let mut files = Vec::new();
         for problem in &doc.problems {
             let (ast, images) = rewrite_images(problem.ast.clone(), problem.idx)?;
@@ -38,7 +37,7 @@ impl Renderer for MarkdownRenderer {
                 if !seen.insert(target.clone()) {
                     continue;
                 }
-                let stream = doc.assets.load(problem.idx, url).await?;
+                let stream = doc.assets.load(problem.idx, url)?;
                 files.push(OutputFile::File {
                     path: PathBuf::from(format!("{}/{}", doc.config.day_key, target.display())),
                     bytes: stream,

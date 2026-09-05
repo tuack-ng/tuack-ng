@@ -128,58 +128,54 @@ fn report_status(id: u32, kind: &str, status: &DmkResult) {
 }
 
 /// 生成单个数据点的输入，返回展示状态。
-async fn gen_input(
+fn gen_input(
     session: &mut DmkSession<'_>,
     item: &FsTestData<'_>,
     seed: u64,
     action: DmkCommand,
 ) -> Result<DmkResult> {
-    let exists = tokio::fs::try_exists(item.input_path())
-        .await
-        .unwrap_or(false);
+    let exists = item.input_path().exists();
 
     if !((!matches!(action, DmkCommand::Gen) || !exists) && item.gen_input()) {
         if exists {
             return Ok(DmkResult::Skip);
         }
-        tokio::fs::write(item.input_path(), b"").await?;
+        fs::write(item.input_path(), b"")?;
         return Ok(DmkResult::Empty);
     }
 
-    match session.gen_input(item, seed).await {
+    match session.gen_input(item, seed) {
         Ok(()) => Ok(action.into()),
         Err(e) => Ok(DmkResult::Fail(e)),
     }
 }
 
 /// 用标程生成单个数据点的输出，返回展示状态。
-async fn gen_output(
+fn gen_output(
     session: &mut DmkSession<'_>,
     item: &FsTestData<'_>,
     action: DmkCommand,
 ) -> Result<DmkResult> {
-    let exists = tokio::fs::try_exists(item.output_path())
-        .await
-        .unwrap_or(false);
+    let exists = item.output_path().exists();
 
     if !((!matches!(action, DmkCommand::Gen) || !exists) && item.gen_output()) {
         if exists {
             return Ok(DmkResult::Skip);
         }
-        tokio::fs::write(item.output_path(), b"").await?;
+        fs::write(item.output_path(), b"")?;
         return Ok(DmkResult::Empty);
     }
 
-    match session.gen_output(item).await {
+    match session.gen_output(item) {
         Ok(()) => Ok(action.into()),
         Err(e) => Ok(DmkResult::Fail(e)),
     }
 }
 
 /// 加载已有种子（文件不存在或无效均视为空）
-async fn load_seeds(target_dir: &Path) -> BTreeMap<u32, u64> {
+fn load_seeds(target_dir: &Path) -> BTreeMap<u32, u64> {
     let seed_file = target_dir.join(".seed");
-    if let Ok(seed_str) = tokio::fs::read_to_string(&seed_file).await {
+    if let Ok(seed_str) = fs::read_to_string(&seed_file) {
         serde_json::from_str(&seed_str).unwrap_or_else(|e| {
             msg_warn!(".seed 文件无效，重新生成：{}", e);
             BTreeMap::new()
@@ -281,7 +277,7 @@ fn build_std_runner(
     Ok(runner)
 }
 
-pub async fn main(args: DmkArgs) -> Result<()> {
+pub fn main(args: DmkArgs) -> Result<()> {
     let config = gctx().config.as_ref().context("没有找到有效的工程")?;
 
     let (current_problem, current_day) =
@@ -370,7 +366,7 @@ pub async fn main(args: DmkArgs) -> Result<()> {
     }
 
     // 种子：加载 -> 合并（Reset 强制重生成）-> 结束时保存
-    let mut seeds = load_seeds(&target_dir).await;
+    let mut seeds = load_seeds(&target_dir);
     merge_seeds(
         &mut seeds,
         &selected,
@@ -390,7 +386,7 @@ pub async fn main(args: DmkArgs) -> Result<()> {
     let std_compile_pb = gctx().multiprogress.add(ProgressBar::new_spinner());
     std_compile_pb.enable_steady_tick(Duration::from_millis(100));
     std_compile_pb.set_message("编译标程");
-    let std_result = runner.prepare_async().await;
+    let std_result = runner.prepare();
     std_compile_pb.finish_and_clear();
     std_result?;
 
@@ -419,13 +415,13 @@ pub async fn main(args: DmkArgs) -> Result<()> {
         ));
 
         let seed = *seeds.get(&item.id()).unwrap();
-        let status = gen_input(&mut session, item, seed, args.action).await?;
+        let status = gen_input(&mut session, item, seed, args.action)?;
         report_status(item.id(), "输入", &status);
 
         if matches!(status, DmkResult::Fail(_)) {
             report_status(item.id(), "输出", &DmkResult::Skip);
         } else {
-            let status = gen_output(&mut session, item, args.action).await?;
+            let status = gen_output(&mut session, item, args.action)?;
             report_status(item.id(), "输出", &status);
         }
 

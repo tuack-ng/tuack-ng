@@ -345,7 +345,7 @@ impl CcrPlusDumper {
 
     /// 编译自定义 SPJ：源码与依赖经 assets 读取写入 tmp，再 g++ 编译。
     /// 返回可执行文件名（含平台后缀）。
-    async fn compile_checker(
+    fn compile_checker(
         &self,
         doc: &tuack_lib::dump::DumpDocument,
         prob: &DumpProblem,
@@ -361,18 +361,20 @@ impl CcrPlusDumper {
         info!("尝试编译 SPJ：{}", checker.source.display());
 
         let src_tmp = self.tmp_dir.join("ccr-chk-src.cpp");
-        let mut src = doc.assets.load(prob.idx, &checker.source).await?;
-        let mut f = tokio::fs::File::create(&src_tmp).await?;
-        tokio::io::copy(&mut src, &mut f).await?;
-        drop(f);
+        let mut src = doc.assets.load(prob.idx, &checker.source)?;
+        {
+            let mut f = std::fs::File::create(&src_tmp)?;
+            std::io::copy(&mut src, &mut f)?;
+        }
 
         for dep in &checker.deps {
-            let mut dep_src = doc.assets.load(prob.idx, dep).await?;
+            let mut dep_src = doc.assets.load(prob.idx, dep)?;
             let dep_name = dep.file_name().context("依赖路径缺少文件名")?.to_owned();
             let dep_tmp = self.tmp_dir.join(&dep_name);
-            let mut f = tokio::fs::File::create(&dep_tmp).await?;
-            tokio::io::copy(&mut dep_src, &mut f).await?;
-            drop(f);
+            {
+                let mut f = std::fs::File::create(&dep_tmp)?;
+                std::io::copy(&mut dep_src, &mut f)?;
+            }
         }
 
         let chk_out = self.tmp_dir.join(&exe_name);
@@ -392,12 +394,8 @@ impl CcrPlusDumper {
     }
 }
 
-#[async_trait]
 impl Dumper for CcrPlusDumper {
-    async fn dump(
-        &self,
-        doc: &tuack_lib::dump::DumpDocument,
-    ) -> Result<(Vec<OutputFile>, Vec<String>)> {
+    fn dump(&self, doc: &tuack_lib::dump::DumpDocument) -> Result<(Vec<OutputFile>, Vec<String>)> {
         let mut files = Vec::new();
         let mut warnings = Vec::new();
 
@@ -408,17 +406,17 @@ impl Dumper for CcrPlusDumper {
             for case in &prob.data {
                 files.push(OutputFile::File {
                     path: PathBuf::from(format!("{}/{}", pdir, rel_name(&case.input))),
-                    bytes: doc.assets.load(prob.idx, &case.input).await?,
+                    bytes: doc.assets.load(prob.idx, &case.input)?,
                 });
                 files.push(OutputFile::File {
                     path: PathBuf::from(format!("{}/{}", pdir, rel_name(&case.output))),
-                    bytes: doc.assets.load(prob.idx, &case.output).await?,
+                    bytes: doc.assets.load(prob.idx, &case.output)?,
                 });
             }
 
             // 校验器：有自定义 SPJ 则编译生成；否则用内置全文比较
             let checker = if let Some(checker) = &prob.checker {
-                let exe_name = self.compile_checker(doc, prob).await?;
+                let exe_name = self.compile_checker(doc, prob)?;
                 let stem = checker
                     .source
                     .file_stem()
@@ -426,7 +424,7 @@ impl Dumper for CcrPlusDumper {
                     .unwrap_or_else(|| "chk".to_string());
                 files.push(OutputFile::File {
                     path: PathBuf::from(format!("{}/{}", pdir, exe_name)),
-                    bytes: Box::new(tokio::fs::File::open(self.tmp_dir.join(&exe_name)).await?),
+                    bytes: Box::new(std::fs::File::open(self.tmp_dir.join(&exe_name))?),
                 });
                 // `.prb` 的 `@checker` 写入不带扩展名的基名：CCR-Plus 在 Windows 上
                 // 会自行补充 `.exe`（AddFileExtension），故二进制文件名与属性名需分开。

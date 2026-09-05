@@ -10,7 +10,6 @@ repository.workspace = true
 [dependencies]
 anstream = "1.0.0"
 anyhow = { version = "1.0.100", features = ["backtrace"] }
-async-trait = "0.1.89"
 bytesize = { version = "2.3.1", features = ["serde"] }
 chrono = "0.4.42"
 clap = { version = "4.5.53", features = ["cargo", "derive"] }
@@ -46,17 +45,6 @@ strfmt = "0.2.5"
 sysinfo = "0.37.2"
 tempfile = "3.27.0"
 termcolor.workspace = true
-tokio = { version = "1.49.0", features = [
-    "fs",
-    "io-util",
-    "macros",
-    "process",
-    "rt",
-    "sync",
-    "time",
-    "tokio-macros",
-    "rt-multi-thread",
-] }
 
 [dependencies.tuack-ng-parser]
 workspace = true
