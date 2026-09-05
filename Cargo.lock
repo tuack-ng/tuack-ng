@@ -2264,6 +2264,8 @@ name = "tuack-ng-parser"
 version = "1.0.2"
 dependencies = [
  "rushdown",
+ "serde",
+ "serde_json",
  "unicode-width 0.1.14",
 ]
 

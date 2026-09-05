@@ -1,10 +1,14 @@
 //! 源码位置与 span 包装。
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 /// 源码中的字节区间 `[start, stop)`。
 ///
 /// - 叶子 inline（Text/Code/Autolink/Latex/Html/LineBreak）：`source[start..stop]` 精确等于内容。
 /// - Block 及复合 inline（Emphasis/Strong/Strikethrough）：不保证精确，仅作定位。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Span {
     pub start: usize,
     pub stop: usize,
@@ -32,6 +36,7 @@ impl From<(usize, usize)> for Span {
 /// 复合节点（Emphasis/Strong/Strikethrough 及 Block）不携带 span，为 `None`；
 /// 叶子节点携带精确的 `Some(Span)`。
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Spanned<T> {
     pub value: T,
     pub span: Option<Span>,
