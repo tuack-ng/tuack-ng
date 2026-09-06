@@ -68,48 +68,31 @@ fn init_log(verbose: &bool) -> Result<MultiProgress> {
         .encoder(Box::new(PatternEncoder::new(format)))
         .build();
 
-    let loglevel = if *verbose {
-        LevelFilter::Trace
+    // debug 模式只让 Tuack 系列库输出 Trace，其余库统一压到 Info
+    // （wasmtime/wiggle/tracing 等经 log 桥接的 Trace 会刷屏）；release 保持 Warn。
+    let root_level = if *verbose {
+        LevelFilter::Info
     } else {
         LevelFilter::Warn
     };
 
-    // wasmtime/cranelift 等通过 tracing 的 log feature 桥接到 log，
-    // Trace 级别下会刷屏并极大拖慢速度；这里压到不超过 Info，且不超过
-    // root 级别（避免静默模式下越过下限）。
-    const WASM_NOISE: &[&str] = &[
-        "wasmtime",
-        "wasmtime_environ",
-        "wasmtime_internal_cache",
-        "wasmtime_internal_core",
-        "wasmtime_internal_cranelift",
-        "wasmtime_internal_fiber",
-        "wasmtime_internal_jit_debug",
-        "wasmtime_internal_jit_icache_coherence",
-        "wasmtime_internal_unwinder",
-        "wasmtime_internal_winch",
-        "cranelift_codegen",
-        "cranelift_frontend",
-        "cranelift_native",
-        "cranelift_control",
-        "cranelift_entity",
-        "cranelift_bitset",
-        "cranelift_bforest",
-        "wasmparser",
-        "regalloc2",
-        "wiggle",
-        "wasi_common",
-        "wasip2",
-        "extism",
+    const TUACK_TARGETS: &[&str] = &[
+        "tuack_ng",
+        "tuack_lib",
+        "tuack_utils",
+        "tuack_config",
+        "tuack_ng_parser",
+        "tuack_plugin_sdk",
     ];
 
     let mut builder =
         Config::builder().appender(Appender::builder().build("stdout", Box::new(stdout)));
-    for target in WASM_NOISE {
-        builder = builder
-            .logger(ConfigLogger::builder().build(*target, loglevel.min(LevelFilter::Info)));
+    if *verbose {
+        for target in TUACK_TARGETS {
+            builder = builder.logger(ConfigLogger::builder().build(*target, LevelFilter::Trace));
+        }
     }
-    let config = builder.build(Root::builder().appender("stdout").build(loglevel))?;
+    let config = builder.build(Root::builder().appender("stdout").build(root_level))?;
 
     let logger: log4rs::Logger = Logger::new(config);
     let level = logger.max_log_level();

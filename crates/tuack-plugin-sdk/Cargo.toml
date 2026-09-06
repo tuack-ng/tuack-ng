@@ -11,4 +11,6 @@ repository.workspace = true
 tuack-lib = { path = "../tuack-lib" }
 tuack-ng-parser = { workspace = true, features = ["serde"] }
 
+log = "0.4"
+
 extism-pdk = { version = "1", default-features = false }

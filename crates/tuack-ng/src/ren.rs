@@ -1,6 +1,6 @@
 use crate::context;
 use crate::context::gctx;
-use crate::extism::ExtismProcessor;
+use crate::extism::{ExtismProcessor, ExtismRenderer};
 use crate::prelude::*;
 use clap::Args;
 use indexmap::IndexMap;
@@ -16,7 +16,7 @@ use tuack_utils::assets::FsAssetProvider;
 use tuack_utils::ren::manifest::{TargetType, TemplateManifest};
 use tuack_utils::ren::markdown::MarkdownRenderer;
 use tuack_utils::ren::processors::builtin_processor;
-use tuack_utils::ren::renderers::ImageCollector;
+use tuack_utils::ren::renderers::{rewrite_images, ImageCollector};
 use tuack_utils::ren::template::render_template;
 use tuack_utils::ren::typst::TypstRenderer;
 
@@ -130,7 +130,7 @@ fn build_render_document(
     problem: Option<String>,
     extism_processors: &[Box<dyn RenProcessor>],
     problem_pb: &ProgressBar,
-) -> Result<RenderDocument> {
+) -> Result<(RenderDocument, FsAssetProvider)> {
     let problems_to_render: IndexMap<String, &ProblemConfig> = match problem {
         Some(ref problem_key) => day_config
             .subconfig
@@ -241,12 +241,15 @@ fn build_render_document(
             }
         }
 
+        let (ast, images) = rewrite_images(ast, idx as u64)?;
+
         assets.register(idx as u64, problem_config.path.clone());
 
         problems.push(Problem {
             idx: idx as u64,
             meta: build_problem_meta(problem_config, day_config),
             ast,
+            images,
         });
 
         problem_pb.inc(1);
@@ -265,12 +268,14 @@ fn build_render_document(
 
     let config = build_ren_config(config, day_config, manifest)?;
 
-    Ok(RenderDocument {
-        config,
-        problems,
-        precaution: Some(precaution_ast),
-        assets: Box::new(assets),
-    })
+    Ok((
+        RenderDocument {
+            config,
+            problems,
+            precaution: Some(precaution_ast),
+        },
+        assets,
+    ))
 }
 
 fn ren(
@@ -279,6 +284,7 @@ fn ren(
     day_config: &ContestDayConfig,
     problem: Option<String>,
     extism_processors: &[Box<dyn RenProcessor>],
+    extism_renderer: Option<&(String, Vec<u8>)>,
     statements_dir: &Path,
     args: &RenArgs,
 ) -> Result<()> {
@@ -303,7 +309,7 @@ fn ren(
             .progress_chars("=> "),
     );
 
-    let doc = match build_render_document(
+    let (doc, assets) = match build_render_document(
         config,
         manifest,
         day_config,
@@ -311,7 +317,7 @@ fn ren(
         extism_processors,
         &problem_pb,
     ) {
-        Ok(doc) => doc,
+        Ok(pair) => pair,
         Err(e) => {
             problem_pb.finish_with_message("遇到错误，停止处理");
             return Err(e);
@@ -331,9 +337,14 @@ fn ren(
             &gctx().assets_dirs,
         )?),
         TargetType::Markdown => Box::new(MarkdownRenderer::new()),
+        TargetType::Extism => {
+            let (function, wasm) = extism_renderer
+                .context("target 为 extism 但缺少 extism_renderer 配置")?;
+            Box::new(ExtismRenderer::new(wasm.clone(), function.clone(), tmp_dir.clone())?)
+        }
     };
 
-    let render_result = renderer.render(&doc);
+    let render_result = renderer.render(&doc, Box::new(assets));
 
     compile_pb.finish_and_clear();
 
@@ -417,6 +428,17 @@ pub fn main(args: RenArgs) -> Result<()> {
         }
     }
 
+    let mut extism_renderer: Option<(String, Vec<u8>)> = None;
+    if let Some(renderer_config) = &manifest.extism_renderer {
+        let manifest_dir = manifest_file
+            .parent()
+            .context("无法确定清单文件目录")?;
+        let wasm_path = manifest_dir.join(&renderer_config.wasm);
+        let wasm = fs::read(&wasm_path)
+            .with_context(|| format!("读取渲染器 wasm 失败：{}", wasm_path.display()))?;
+        extism_renderer = Some((renderer_config.function.clone(), wasm));
+    }
+
     let statements_dir = match current_location {
         CurrentLocation::Problem(day_name, problem_name) => Path::new(&config.path)
             .join(day_name)
@@ -463,6 +485,7 @@ pub fn main(args: RenArgs) -> Result<()> {
                     day_config,
                     None,
                     &extism_processors,
+                    extism_renderer.as_ref(),
                     &statements_dir,
                     &args,
                 ) {
@@ -483,6 +506,7 @@ pub fn main(args: RenArgs) -> Result<()> {
                 config.subconfig.get(day).unwrap(),
                 None,
                 &extism_processors,
+                extism_renderer.as_ref(),
                 &statements_dir,
                 &args,
             )?;
@@ -494,6 +518,7 @@ pub fn main(args: RenArgs) -> Result<()> {
                 config.subconfig.get(day).unwrap(),
                 Some(problem.to_string()),
                 &extism_processors,
+                extism_renderer.as_ref(),
                 &statements_dir,
                 &args,
             )?;

@@ -1,8 +1,9 @@
 use crate::prelude::*;
 use crate::ren::manifest::TemplateManifest;
-use crate::ren::renderers::{rewrite_images, unwrap_template};
+use crate::ren::renderers::unwrap_template;
 use std::collections::HashSet;
 use tuack_lib::ren::{ProblemType, RenderDocument, Renderer};
+use tuack_lib::utils::asset::AssetProvider;
 use tuack_lib::utils::output::OutputFile;
 use tuack_ng_parser::printers::render_typst;
 
@@ -112,7 +113,11 @@ impl TypstRenderer {
     }
 
     /// 将各题图片流写入模板目录 img/ 下，供 typst 按相对路径引用（按目标路径去重）
-    fn write_images(&self, doc: &RenderDocument, images: &[(u64, PathBuf, PathBuf)]) -> Result<()> {
+    fn write_images(
+        &self,
+        assets: &dyn AssetProvider,
+        images: &[(u64, PathBuf, PathBuf)],
+    ) -> Result<()> {
         let img_dir = self.template_dir.join("img");
         let mut seen = HashSet::new();
         for (idx, url, target) in images {
@@ -126,7 +131,7 @@ impl TypstRenderer {
             if let Some(parent) = dest.parent() {
                 fs::create_dir_all(parent)?;
             }
-            let mut stream = doc.assets.load(*idx, url)?;
+            let mut stream = assets.load(*idx, url)?;
             let mut file = std::fs::File::create(&dest)?;
             std::io::copy(&mut stream, &mut file)?;
         }
@@ -135,21 +140,23 @@ impl TypstRenderer {
 }
 
 impl Renderer for TypstRenderer {
-    fn render(&self, doc: &RenderDocument) -> Result<(PathBuf, Vec<OutputFile>)> {
+    fn render(
+        &self,
+        doc: &RenderDocument,
+        assets: Box<dyn AssetProvider>,
+    ) -> Result<(PathBuf, Vec<OutputFile>)> {
         let day_key = doc.config.day_key.clone();
 
         let mut images = Vec::new();
         for problem in &doc.problems {
-            let (ast, map) = rewrite_images(problem.ast.clone(), problem.idx)?;
-
-            let typst_output = format!("#import \"utils.typ\": *\n{}", render_typst(&ast));
+            let typst_output = format!("#import \"utils.typ\": *\n{}", render_typst(&problem.ast));
             fs::write(
                 self.template_dir
                     .join(format!("problem-{}.typ", problem.idx)),
                 typst_output,
             )?;
 
-            for (url, target) in &map {
+            for (url, target) in &problem.images {
                 images.push((problem.idx, url.clone(), target.clone()));
             }
         }
@@ -163,7 +170,7 @@ impl Renderer for TypstRenderer {
         let data_json_str = serde_json::to_string_pretty(&data_json)?;
         fs::write(self.template_dir.join("data.json"), data_json_str)?;
 
-        self.write_images(doc, &images)?;
+        self.write_images(&*assets, &images)?;
 
         fs::create_dir(self.template_dir.join("output"))?;
 

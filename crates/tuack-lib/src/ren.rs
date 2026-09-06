@@ -16,8 +16,29 @@ pub use document::{
 pub use processor::{ProcessorOutput, RenProcessor};
 
 use crate::prelude::*;
+use crate::utils::asset::AssetProvider;
 
 /// 渲染器：`RenderDocument -> (主产物相对路径，产物文件列表)`。
+///
+/// 资源访问（`AssetProvider`）由调用方注入，所有权移交给渲染器。
 pub trait Renderer: Send + Sync {
-    fn render(&self, doc: &RenderDocument) -> Result<(PathBuf, Vec<OutputFile>)>;
+    fn render(
+        &self,
+        doc: &RenderDocument,
+        assets: Box<dyn AssetProvider>,
+    ) -> Result<(PathBuf, Vec<OutputFile>)>;
+}
+
+/// 外部命令执行结果（宿主暴露给插件的 `run_command` 返回值）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CommandResult {
+    pub exit_code: i32,
+    pub stdout: Vec<u8>,
+    pub stderr: Vec<u8>,
+}
+
+/// 渲染器插件返回：主产物相对路径（用于自动打开）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RendererOutput {
+    pub main: PathBuf,
 }
