@@ -25,6 +25,7 @@ use strfmt::strfmt;
 use crate::prelude::*;
 use tuack_lib::dump::{DumpProblem, Dumper, ScorePolicy};
 use tuack_lib::ren::ProblemType;
+use tuack_lib::utils::asset::AssetProvider;
 use tuack_lib::utils::output::OutputFile;
 
 /// CCR-Plus 配置版本号（写入 .prb / .ccr 的 `version` 属性）
@@ -347,7 +348,7 @@ impl CcrPlusDumper {
     /// 返回可执行文件名（含平台后缀）。
     fn compile_checker(
         &self,
-        doc: &tuack_lib::dump::DumpDocument,
+        assets: &dyn AssetProvider,
         prob: &DumpProblem,
     ) -> Result<String> {
         let checker = prob.checker.as_ref().context("无校验器配置")?;
@@ -361,14 +362,14 @@ impl CcrPlusDumper {
         info!("尝试编译 SPJ：{}", checker.source.display());
 
         let src_tmp = self.tmp_dir.join("ccr-chk-src.cpp");
-        let mut src = doc.assets.load(prob.idx, &checker.source)?;
+        let mut src = assets.load(prob.idx, &checker.source)?;
         {
             let mut f = std::fs::File::create(&src_tmp)?;
             std::io::copy(&mut src, &mut f)?;
         }
 
         for dep in &checker.deps {
-            let mut dep_src = doc.assets.load(prob.idx, dep)?;
+            let mut dep_src = assets.load(prob.idx, dep)?;
             let dep_name = dep.file_name().context("依赖路径缺少文件名")?.to_owned();
             let dep_tmp = self.tmp_dir.join(&dep_name);
             {
@@ -395,7 +396,11 @@ impl CcrPlusDumper {
 }
 
 impl Dumper for CcrPlusDumper {
-    fn dump(&self, doc: &tuack_lib::dump::DumpDocument) -> Result<(Vec<OutputFile>, Vec<String>)> {
+    fn dump(
+        &self,
+        doc: &tuack_lib::dump::DumpDocument,
+        assets: Box<dyn AssetProvider>,
+    ) -> Result<(Vec<OutputFile>, Vec<String>)> {
         let mut files = Vec::new();
         let mut warnings = Vec::new();
 
@@ -406,17 +411,17 @@ impl Dumper for CcrPlusDumper {
             for case in &prob.data {
                 files.push(OutputFile::File {
                     path: PathBuf::from(format!("{}/{}", pdir, rel_name(&case.input))),
-                    bytes: doc.assets.load(prob.idx, &case.input)?,
+                    bytes: assets.load(prob.idx, &case.input)?,
                 });
                 files.push(OutputFile::File {
                     path: PathBuf::from(format!("{}/{}", pdir, rel_name(&case.output))),
-                    bytes: doc.assets.load(prob.idx, &case.output)?,
+                    bytes: assets.load(prob.idx, &case.output)?,
                 });
             }
 
             // 校验器：有自定义 SPJ 则编译生成；否则用内置全文比较
             let checker = if let Some(checker) = &prob.checker {
-                let exe_name = self.compile_checker(doc, prob)?;
+                let exe_name = self.compile_checker(&*assets, prob)?;
                 let stem = checker
                     .source
                     .file_stem()

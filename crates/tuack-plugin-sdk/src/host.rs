@@ -11,12 +11,17 @@ unsafe extern "ExtismHost" {
     pub fn asset_open(problem_idx: u64, url: String) -> u64;
     pub fn asset_read(asset_id: u64, len: u64) -> Vec<u8>;
     pub fn asset_close(asset_id: u64);
+    pub fn asset_copy(asset_id: u64, dest: String);
     pub fn run_command(args: Json<Vec<String>>, cwd: Json<String>) -> Json<CommandResult>;
     pub fn plugin_log(level: i32, msg: String);
     pub fn host_get_path(path: String) -> String;
 }
 
 /// 资产流：把宿主的 `asset_open/read/close` 封装为 `Read` 对象。
+///
+/// 注意：此流与宿主持有的流共享当前位置。若先 `read` 到中间或末尾，再把本句柄
+/// 放进 `OutputFile` 返回，落盘时 `copy_to_host` 会从当前位置继续拷贝，产物将只
+/// 含剩余部分（甚至为空）。要整份拷贝，请勿提前 `read`。
 pub struct AssetReader {
     id: u64,
 }
@@ -26,6 +31,11 @@ impl AssetReader {
     pub fn open(problem_idx: u64, url: &str) -> Result<Self, Error> {
         let id = unsafe { asset_open(problem_idx, url.to_string()) }?;
         Ok(Self { id })
+    }
+
+    /// 请求宿主把资产流从当前位置直接拷贝到目标 WASI 路径，避免跨 wasm 逐块读取。
+    pub fn copy_to_host(&self, dest: &str) -> Result<(), Error> {
+        unsafe { asset_copy(self.id, dest.to_string()) }
     }
 }
 

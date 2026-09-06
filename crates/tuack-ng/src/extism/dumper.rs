@@ -1,11 +1,11 @@
-//! extism 渲染器插件：宿主侧封装。
+//! extism 导出器插件：宿主侧封装。
 
 use std::sync::Mutex;
 
 use extism::convert::Json;
 use extism::{Manifest, Wasm, WasmInput};
 
-use tuack_lib::ren::{RenderDocument, Renderer, RendererOutput};
+use tuack_lib::dump::{DumpDocument, Dumper, DumperOutput};
 use tuack_lib::utils::asset::AssetProvider;
 use tuack_lib::utils::output::OutputFile;
 
@@ -13,18 +13,20 @@ use crate::prelude::*;
 
 use super::context::{PluginContext, collect_outputs, common_imports};
 
-/// 一个基于 extism 的渲染器插件。
+/// 一个基于 extism 的导出器插件。
 ///
 /// 插件开启 WASI，宿主把临时目录映射为插件内的 `/`（工作与产物）；
-/// 插件写文件到 `/out`，宿主扫描后转成产物文件列表。
-pub struct ExtismRenderer {
+/// 插件写文件到 `/out`，宿主扫描后转成产物文件列表，警告随返回值返回。
+#[allow(dead_code)] // 预留：Dump 的 extism 目标尚未接入 CLI，待插件包模式引入后启用
+pub struct ExtismDumper {
     plugin: Mutex<extism::Plugin>,
     function: String,
     out_dir: PathBuf,
     tmp_dir: PathBuf,
 }
 
-impl ExtismRenderer {
+#[allow(dead_code)] // 预留：Dump 的 extism 目标尚未接入 CLI，待插件包模式引入后启用
+impl ExtismDumper {
     pub fn new(wasm: Vec<u8>, function: String, tmp_dir: PathBuf) -> Result<Self> {
         let plug_out_dir = tmp_dir.join("out");
         fs::create_dir_all(&plug_out_dir)?;
@@ -35,7 +37,7 @@ impl ExtismRenderer {
             .with_allowed_path(tmp_dir.to_string_lossy().to_string(), "/");
 
         let plugin = extism::Plugin::new(WasmInput::Manifest(manifest), common_imports(), true)
-            .map_err(|e| anyhow!(e).context("加载 extism 渲染器失败"))?;
+            .map_err(|e| anyhow!(e).context("加载 extism 导出器失败"))?;
 
         if !plugin.function_exists(&function) {
             bail!("插件未导出函数：{}", function);
@@ -50,12 +52,12 @@ impl ExtismRenderer {
     }
 }
 
-impl Renderer for ExtismRenderer {
-    fn render(
+impl Dumper for ExtismDumper {
+    fn dump(
         &self,
-        doc: &RenderDocument,
+        doc: &DumpDocument,
         assets: Box<dyn AssetProvider>,
-    ) -> Result<(PathBuf, Vec<OutputFile>)> {
+    ) -> Result<(Vec<OutputFile>, Vec<String>)> {
         if self.out_dir.exists() {
             fs::remove_dir_all(&self.out_dir)?;
         }
@@ -67,12 +69,12 @@ impl Renderer for ExtismRenderer {
             .plugin
             .lock()
             .map_err(|e| anyhow!("插件锁中毒：{}", e))?;
-        let output: Json<RendererOutput> = plugin
+        let output: Json<DumperOutput> = plugin
             .call_with_host_context(&self.function, Json(doc), ctx)
-            .map_err(|e| anyhow!(e).context("调用 extism 渲染器失败"))?;
+            .map_err(|e| anyhow!(e).context("调用 extism 导出器失败"))?;
 
         let files = collect_outputs(&self.out_dir)?;
 
-        Ok((output.0.main, files))
+        Ok((files, output.0.warnings))
     }
 }

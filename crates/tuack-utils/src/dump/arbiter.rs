@@ -3,6 +3,7 @@ use std::process::Command;
 use crate::prelude::*;
 use tuack_lib::dump::Dumper;
 use tuack_lib::ren::ProblemType;
+use tuack_lib::utils::asset::AssetProvider;
 use tuack_lib::utils::output::OutputFile;
 
 /// 生成 key=value 配置文件内容
@@ -33,7 +34,7 @@ impl ArbiterDumper {
     /// 否则编译默认比较器源码；编译失败时 `None`（不产生文件），资源缺失则失败
     fn build_filter(
         &self,
-        doc: &tuack_lib::dump::DumpDocument,
+        assets: &dyn AssetProvider,
         prob: &tuack_lib::dump::DumpProblem,
         warnings: &mut Vec<String>,
     ) -> Result<Option<Box<dyn tuack_lib::data::Reader>>> {
@@ -43,14 +44,14 @@ impl ArbiterDumper {
         if let Some(checker) = &prob.checker {
             info!("发现 chk，尝试编译。");
             let src_tmp = self.tmp_dir.join("chk-src.cpp");
-            let mut src = doc.assets.load(prob.idx, &checker.source)?;
+            let mut src = assets.load(prob.idx, &checker.source)?;
             {
                 let mut f = std::fs::File::create(&src_tmp)?;
                 std::io::copy(&mut src, &mut f)?;
             }
 
             for dep in &checker.deps {
-                let mut dep_src = doc.assets.load(prob.idx, dep)?;
+                let mut dep_src = assets.load(prob.idx, dep)?;
                 let dep_name = dep.file_name().context("依赖路径缺少文件名")?.to_owned();
                 let dep_tmp = self.tmp_dir.join(&dep_name);
                 {
@@ -109,7 +110,11 @@ impl ArbiterDumper {
 }
 
 impl Dumper for ArbiterDumper {
-    fn dump(&self, doc: &tuack_lib::dump::DumpDocument) -> Result<(Vec<OutputFile>, Vec<String>)> {
+    fn dump(
+        &self,
+        doc: &tuack_lib::dump::DumpDocument,
+        assets: Box<dyn AssetProvider>,
+    ) -> Result<(Vec<OutputFile>, Vec<String>)> {
         if !cfg!(target_os = "linux") {
             bail!("Arbiter 不支持 Linux 之外的操作系统，也不支持在 Linux 之外的操作系统导出");
         }
@@ -231,10 +236,10 @@ impl Dumper for ArbiterDumper {
                 let in_name = format!("{}{}.in", prob.name, idx);
                 let ans_name = format!("{}{}.ans", prob.name, idx);
 
-                let input = doc.assets.load(prob.idx, &case.input)?;
-                let output = doc.assets.load(prob.idx, &case.output)?;
-                let eval_input = doc.assets.load(prob.idx, &case.input)?;
-                let eval_output = doc.assets.load(prob.idx, &case.output)?;
+                let input = assets.load(prob.idx, &case.input)?;
+                let output = assets.load(prob.idx, &case.output)?;
+                let eval_input = assets.load(prob.idx, &case.input)?;
+                let eval_output = assets.load(prob.idx, &case.output)?;
 
                 files.push(OutputFile::File {
                     path: PathBuf::from(format!("arbiter/main/data/{}", in_name)),
@@ -279,7 +284,7 @@ impl Dumper for ArbiterDumper {
             }
 
             // Checker / filter
-            if let Some(stream) = self.build_filter(doc, prob, &mut warnings)? {
+            if let Some(stream) = self.build_filter(&*assets, prob, &mut warnings)? {
                 files.push(OutputFile::File {
                     path: PathBuf::from(format!("arbiter/main/filter/{}_e", prob.name)),
                     bytes: stream,
@@ -321,11 +326,11 @@ impl Dumper for ArbiterDumper {
                 let idx = idx + 1;
                 files.push(OutputFile::File {
                     path: PathBuf::from(format!("{}/{}{}.in", prob_down_dir, prob.name, idx)),
-                    bytes: doc.assets.load(prob.idx, &sample.input)?,
+                    bytes: assets.load(prob.idx, &sample.input)?,
                 });
                 files.push(OutputFile::File {
                     path: PathBuf::from(format!("{}/{}{}.ans", prob_down_dir, prob.name, idx)),
-                    bytes: doc.assets.load(prob.idx, &sample.output)?,
+                    bytes: assets.load(prob.idx, &sample.output)?,
                 });
             }
 
@@ -335,7 +340,7 @@ impl Dumper for ArbiterDumper {
                 info!("发现附加文件：{}", rel.display());
                 files.push(OutputFile::File {
                     path: PathBuf::from(format!("{}/{}", prob_down_dir, rel.display())),
-                    bytes: doc.assets.load(prob.idx, &file.path)?,
+                    bytes: assets.load(prob.idx, &file.path)?,
                 });
             }
         }

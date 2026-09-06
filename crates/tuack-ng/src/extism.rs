@@ -1,12 +1,17 @@
-//! extism 宿主封装：处理器插件与渲染器插件。
+//! extism 宿主封装：处理器插件、渲染器插件与导出器插件。
 
 use extism::UserData;
 
 use crate::prelude::*;
 
+pub mod context;
+pub mod dumper;
 pub mod processor;
 pub mod renderer;
 
+// ExtismDumper 预留待插件包模式接入，暂未在 CLI 引用。
+#[allow(unused_imports)]
+pub use dumper::ExtismDumper;
 pub use processor::ExtismProcessor;
 pub use renderer::ExtismRenderer;
 

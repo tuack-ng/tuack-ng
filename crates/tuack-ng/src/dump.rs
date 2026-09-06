@@ -70,7 +70,7 @@ fn build_dump_document(
     contest: &ContestConfig,
     day: &ContestDayConfig,
     daynum: usize,
-) -> Result<DumpDocument> {
+) -> Result<(DumpDocument, FsAssetProvider)> {
     let compile = day
         .compile
         .iter()
@@ -159,16 +159,18 @@ fn build_dump_document(
         });
     }
 
-    Ok(DumpDocument {
-        config: DumpConfig {
-            contest_name: contest.name.clone(),
-            day_name: day.name.clone(),
-            dayidx: daynum,
-            compile,
+    Ok((
+        DumpDocument {
+            config: DumpConfig {
+                contest_name: contest.name.clone(),
+                day_name: day.name.clone(),
+                dayidx: daynum,
+                compile,
+            },
+            problems,
         },
-        problems,
-        assets: Box::new(assets),
-    })
+        assets,
+    ))
 }
 
 fn dump_main(
@@ -177,7 +179,7 @@ fn dump_main(
     daynum: usize,
     target: Target,
 ) -> Result<()> {
-    let doc = build_dump_document(contest, day, daynum)?;
+    let (doc, assets) = build_dump_document(contest, day, daynum)?;
     let dump_dir = day.path.join("dump");
 
     let tmp = tempfile::Builder::new()
@@ -194,7 +196,7 @@ fn dump_main(
         Target::CcrPlus => Box::new(ccr_plus::CcrPlusDumper::new(tmp.path().to_path_buf())),
     };
 
-    let (files, warnings) = match dumper.dump(&doc) {
+    let (files, warnings) = match dumper.dump(&doc, Box::new(assets)) {
         Ok(result) => result,
         Err(e) => {
             msg_error!("导出失败:\n{:?}", e);

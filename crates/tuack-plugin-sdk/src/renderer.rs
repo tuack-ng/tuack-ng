@@ -67,11 +67,17 @@ pub fn __write_outputs(files: Vec<OutputFile>) -> Result<(), Error> {
         match file {
             OutputFile::File { path, mut bytes } => {
                 let dest = out.join(&path);
-                if let Some(parent) = dest.parent() {
-                    std::fs::create_dir_all(parent)?;
+                // 资产流交给宿主直接拷贝，避免跨 wasm 逐块读取
+                let any: &dyn std::any::Any = &*bytes;
+                if let Some(asset) = any.downcast_ref::<crate::AssetReader>() {
+                    asset.copy_to_host(&dest.to_string_lossy())?;
+                } else {
+                    if let Some(parent) = dest.parent() {
+                        std::fs::create_dir_all(parent)?;
+                    }
+                    let mut f = std::fs::File::create(&dest)?;
+                    std::io::copy(&mut bytes, &mut f)?;
                 }
-                let mut f = std::fs::File::create(&dest)?;
-                std::io::copy(&mut bytes, &mut f)?;
             }
             OutputFile::Dir(path) => {
                 std::fs::create_dir_all(out.join(&path))?;

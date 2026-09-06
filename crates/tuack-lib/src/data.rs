@@ -1,12 +1,13 @@
+use std::any::Any;
 use std::io::{self, Read};
 
 use crate::prelude::*;
 use crate::utils::testlib::Arg;
 
-/// 统一的可读流抽象：`Read + Send` 的便捷 trait
-pub trait Reader: Read + Send {}
+/// 统一的可读流抽象：`Read + Send + 'static` 的便捷 trait（可 downcast）。
+pub trait Reader: Read + Send + Any {}
 
-impl<T: Read + Send> Reader for T {}
+impl<T: Read + Send + 'static> Reader for T {}
 
 /// 可读数据源
 pub trait Data: Send {
