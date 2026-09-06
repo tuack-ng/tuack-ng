@@ -1,0 +1,14 @@
+[package]
+name = "tuack-plugin-sdk"
+description = "tuack-ng 处理器插件 Rust SDK"
+edition.workspace = true
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+tuack-lib = { path = "../tuack-lib" }
+tuack-ng-parser = { workspace = true, features = ["serde"] }
+
+extism-pdk = { version = "1", default-features = false }

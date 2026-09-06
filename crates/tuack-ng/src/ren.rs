@@ -1,5 +1,6 @@
 use crate::context;
 use crate::context::gctx;
+use crate::extism::ExtismProcessor;
 use crate::prelude::*;
 use clap::Args;
 use indexmap::IndexMap;
@@ -7,14 +8,14 @@ use indicatif::ProgressBar;
 use opener::open;
 use std::time::Duration;
 use tuack_lib::ren::{
-    DateInfo, Problem, ProblemMeta, ProblemType, RenConfig, RenderDocument, Renderer,
+    DateInfo, Problem, ProblemMeta, ProblemType, RenConfig, RenProcessor, RenderDocument, Renderer,
     SupportLanguage,
 };
 use tuack_ng_parser::parse;
 use tuack_utils::assets::FsAssetProvider;
 use tuack_utils::ren::manifest::{TargetType, TemplateManifest};
 use tuack_utils::ren::markdown::MarkdownRenderer;
-use tuack_utils::ren::processors::process_ast;
+use tuack_utils::ren::processors::builtin_processor;
 use tuack_utils::ren::renderers::ImageCollector;
 use tuack_utils::ren::template::render_template;
 use tuack_utils::ren::typst::TypstRenderer;
@@ -127,6 +128,7 @@ fn build_render_document(
     manifest: &TemplateManifest,
     day_config: &ContestDayConfig,
     problem: Option<String>,
+    extism_processors: &[Box<dyn RenProcessor>],
     problem_pb: &ProgressBar,
 ) -> Result<RenderDocument> {
     let problems_to_render: IndexMap<String, &ProblemConfig> = match problem {
@@ -201,7 +203,43 @@ fn build_render_document(
         }
 
         let mut ast = parse(&content);
-        ast = process_ast(&mut ast, &manifest.processor)?;
+        for name in &manifest.processor {
+            let processor = builtin_processor(name)
+                .with_context(|| format!("无此处理器：{}", name))?;
+            let output = processor.process(&ast)?;
+            ast = output.ast;
+            if !output.warnings.is_empty() {
+                let joined = output
+                    .warnings
+                    .iter()
+                    .map(|w| format!("  {}", w))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                msg_warn!(
+                    "处理器 {} 在题目 {} 上产生了警告：\n{}",
+                    name.magenta(),
+                    problem_config.name.magenta(),
+                    joined
+                );
+            }
+        }
+        for processor in extism_processors {
+            let output = processor.process(&ast)?;
+            ast = output.ast;
+            if !output.warnings.is_empty() {
+                let joined = output
+                    .warnings
+                    .iter()
+                    .map(|w| format!("  {}", w))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                msg_warn!(
+                    "插件在题目 {} 上产生了警告：\n{}",
+                    problem_config.name.magenta(),
+                    joined
+                );
+            }
+        }
 
         assets.register(idx as u64, problem_config.path.clone());
 
@@ -240,6 +278,7 @@ fn ren(
     manifest: &TemplateManifest,
     day_config: &ContestDayConfig,
     problem: Option<String>,
+    extism_processors: &[Box<dyn RenProcessor>],
     statements_dir: &Path,
     args: &RenArgs,
 ) -> Result<()> {
@@ -264,7 +303,14 @@ fn ren(
             .progress_chars("=> "),
     );
 
-    let doc = match build_render_document(config, manifest, day_config, problem, &problem_pb) {
+    let doc = match build_render_document(
+        config,
+        manifest,
+        day_config,
+        problem,
+        extism_processors,
+        &problem_pb,
+    ) {
         Ok(doc) => doc,
         Err(e) => {
             problem_pb.finish_with_message("遇到错误，停止处理");
@@ -357,6 +403,20 @@ pub fn main(args: RenArgs) -> Result<()> {
 
     let manifest = serde_json::from_str::<TemplateManifest>(&fs::read_to_string(&manifest_file)?)?;
 
+    let mut extism_processors: Vec<Box<dyn RenProcessor>> = Vec::new();
+    if let Some(manifest_dir) = manifest_file.parent() {
+        for plugin_config in &manifest.extism_plugins {
+            let wasm_path = manifest_dir.join(&plugin_config.wasm);
+            let wasm = fs::read(&wasm_path)
+                .with_context(|| format!("读取插件 wasm 失败：{}", wasm_path.display()))?;
+            extism_processors.push(Box::new(ExtismProcessor::new(
+                wasm,
+                plugin_config.function.clone(),
+                plugin_config.with_wasi,
+            )?));
+        }
+    }
+
     let statements_dir = match current_location {
         CurrentLocation::Problem(day_name, problem_name) => Path::new(&config.path)
             .join(day_name)
@@ -397,7 +457,15 @@ pub fn main(args: RenArgs) -> Result<()> {
             let mut failed_days = Vec::new();
             for (day_count, (day_name, day_config)) in config.subconfig.iter().enumerate() {
                 day_pb.set_message(format!("处理第 {}/{} 天", day_count, total_days));
-                if let Err(e) = ren(config, &manifest, day_config, None, &statements_dir, &args) {
+                if let Err(e) = ren(
+                    config,
+                    &manifest,
+                    day_config,
+                    None,
+                    &extism_processors,
+                    &statements_dir,
+                    &args,
+                ) {
                     msg_error!("第 {} 天渲染失败：{:?}", day_name, e);
                     failed_days.push(day_name.clone());
                 }
@@ -414,6 +482,7 @@ pub fn main(args: RenArgs) -> Result<()> {
                 &manifest,
                 config.subconfig.get(day).unwrap(),
                 None,
+                &extism_processors,
                 &statements_dir,
                 &args,
             )?;
@@ -424,6 +493,7 @@ pub fn main(args: RenArgs) -> Result<()> {
                 &manifest,
                 config.subconfig.get(day).unwrap(),
                 Some(problem.to_string()),
+                &extism_processors,
                 &statements_dir,
                 &args,
             )?;

@@ -2,7 +2,7 @@ use crate::prelude::*;
 use log::LevelFilter;
 use log4rs::Logger;
 use log4rs::append::console::{ConsoleAppender, Target};
-use log4rs::config::{Appender, Config, Root};
+use log4rs::config::{Appender, Config, Logger as ConfigLogger, Root};
 use log4rs::encode::pattern::PatternEncoder;
 
 use crate::context;
@@ -74,9 +74,42 @@ fn init_log(verbose: &bool) -> Result<MultiProgress> {
         LevelFilter::Warn
     };
 
-    let config = Config::builder()
-        .appender(Appender::builder().build("stdout", Box::new(stdout)))
-        .build(Root::builder().appender("stdout").build(loglevel))?;
+    // wasmtime/cranelift 等通过 tracing 的 log feature 桥接到 log，
+    // Trace 级别下会刷屏并极大拖慢速度；这里压到不超过 Info，且不超过
+    // root 级别（避免静默模式下越过下限）。
+    const WASM_NOISE: &[&str] = &[
+        "wasmtime",
+        "wasmtime_environ",
+        "wasmtime_internal_cache",
+        "wasmtime_internal_core",
+        "wasmtime_internal_cranelift",
+        "wasmtime_internal_fiber",
+        "wasmtime_internal_jit_debug",
+        "wasmtime_internal_jit_icache_coherence",
+        "wasmtime_internal_unwinder",
+        "wasmtime_internal_winch",
+        "cranelift_codegen",
+        "cranelift_frontend",
+        "cranelift_native",
+        "cranelift_control",
+        "cranelift_entity",
+        "cranelift_bitset",
+        "cranelift_bforest",
+        "wasmparser",
+        "regalloc2",
+        "wiggle",
+        "wasi_common",
+        "wasip2",
+        "extism",
+    ];
+
+    let mut builder =
+        Config::builder().appender(Appender::builder().build("stdout", Box::new(stdout)));
+    for target in WASM_NOISE {
+        builder = builder
+            .logger(ConfigLogger::builder().build(*target, loglevel.min(LevelFilter::Info)));
+    }
+    let config = builder.build(Root::builder().appender("stdout").build(loglevel))?;
 
     let logger: log4rs::Logger = Logger::new(config);
     let level = logger.max_log_level();

@@ -16,6 +16,7 @@ mod develop;
 mod dmk;
 mod doc;
 mod dump;
+mod extism;
 mod generate;
 mod init;
 mod prelude;

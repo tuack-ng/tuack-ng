@@ -20,6 +20,26 @@ pub struct TemplateManifest {
     pub filelist: IndexMap<String, String>,
     #[serde(default)]
     pub processor: Vec<String>,
+    #[serde(default)]
+    pub extism_plugins: Vec<ExtismProcessorConfig>,
+}
+
+/// 一个 extism 处理器插件的配置。
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "kebab-case")]
+pub struct ExtismProcessorConfig {
+    /// wasm 插件文件路径（相对模板清单目录）。
+    pub wasm: PathBuf,
+    /// 插件导出的处理函数名（缺省 `process`）。
+    #[serde(default = "default_function")]
+    pub function: String,
+    /// 是否启用 WASI（默认关闭）。
+    #[serde(default)]
+    pub with_wasi: bool,
+}
+
+fn default_function() -> String {
+    "process".to_string()
 }
 
 fn default_use_pretest() -> bool {
