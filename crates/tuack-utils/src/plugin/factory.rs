@@ -79,6 +79,7 @@ pub(crate) fn build_processor(
                 p.func.clone(),
                 p.wasi,
                 asset_dir,
+                p.command.clone(),
             )?))
         }
     }

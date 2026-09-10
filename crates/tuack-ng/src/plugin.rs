@@ -3,6 +3,7 @@ use clap::{Args, Subcommand};
 use owo_colors::OwoColorize;
 use tuack_utils::plugin::manager::{DISABLED_MARKER, PluginState, PluginStatus, TRUSTED_MARKER};
 use tuack_utils::plugin::manifest::{ComponentBody, ExecutableComponent, PluginManifest};
+use unicode_width::UnicodeWidthStr;
 
 #[derive(Args, Debug)]
 #[command(version)]
@@ -71,12 +72,9 @@ fn state_label(state: &PluginState) -> String {
     }
 }
 
-/// 按包名或目录名查找插件。
+/// 按包名查找插件。
 fn find(name: &str) -> Result<&'static PluginStatus> {
-    gctx()
-        .plugins
-        .plugin(name)
-        .with_context(|| format!("未找到插件：{}", name))
+    gctx().plugins.plugin(name)
 }
 
 fn status() -> Result<()> {
@@ -202,29 +200,13 @@ fn permissions(e: &ExecutableComponent) -> Option<String> {
 fn field(label: &str, value: impl std::fmt::Display) {
     let value = value.to_string();
     let prefix = format!("{}:", label);
-    let indent = " ".repeat(display_width(&prefix) + 1);
+    let indent = " ".repeat(prefix.width() + 1);
     let mut lines = value.lines();
     let first = lines.next().unwrap_or("");
     msg!("{} {}", prefix.dimmed(), first);
     for line in lines {
         msg!("{}{}", indent, line);
     }
-}
-
-/// 粗略显示宽度（CJK 记 2）。
-fn display_width(s: &str) -> usize {
-    s.chars().map(|c| if is_wide(c) { 2 } else { 1 }).sum()
-}
-
-fn is_wide(c: char) -> bool {
-    matches!(c as u32,
-        0x1100..=0x115F
-        | 0x2E80..=0xA4CF
-        | 0xAC00..=0xD7A3
-        | 0xF900..=0xFAFF
-        | 0xFE30..=0xFE4F
-        | 0xFF00..=0xFF60
-        | 0xFFE0..=0xFFE6)
 }
 
 fn set_disabled(name: &str, disabled: bool) -> Result<()> {

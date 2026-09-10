@@ -407,11 +407,12 @@ impl PluginManager {
         &self.statuses
     }
 
-    /// 按包名或目录名查找插件状态。
-    pub fn plugin(&self, name: &str) -> Option<&PluginStatus> {
+    /// 按包名查找插件状态（清单解析失败时 `name` 为目录名兜底）。
+    pub fn plugin(&self, name: &str) -> Result<&PluginStatus> {
         self.statuses
             .iter()
-            .find(|s| s.name == name || s.dir.file_name() == Some(std::ffi::OsStr::new(name)))
+            .find(|s| s.name == name)
+            .context(format!("未找到插件：{}", name))
     }
 
     /// 加载失败（`Error`）的插件。

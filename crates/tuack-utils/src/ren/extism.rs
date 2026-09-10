@@ -75,7 +75,7 @@ impl Renderer for ExtismRenderer {
 
         let streams: AssetStreams = Arc::new(Mutex::new(HashMap::new()));
         let ctx = PluginContext::new(
-            assets,
+            Some(assets),
             self.tmp.path().to_path_buf(),
             streams.clone(),
             self.command.clone(),

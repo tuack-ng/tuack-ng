@@ -23,7 +23,8 @@ pub(crate) type AssetStreams = Arc<Mutex<HashMap<u64, Box<dyn Reader>>>>;
 
 /// 插件调用期间的主机上下文（经 `call_with_host_context` 注入，供 host 函数访问）。
 pub(crate) struct PluginContext {
-    assets: Box<dyn AssetProvider>,
+    /// 题目资源提供方；处理器无题目资源时为 `None`
+    assets: Option<Box<dyn AssetProvider>>,
     streams: AssetStreams,
     next_id: AtomicU64,
     tmp_dir: PathBuf,
@@ -33,7 +34,7 @@ pub(crate) struct PluginContext {
 
 impl PluginContext {
     pub(crate) fn new(
-        assets: Box<dyn AssetProvider>,
+        assets: Option<Box<dyn AssetProvider>>,
         tmp_dir: PathBuf,
         streams: AssetStreams,
         command: Vec<String>,
@@ -49,7 +50,8 @@ impl PluginContext {
 
     /// 打开第 `problem_idx` 题的资产 `url`，返回句柄。
     fn open_asset(&self, problem_idx: u64, url: &str) -> Result<u64> {
-        let stream = self.assets.load(problem_idx, Path::new(url))?;
+        let assets = self.assets.as_ref().context("该插件不支持访问题目资源")?;
+        let stream = assets.load(problem_idx, Path::new(url))?;
         let id = self.next_id.fetch_add(1, Ordering::Relaxed);
         self.streams.lock().unwrap().insert(id, stream);
         Ok(id)

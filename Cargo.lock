@@ -3562,6 +3562,7 @@ dependencies = [
  "tuack-lib",
  "tuack-ng-parser",
  "tuack-utils",
+ "unicode-width 0.2.2",
  "vergen",
 ]
 

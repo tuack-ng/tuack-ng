@@ -44,6 +44,7 @@ strfmt = "0.2.5"
 sysinfo = "0.37.2"
 tempfile = "3.27.0"
 termcolor.workspace = true
+unicode-width = "0.2"
 
 [dependencies.tuack-ng-parser]
 workspace = true
