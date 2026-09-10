@@ -13,6 +13,7 @@ use tuack_lib::data::Reader;
 use tuack_lib::ren::CommandResult;
 use tuack_lib::utils::asset::AssetProvider;
 use tuack_lib::utils::output::{OutputFile, OutputSpec};
+use tuack_utils::keepalive::KeepAliveReader;
 
 use crate::prelude::*;
 
@@ -71,11 +72,7 @@ impl PluginContext {
 
     /// 把资产流从当前位置直接拷贝到 `dest` 对应的 WASI 文件（不参与产物回传）。
     fn copy_asset(&self, asset_id: u64, dest: &str) -> Result<()> {
-        let rel = dest.strip_prefix('/').unwrap_or(dest);
-        let host_dest = self.tmp_dir.join(rel).clean();
-        if !host_dest.starts_with(&self.tmp_dir) {
-            bail!("非法路径：{}", dest);
-        }
+        let host_dest = resolve_within(&self.tmp_dir, dest)?;
         if let Some(parent) = host_dest.parent() {
             std::fs::create_dir_all(parent)?;
         }
@@ -178,15 +175,8 @@ fn get_path(
     _user_data: UserData<()>,
 ) -> Result<(), extism::Error> {
     let path: String = plugin.memory_get_val(&inputs[0])?;
-    let resolved = with_context(plugin, |ctx| {
-        let rel = path.strip_prefix('/').unwrap_or(&path);
-        let resolved = ctx.tmp_dir.join(rel).clean();
-        if !resolved.starts_with(&ctx.tmp_dir) {
-            bail!("非法路径：{}", path);
-        }
-        Ok(resolved.to_string_lossy().to_string())
-    })?;
-    plugin.memory_set_val(&mut outputs[0], resolved)?;
+    let resolved = with_context(plugin, |ctx| resolve_within(&ctx.tmp_dir, &path))?;
+    plugin.memory_set_val(&mut outputs[0], resolved.to_string_lossy().to_string())?;
     Ok(())
 }
 
@@ -245,33 +235,26 @@ pub(crate) fn common_imports() -> Vec<extism::Function> {
     ]
 }
 
-/// 校验产物相对路径，拒绝绝对路径与目录穿越。
-fn check_output_path(path: &Path) -> Result<()> {
-    if path.is_absolute()
-        || path.components().any(|c| {
-            matches!(
-                c,
-                std::path::Component::ParentDir
-                    | std::path::Component::RootDir
-                    | std::path::Component::Prefix(_)
-            )
-        })
-    {
-        bail!("非法产物路径：{}", path.display());
+/// 把 `rel`（WASI 风格，可能带前导 `/`）解析到 `base` 下；规范化后越出 `base` 则报错。
+fn resolve_within(base: &Path, rel: &str) -> Result<PathBuf> {
+    let stripped = rel.strip_prefix('/').unwrap_or(rel);
+    let dest = base.join(stripped).clean();
+    if !dest.starts_with(base) {
+        bail!("非法路径：{}", rel);
     }
-    Ok(())
+    Ok(dest)
 }
 
-/// 包装 `File` 并持有临时目录，保证文件流在目录回收前仍可用。
-struct KeepAliveReader {
-    inner: std::fs::File,
-    _keepalive: Arc<tempfile::TempDir>,
-}
-
-impl Read for KeepAliveReader {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        self.inner.read(buf)
+/// 校验并规范化产物相对路径（相对基准 `base`）：必须是相对路径，且规范化后不越出 `base`；
+/// 返回规范化后的相对路径。
+fn normalize_product_path(base: &Path, path: &Path) -> Result<PathBuf> {
+    if path.is_absolute() {
+        bail!("非法产物路径（必须为相对路径）：{}", path.display());
     }
+    let dest = base.join(path).clean();
+    dest.strip_prefix(base)
+        .map(Path::to_path_buf)
+        .map_err(|_| anyhow!("非法产物路径（越出输出根）：{}", path.display()))
 }
 
 /// 把回传的 `OutputSpec` 转成宿主 `OutputFile`：资产流从共享句柄表取出（host-to-host），
@@ -287,27 +270,24 @@ pub(crate) fn specs_to_outputs(
     for spec in specs {
         match spec {
             OutputSpec::Asset { path, asset_id } => {
-                check_output_path(&path)?;
+                let path = normalize_product_path(out_dir, &path)?;
                 let stream = guard
                     .remove(&asset_id)
                     .ok_or_else(|| anyhow!("无效的资产句柄：{}", asset_id))?;
                 files.push(OutputFile::File { path, bytes: stream });
             }
             OutputSpec::File { path } => {
-                check_output_path(&path)?;
-                let dest = out_dir.join(&path);
+                let rel = normalize_product_path(out_dir, &path)?;
+                let dest = out_dir.join(&rel);
                 let file = std::fs::File::open(&dest)
                     .with_context(|| format!("打开产物文件失败：{}", dest.display()))?;
                 files.push(OutputFile::File {
-                    path,
-                    bytes: Box::new(KeepAliveReader {
-                        inner: file,
-                        _keepalive: keepalive.clone(),
-                    }),
+                    path: rel,
+                    bytes: Box::new(KeepAliveReader::new(file, keepalive.clone())),
                 });
             }
             OutputSpec::Dir(path) => {
-                check_output_path(&path)?;
+                let path = normalize_product_path(out_dir, &path)?;
                 files.push(OutputFile::Dir(path));
             }
         }

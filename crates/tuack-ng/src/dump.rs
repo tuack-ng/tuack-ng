@@ -190,12 +190,12 @@ fn dump_main(
     );
 
     let dumper: Box<dyn Dumper> = match target {
-        Target::Lemon => Box::new(lemon::LemonDumper::new(tmp.path().to_path_buf())),
+        Target::Lemon => Box::new(lemon::LemonDumper::new(tmp.clone())),
         Target::Arbiter => Box::new(arbiter::ArbiterDumper::new(
-            tmp.path().to_path_buf(),
+            tmp.clone(),
             gctx().assets_dirs.clone(),
         )),
-        Target::CcrPlus => Box::new(ccr_plus::CcrPlusDumper::new(tmp.path().to_path_buf())),
+        Target::CcrPlus => Box::new(ccr_plus::CcrPlusDumper::new(tmp.clone())),
     };
 
     let (files, warnings) = match dumper.dump(&doc, Box::new(assets)) {

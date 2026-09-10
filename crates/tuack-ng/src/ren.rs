@@ -334,7 +334,7 @@ fn ren(
 
     let renderer: Box<dyn Renderer> = match manifest.target {
         TargetType::Typst => Box::new(TypstRenderer::new(
-            tmp_dir.clone(),
+            tmp.clone(),
             manifest,
             &gctx().assets_dirs,
         )?),

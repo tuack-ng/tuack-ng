@@ -1,6 +1,8 @@
 use std::process::Command;
 
+use crate::keepalive::KeepAliveReader;
 use crate::prelude::*;
+use tempfile::TempDir;
 use tuack_lib::dump::Dumper;
 use tuack_lib::ren::ProblemType;
 use tuack_lib::utils::asset::AssetProvider;
@@ -18,16 +20,13 @@ fn build_info(info: &[(String, String)]) -> String {
 }
 
 pub struct ArbiterDumper {
-    tmp_dir: PathBuf,
+    tmp: Arc<TempDir>,
     assets_dirs: Vec<PathBuf>,
 }
 
 impl ArbiterDumper {
-    pub fn new(tmp_dir: PathBuf, assets_dirs: Vec<PathBuf>) -> Self {
-        Self {
-            tmp_dir,
-            assets_dirs,
-        }
+    pub fn new(tmp: Arc<TempDir>, assets_dirs: Vec<PathBuf>) -> Self {
+        Self { tmp, assets_dirs }
     }
 
     /// 生成 filter 可执行文件：有自定义 SPJ 则编译 checker（经 handle 取源码），
@@ -38,12 +37,12 @@ impl ArbiterDumper {
         prob: &tuack_lib::dump::DumpProblem,
         warnings: &mut Vec<String>,
     ) -> Result<Option<Box<dyn tuack_lib::data::Reader>>> {
-        let filter_path = self.tmp_dir.join(format!("{}_e", prob.name));
+        let filter_path = self.tmp.path().join(format!("{}_e", prob.name));
 
         // 有自定义 SPJ：编译 checker
         if let Some(checker) = &prob.checker {
             info!("发现 chk，尝试编译。");
-            let src_tmp = self.tmp_dir.join("chk-src.cpp");
+            let src_tmp = self.tmp.path().join("chk-src.cpp");
             let mut src = assets.load(prob.idx, &checker.source)?;
             {
                 let mut f = std::fs::File::create(&src_tmp)?;
@@ -53,7 +52,7 @@ impl ArbiterDumper {
             for dep in &checker.deps {
                 let mut dep_src = assets.load(prob.idx, dep)?;
                 let dep_name = dep.file_name().context("依赖路径缺少文件名")?.to_owned();
-                let dep_tmp = self.tmp_dir.join(&dep_name);
+                let dep_tmp = self.tmp.path().join(&dep_name);
                 {
                     let mut f = std::fs::File::create(&dep_tmp)?;
                     std::io::copy(&mut dep_src, &mut f)?;
@@ -73,7 +72,10 @@ impl ArbiterDumper {
                 warnings.push(format!("chk 编译失败：{}", checker.source.display()));
                 return Ok(None);
             }
-            return Ok(Some(Box::new(std::fs::File::open(&filter_path)?)));
+            return Ok(Some(Box::new(KeepAliveReader::new(
+                std::fs::File::open(&filter_path)?,
+                self.tmp.clone(),
+            ))));
         }
 
         // 无自定义 SPJ：编译默认比较器源码（跨平台，比预编译二进制更可维护）
@@ -97,7 +99,10 @@ impl ArbiterDumper {
                     warnings.push(format!("默认比较器编译失败：{}", src.display()));
                     return Ok(None);
                 }
-                Ok(Some(Box::new(std::fs::File::open(&filter_path)?)))
+                Ok(Some(Box::new(KeepAliveReader::new(
+                    std::fs::File::open(&filter_path)?,
+                    self.tmp.clone(),
+                ))))
             }
             None => {
                 bail!(

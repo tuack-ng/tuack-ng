@@ -22,7 +22,9 @@ use std::process::Command;
 use quick_xml::se::to_string;
 use strfmt::strfmt;
 
+use crate::keepalive::KeepAliveReader;
 use crate::prelude::*;
+use tempfile::TempDir;
 use tuack_lib::dump::{DumpProblem, Dumper, ScorePolicy};
 use tuack_lib::ren::ProblemType;
 use tuack_lib::utils::asset::AssetProvider;
@@ -336,12 +338,12 @@ fn build_ccr(order: &[String]) -> String {
 }
 
 pub struct CcrPlusDumper {
-    tmp_dir: PathBuf,
+    tmp: Arc<TempDir>,
 }
 
 impl CcrPlusDumper {
-    pub fn new(tmp_dir: PathBuf) -> Self {
-        Self { tmp_dir }
+    pub fn new(tmp: Arc<TempDir>) -> Self {
+        Self { tmp }
     }
 
     /// 编译自定义 SPJ：源码与依赖经 assets 读取写入 tmp，再 g++ 编译。
@@ -361,7 +363,7 @@ impl CcrPlusDumper {
 
         info!("尝试编译 SPJ：{}", checker.source.display());
 
-        let src_tmp = self.tmp_dir.join("ccr-chk-src.cpp");
+        let src_tmp = self.tmp.path().join("ccr-chk-src.cpp");
         let mut src = assets.load(prob.idx, &checker.source)?;
         {
             let mut f = std::fs::File::create(&src_tmp)?;
@@ -371,14 +373,14 @@ impl CcrPlusDumper {
         for dep in &checker.deps {
             let mut dep_src = assets.load(prob.idx, dep)?;
             let dep_name = dep.file_name().context("依赖路径缺少文件名")?.to_owned();
-            let dep_tmp = self.tmp_dir.join(&dep_name);
+            let dep_tmp = self.tmp.path().join(&dep_name);
             {
                 let mut f = std::fs::File::create(&dep_tmp)?;
                 std::io::copy(&mut dep_src, &mut f)?;
             }
         }
 
-        let chk_out = self.tmp_dir.join(&exe_name);
+        let chk_out = self.tmp.path().join(&exe_name);
         let status = Command::new("g++")
             .arg("-o")
             .arg(&chk_out)
@@ -429,7 +431,10 @@ impl Dumper for CcrPlusDumper {
                     .unwrap_or_else(|| "chk".to_string());
                 files.push(OutputFile::File {
                     path: PathBuf::from(format!("{}/{}", pdir, exe_name)),
-                    bytes: Box::new(std::fs::File::open(self.tmp_dir.join(&exe_name))?),
+                    bytes: Box::new(KeepAliveReader::new(
+                        std::fs::File::open(self.tmp.path().join(&exe_name))?,
+                        self.tmp.clone(),
+                    )),
                 });
                 // `.prb` 的 `@checker` 写入不带扩展名的基名：CCR-Plus 在 Windows 上
                 // 会自行补充 `.exe`（AddFileExtension），故二进制文件名与属性名需分开。
