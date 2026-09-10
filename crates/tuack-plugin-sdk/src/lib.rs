@@ -37,20 +37,22 @@ pub use tuack_lib::dump::{
 pub use tuack_lib::ren::{
     CommandResult, ProblemType, ProcessorOutput, RenderDocument, RendererOutput,
 };
-pub use tuack_lib::utils::output::OutputFile;
+pub use tuack_lib::utils::output::{OutputFile, OutputSpec};
 pub use tuack_ng_parser::ast::Document;
 
 mod dumper;
 mod host;
 mod logger;
+mod output;
 mod processor;
 mod renderer;
 
 pub use dumper::Dumper;
 pub use host::{AssetReader, command, get_path};
 pub use logger::__init_logger;
+pub use output::__to_specs;
 pub use processor::Processor;
-pub use renderer::{Renderer, __write_outputs};
+pub use renderer::Renderer;
 
 /// 将错误回传给宿主（供 [`processor`] / [`renderer`] / [`dumper`] 宏内部使用）。
 #[doc(hidden)]

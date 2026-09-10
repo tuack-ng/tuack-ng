@@ -20,8 +20,8 @@ unsafe extern "ExtismHost" {
 /// 资产流：把宿主的 `asset_open/read/close` 封装为 `Read` 对象。
 ///
 /// 注意：此流与宿主持有的流共享当前位置。若先 `read` 到中间或末尾，再把本句柄
-/// 放进 `OutputFile` 返回，落盘时 `copy_to_host` 会从当前位置继续拷贝，产物将只
-/// 含剩余部分（甚至为空）。要整份拷贝，请勿提前 `read`。
+/// 放进 `OutputFile` 返回，宿主取流落盘时会从当前位置继续拷贝，产物将只含剩余
+/// 部分（甚至为空）。要整份拷贝，请勿提前 `read`。
 pub struct AssetReader {
     id: u64,
 }
@@ -33,9 +33,17 @@ impl AssetReader {
         Ok(Self { id })
     }
 
-    /// 请求宿主把资产流从当前位置直接拷贝到目标 WASI 路径，避免跨 wasm 逐块读取。
+    /// 请求宿主把资产流从当前位置直接拷贝到目标 WASI 路径（如 `/tmp/xxx`），避免跨 wasm 逐块读取。
+    ///
+    /// 只写 WASI 文件系统，不参与产物回传；作为产物请直接把本流放进 `OutputFile`
+    /// （SDK 会转成 `OutputSpec::Asset`）。
     pub fn copy_to_host(&self, dest: &str) -> Result<(), Error> {
         unsafe { asset_copy(self.id, dest.to_string()) }
+    }
+
+    /// 消耗自身，交出资产句柄（不再于 Drop 时关闭），供回传 `OutputSpec::Asset` 使用。
+    pub(crate) fn into_id(self) -> u64 {
+        std::mem::ManuallyDrop::new(self).id
     }
 }
 

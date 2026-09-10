@@ -15,7 +15,7 @@ use std::time::Duration;
 use crate::prelude::*;
 use crate::ren::ProblemType;
 use crate::utils::asset::AssetProvider;
-use crate::utils::output::OutputFile;
+use crate::utils::output::{OutputFile, OutputSpec};
 
 /// 评分策略（渲染后端无关枚举）
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -104,10 +104,11 @@ pub struct DumpDocument {
     pub problems: Vec<DumpProblem>,
 }
 
-/// 导出器插件返回：导出过程中的面向用户警告（产物文件由 SDK 落盘）。
+/// 导出器插件返回：导出过程中的面向用户警告与产物描述列表。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DumperOutput {
     pub warnings: Vec<String>,
+    pub files: Vec<OutputSpec>,
 }
 
 /// 导出器：`DumpDocument -> (产物文件列表，导出警告)`。

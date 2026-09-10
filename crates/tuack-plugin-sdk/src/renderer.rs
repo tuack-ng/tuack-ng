@@ -1,6 +1,6 @@
 //! 渲染器插件：trait 与注册宏。
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use extism_pdk::Error;
 use tuack_lib::ren::RenderDocument;
@@ -9,7 +9,8 @@ use tuack_lib::utils::output::OutputFile;
 /// 插件渲染器：实现它即可接入 extism。
 ///
 /// `render` 接收可序列化的渲染文档，返回主产物相对路径与产物文件列表
-/// （与宿主侧 `tuack_lib::ren::Renderer` 同形）；SDK 负责把文件列表落盘到 `/out`。
+/// （与宿主侧 `tuack_lib::ren::Renderer` 同形）；SDK 把文件列表转成可回传的
+/// [`OutputSpec`](crate::OutputSpec)，由宿主落盘。
 pub trait Renderer: Send + Sync {
     fn new() -> Self
     where
@@ -43,11 +44,14 @@ macro_rules! renderer {
                     return -1;
                 }
             };
-            if let Err(e) = $crate::__write_outputs(files) {
-                $crate::__report_error(&e);
-                return -1;
-            }
-            let output = $crate::RendererOutput { main };
+            let files = match $crate::__to_specs(files) {
+                Ok(x) => x,
+                Err(e) => {
+                    $crate::__report_error(&e);
+                    return -1;
+                }
+            };
+            let output = $crate::RendererOutput { main, files };
             match $crate::extism_pdk::output($crate::Json(output)) {
                 Ok(()) => 0,
                 Err(e) => {
@@ -59,30 +63,3 @@ macro_rules! renderer {
     };
 }
 
-/// 将产物文件列表落盘到 `/out`（供 [`renderer`] 宏内部使用）。
-#[doc(hidden)]
-pub fn __write_outputs(files: Vec<OutputFile>) -> Result<(), Error> {
-    let out = Path::new("/out");
-    for file in files {
-        match file {
-            OutputFile::File { path, mut bytes } => {
-                let dest = out.join(&path);
-                // 资产流交给宿主直接拷贝，避免跨 wasm 逐块读取
-                let any: &dyn std::any::Any = &*bytes;
-                if let Some(asset) = any.downcast_ref::<crate::AssetReader>() {
-                    asset.copy_to_host(&dest.to_string_lossy())?;
-                } else {
-                    if let Some(parent) = dest.parent() {
-                        std::fs::create_dir_all(parent)?;
-                    }
-                    let mut f = std::fs::File::create(&dest)?;
-                    std::io::copy(&mut bytes, &mut f)?;
-                }
-            }
-            OutputFile::Dir(path) => {
-                std::fs::create_dir_all(out.join(&path))?;
-            }
-        }
-    }
-    Ok(())
-}

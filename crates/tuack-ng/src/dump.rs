@@ -182,10 +182,12 @@ fn dump_main(
     let (doc, assets) = build_dump_document(contest, day, daynum)?;
     let dump_dir = day.path.join("dump");
 
-    let tmp = tempfile::Builder::new()
-        .prefix("tuack-ng-dump-")
-        .tempdir()
-        .context("创建临时目录失败")?;
+    let tmp = Arc::new(
+        tempfile::Builder::new()
+            .prefix("tuack-ng-dump-")
+            .tempdir()
+            .context("创建临时目录失败")?,
+    );
 
     let dumper: Box<dyn Dumper> = match target {
         Target::Lemon => Box::new(lemon::LemonDumper::new(tmp.path().to_path_buf())),
@@ -200,8 +202,9 @@ fn dump_main(
         Ok(result) => result,
         Err(e) => {
             msg_error!("导出失败:\n{:?}", e);
-            let kept = tmp.keep();
-            msg_info!("保留临时目录以供调试：{}", kept.display());
+            msg_info!("保留临时目录以供调试：{}", tmp.path().display());
+            // 同上
+            std::mem::forget(tmp.clone());
             bail!("导出过程出错");
         }
     };
@@ -218,8 +221,9 @@ fn dump_main(
 
     if let Err(e) = crate::utils::filesystem::write_outputs(&dump_dir, files) {
         msg_error!("写入导出结果失败：{:?}", e);
-        let kept = tmp.keep();
-        msg_info!("保留临时目录以供调试：{}", kept.display());
+        msg_info!("保留临时目录以供调试：{}", tmp.path().display());
+        // 同上
+        std::mem::forget(tmp.clone());
         bail!("写入导出结果失败");
     }
     msg_info!("导出完成，输出目录：{}", out_dir.display());

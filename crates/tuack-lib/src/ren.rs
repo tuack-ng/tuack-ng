@@ -9,7 +9,7 @@
 pub mod document;
 pub mod processor;
 
-use crate::utils::output::OutputFile;
+use crate::utils::output::{OutputFile, OutputSpec};
 pub use document::{
     DateInfo, Problem, ProblemMeta, ProblemType, RenConfig, RenderDocument, SupportLanguage,
 };
@@ -37,8 +37,9 @@ pub struct CommandResult {
     pub stderr: Vec<u8>,
 }
 
-/// 渲染器插件返回：主产物相对路径（用于自动打开）。
+/// 渲染器插件返回：主产物相对路径（用于自动打开）与产物描述列表。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RendererOutput {
     pub main: PathBuf,
+    pub files: Vec<OutputSpec>,
 }

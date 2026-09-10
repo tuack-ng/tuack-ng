@@ -288,10 +288,12 @@ fn ren(
     statements_dir: &Path,
     args: &RenArgs,
 ) -> Result<()> {
-    let tmp = tempfile::Builder::new()
-        .prefix("tuack-ng-ren-")
-        .tempdir()
-        .context("创建临时目录失败")?;
+    let tmp = Arc::new(
+        tempfile::Builder::new()
+            .prefix("tuack-ng-ren-")
+            .tempdir()
+            .context("创建临时目录失败")?,
+    );
     let tmp_dir = tmp.path().to_path_buf();
     info!("创建临时目录：{}", tmp_dir.display());
 
@@ -340,7 +342,7 @@ fn ren(
         TargetType::Extism => {
             let (function, wasm) = extism_renderer
                 .context("target 为 extism 但缺少 extism_renderer 配置")?;
-            Box::new(ExtismRenderer::new(wasm.clone(), function.clone(), tmp_dir.clone())?)
+            Box::new(ExtismRenderer::new(wasm.clone(), function.clone(), tmp.clone())?)
         }
     };
 
@@ -352,16 +354,18 @@ fn ren(
         Ok(result) => result,
         Err(e) => {
             msg_error!("渲染失败:\n{:?}", e);
-            let kept = tmp.keep();
-            msg_info!("保留临时目录以供调试：{}", kept.display());
+            msg_info!("保留临时目录以供调试：{}", tmp_dir.display());
+            // Arc<TempDir> 无 keep()；泄漏一个引用阻止 drop，从而保留目录
+            std::mem::forget(tmp.clone());
             bail!("渲染过程出错");
         }
     };
 
     if let Err(e) = crate::utils::filesystem::write_outputs(statements_dir, files) {
         msg_error!("写入渲染结果失败：{:?}", e);
-        let kept = tmp.keep();
-        msg_info!("保留临时目录以供调试：{}", kept.display());
+        msg_info!("保留临时目录以供调试：{}", tmp_dir.display());
+        // 同上
+        std::mem::forget(tmp.clone());
         bail!("写入渲染结果失败");
     }
     msg_info!("结果已保存到：{}", statements_dir.display());
@@ -371,8 +375,9 @@ fn ren(
     }
 
     if args.keep_tmp {
-        let kept = tmp.keep();
-        msg_info!("保留临时目录：{}", kept.display());
+        msg_info!("保留临时目录：{}", tmp_dir.display());
+        // 同上
+        std::mem::forget(tmp.clone());
     } else {
         info!("清理临时目录");
     }

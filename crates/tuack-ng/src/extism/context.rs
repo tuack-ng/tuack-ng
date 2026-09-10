@@ -2,8 +2,8 @@
 
 use std::collections::HashMap;
 use std::io::Read;
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 
 use extism::convert::Json;
 use extism::{CurrentPlugin, UserData, Val};
@@ -12,23 +12,30 @@ use path_clean::PathClean;
 use tuack_lib::data::Reader;
 use tuack_lib::ren::CommandResult;
 use tuack_lib::utils::asset::AssetProvider;
-use tuack_lib::utils::output::OutputFile;
+use tuack_lib::utils::output::{OutputFile, OutputSpec};
 
 use crate::prelude::*;
+
+/// 资产流句柄表：宿主与插件上下文共享，call 结束后宿主仍可取回未消费的流。
+pub(crate) type AssetStreams = Arc<Mutex<HashMap<u64, Box<dyn Reader>>>>;
 
 /// 插件调用期间的主机上下文（经 `call_with_host_context` 注入，供 host 函数访问）。
 pub(crate) struct PluginContext {
     assets: Box<dyn AssetProvider>,
-    streams: Mutex<HashMap<u64, Box<dyn Reader>>>,
+    streams: AssetStreams,
     next_id: AtomicU64,
     tmp_dir: PathBuf,
 }
 
 impl PluginContext {
-    pub(crate) fn new(assets: Box<dyn AssetProvider>, tmp_dir: PathBuf) -> Self {
+    pub(crate) fn new(
+        assets: Box<dyn AssetProvider>,
+        tmp_dir: PathBuf,
+        streams: AssetStreams,
+    ) -> Self {
         Self {
             assets,
-            streams: Mutex::new(HashMap::new()),
+            streams,
             next_id: AtomicU64::new(0),
             tmp_dir,
         }
@@ -62,7 +69,7 @@ impl PluginContext {
         self.streams.lock().unwrap().remove(&asset_id);
     }
 
-    /// 把资产流从当前位置直接拷贝到宿主目标文件（`dest` 为 WASI 路径，如 `/out/xxx`）。
+    /// 把资产流从当前位置直接拷贝到 `dest` 对应的 WASI 文件（不参与产物回传）。
     fn copy_asset(&self, asset_id: u64, dest: &str) -> Result<()> {
         let rel = dest.strip_prefix('/').unwrap_or(dest);
         let host_dest = self.tmp_dir.join(rel).clean();
@@ -238,28 +245,72 @@ pub(crate) fn common_imports() -> Vec<extism::Function> {
     ]
 }
 
-/// 递归扫描产物目录，转成 `OutputFile` 文件树（文件 + 空目录）。
-pub(crate) fn collect_outputs(base: &Path) -> Result<Vec<OutputFile>> {
-    fn walk(dir: &Path, rel: &Path, out: &mut Vec<OutputFile>) -> Result<()> {
-        for entry in fs::read_dir(dir)? {
-            let entry = entry?;
-            let path = entry.path();
-            let rel_path = rel.join(entry.file_name());
-            if path.is_dir() {
-                walk(&path, &rel_path, out)?;
-                out.push(OutputFile::Dir(rel_path));
-            } else {
-                let file = fs::File::open(&path)?;
-                out.push(OutputFile::File {
-                    path: rel_path,
-                    bytes: Box::new(file),
+/// 校验产物相对路径，拒绝绝对路径与目录穿越。
+fn check_output_path(path: &Path) -> Result<()> {
+    if path.is_absolute()
+        || path.components().any(|c| {
+            matches!(
+                c,
+                std::path::Component::ParentDir
+                    | std::path::Component::RootDir
+                    | std::path::Component::Prefix(_)
+            )
+        })
+    {
+        bail!("非法产物路径：{}", path.display());
+    }
+    Ok(())
+}
+
+/// 包装 `File` 并持有临时目录，保证文件流在目录回收前仍可用。
+struct KeepAliveReader {
+    inner: std::fs::File,
+    _keepalive: Arc<tempfile::TempDir>,
+}
+
+impl Read for KeepAliveReader {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        self.inner.read(buf)
+    }
+}
+
+/// 把回传的 `OutputSpec` 转成宿主 `OutputFile`：资产流从共享句柄表取出（host-to-host），
+/// 文件从插件 WASI 工作区 `/out` 打开；`keepalive` 保证临时目录存活到流被消费。
+pub(crate) fn specs_to_outputs(
+    specs: Vec<OutputSpec>,
+    streams: &AssetStreams,
+    out_dir: &Path,
+    keepalive: Arc<tempfile::TempDir>,
+) -> Result<Vec<OutputFile>> {
+    let mut guard = streams.lock().unwrap();
+    let mut files = Vec::new();
+    for spec in specs {
+        match spec {
+            OutputSpec::Asset { path, asset_id } => {
+                check_output_path(&path)?;
+                let stream = guard
+                    .remove(&asset_id)
+                    .ok_or_else(|| anyhow!("无效的资产句柄：{}", asset_id))?;
+                files.push(OutputFile::File { path, bytes: stream });
+            }
+            OutputSpec::File { path } => {
+                check_output_path(&path)?;
+                let dest = out_dir.join(&path);
+                let file = std::fs::File::open(&dest)
+                    .with_context(|| format!("打开产物文件失败：{}", dest.display()))?;
+                files.push(OutputFile::File {
+                    path,
+                    bytes: Box::new(KeepAliveReader {
+                        inner: file,
+                        _keepalive: keepalive.clone(),
+                    }),
                 });
             }
+            OutputSpec::Dir(path) => {
+                check_output_path(&path)?;
+                files.push(OutputFile::Dir(path));
+            }
         }
-        Ok(())
     }
-
-    let mut out = Vec::new();
-    walk(base, Path::new(""), &mut out)?;
-    Ok(out)
+    Ok(files)
 }

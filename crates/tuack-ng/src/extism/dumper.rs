@@ -1,9 +1,11 @@
 //! extism 导出器插件：宿主侧封装。
 
-use std::sync::Mutex;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 use extism::convert::Json;
 use extism::{Manifest, Wasm, WasmInput};
+use tempfile::TempDir;
 
 use tuack_lib::dump::{DumpDocument, Dumper, DumperOutput};
 use tuack_lib::utils::asset::AssetProvider;
@@ -11,27 +13,25 @@ use tuack_lib::utils::output::OutputFile;
 
 use crate::prelude::*;
 
-use super::context::{PluginContext, collect_outputs, common_imports};
+use super::context::{AssetStreams, PluginContext, common_imports, specs_to_outputs};
 
 /// 一个基于 extism 的导出器插件。
 ///
-/// 插件开启 WASI，宿主把临时目录映射为插件内的 `/`（工作与产物）；
-/// 插件写文件到 `/out`，宿主扫描后转成产物文件列表，警告随返回值返回。
-#[allow(dead_code)] // 预留：Dump 的 extism 目标尚未接入 CLI，待插件包模式引入后启用
+/// 插件开启 WASI，宿主把临时目录映射为插件内的 `/`（`/out` 为产物工作区）；
+/// 插件返回产物描述列表与警告，资产流由宿主直接取用（host-to-host）。
+#[allow(dead_code)] // 预留：Dump 的 extism 目标待插件包模式接入
 pub struct ExtismDumper {
     plugin: Mutex<extism::Plugin>,
     function: String,
-    out_dir: PathBuf,
-    tmp_dir: PathBuf,
+    tmp: Arc<TempDir>,
 }
 
-#[allow(dead_code)] // 预留：Dump 的 extism 目标尚未接入 CLI，待插件包模式引入后启用
+#[allow(dead_code)] // 预留：Dump 的 extism 目标待插件包模式接入
 impl ExtismDumper {
-    pub fn new(wasm: Vec<u8>, function: String, tmp_dir: PathBuf) -> Result<Self> {
-        let plug_out_dir = tmp_dir.join("out");
-        fs::create_dir_all(&plug_out_dir)?;
-        let plug_tmp_dir = tmp_dir.join("tmp");
-        fs::create_dir_all(&plug_tmp_dir)?;
+    pub fn new(wasm: Vec<u8>, function: String, tmp: Arc<TempDir>) -> Result<Self> {
+        let tmp_dir = tmp.path();
+        fs::create_dir_all(tmp_dir.join("tmp"))?;
+        fs::create_dir_all(tmp_dir.join("out"))?;
 
         let manifest = Manifest::new([Wasm::data(wasm)])
             .with_allowed_path(tmp_dir.to_string_lossy().to_string(), "/");
@@ -46,8 +46,7 @@ impl ExtismDumper {
         Ok(Self {
             plugin: Mutex::new(plugin),
             function,
-            out_dir: plug_out_dir,
-            tmp_dir,
+            tmp,
         })
     }
 }
@@ -58,12 +57,10 @@ impl Dumper for ExtismDumper {
         doc: &DumpDocument,
         assets: Box<dyn AssetProvider>,
     ) -> Result<(Vec<OutputFile>, Vec<String>)> {
-        if self.out_dir.exists() {
-            fs::remove_dir_all(&self.out_dir)?;
-        }
-        fs::create_dir_all(&self.out_dir)?;
+        let out_dir = self.tmp.path().join("out");
 
-        let ctx = PluginContext::new(assets, self.tmp_dir.clone());
+        let streams: AssetStreams = Arc::new(Mutex::new(HashMap::new()));
+        let ctx = PluginContext::new(assets, self.tmp.path().to_path_buf(), streams.clone());
 
         let mut plugin = self
             .plugin
@@ -73,7 +70,7 @@ impl Dumper for ExtismDumper {
             .call_with_host_context(&self.function, Json(doc), ctx)
             .map_err(|e| anyhow!(e).context("调用 extism 导出器失败"))?;
 
-        let files = collect_outputs(&self.out_dir)?;
+        let files = specs_to_outputs(output.0.files, &streams, &out_dir, self.tmp.clone())?;
 
         Ok((files, output.0.warnings))
     }
