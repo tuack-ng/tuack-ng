@@ -13,7 +13,8 @@ use tuack_lib::data::Reader;
 use tuack_lib::ren::CommandResult;
 use tuack_lib::utils::asset::AssetProvider;
 use tuack_lib::utils::output::{OutputFile, OutputSpec};
-use tuack_utils::keepalive::KeepAliveReader;
+
+use crate::keepalive::KeepAliveReader;
 
 use crate::prelude::*;
 
@@ -26,6 +27,8 @@ pub(crate) struct PluginContext {
     streams: AssetStreams,
     next_id: AtomicU64,
     tmp_dir: PathBuf,
+    /// 允许执行的宿主可执行文件白名单
+    command: Vec<String>,
 }
 
 impl PluginContext {
@@ -33,12 +36,14 @@ impl PluginContext {
         assets: Box<dyn AssetProvider>,
         tmp_dir: PathBuf,
         streams: AssetStreams,
+        command: Vec<String>,
     ) -> Self {
         Self {
             assets,
             streams,
             next_id: AtomicU64::new(0),
             tmp_dir,
+            command,
         }
     }
 
@@ -83,6 +88,41 @@ impl PluginContext {
         let mut f = std::fs::File::create(&host_dest)?;
         std::io::copy(stream, &mut f)?;
         Ok(())
+    }
+
+    /// 执行宿主命令（受白名单约束）。
+    fn run_command(&self, args: &[String], cwd: &str) -> Result<CommandResult> {
+        if args.is_empty() {
+            bail!("命令参数不能为空");
+        }
+        let program = &args[0];
+        if !self.command.iter().any(|c| c == "*" || c == program) {
+            bail!("插件无权执行命令：{}", program);
+        }
+        let mut cmd = std::process::Command::new(program);
+        cmd.args(&args[1..]);
+        cmd.current_dir(self.resolve_cwd(cwd)?);
+        let output = cmd
+            .output()
+            .map_err(|e| anyhow!(e).context("执行命令失败"))?;
+        Ok(CommandResult {
+            exit_code: output.status.code().unwrap_or(-1),
+            stdout: output.stdout,
+            stderr: output.stderr,
+        })
+    }
+
+    /// 把插件传入的 `cwd` 限定在工作区内：空串为工作区根；`get_path` 返回的宿主路径直接用；
+    /// 其余按 WASI 路径解析。越界报错。
+    fn resolve_cwd(&self, cwd: &str) -> Result<PathBuf> {
+        if cwd.is_empty() {
+            return Ok(self.tmp_dir.clone());
+        }
+        let path = Path::new(cwd);
+        if path.is_absolute() && path.clean().starts_with(&self.tmp_dir) {
+            return Ok(path.clean());
+        }
+        resolve_within(&self.tmp_dir, cwd)
     }
 }
 
@@ -147,26 +187,18 @@ fn asset_copy(
     Ok(())
 }
 
-extism::host_fn!(run_command(args: Json<Vec<String>>, cwd: Json<String>) {
-    let args = args.0;
-    let cwd = cwd.0;
-    if args.is_empty() {
-        bail!("命令参数不能为空");
-    }
-    let mut cmd = std::process::Command::new(&args[0]);
-    cmd.args(&args[1..]);
-    if !cwd.is_empty() {
-        cmd.current_dir(&cwd);
-    }
-    let output = cmd
-        .output()
-        .map_err(|e| anyhow!(e).context("执行命令失败"))?;
-    Ok(Json(CommandResult {
-        exit_code: output.status.code().unwrap_or(-1),
-        stdout: output.stdout,
-        stderr: output.stderr,
-    }))
-});
+fn run_command(
+    plugin: &mut CurrentPlugin,
+    inputs: &[Val],
+    outputs: &mut [Val],
+    _user_data: UserData<()>,
+) -> Result<(), extism::Error> {
+    let args: Json<Vec<String>> = plugin.memory_get_val(&inputs[0])?;
+    let cwd: Json<String> = plugin.memory_get_val(&inputs[1])?;
+    let result = with_context(plugin, |ctx| ctx.run_command(&args.0, &cwd.0))?;
+    plugin.memory_set_val(&mut outputs[0], Json(result))?;
+    Ok(())
+}
 
 fn get_path(
     plugin: &mut CurrentPlugin,
@@ -183,7 +215,7 @@ fn get_path(
 /// 所有插件共用的 host 函数（日志 + 资产 + 命令 + 路径）。
 pub(crate) fn common_imports() -> Vec<extism::Function> {
     vec![
-        crate::extism::log_import(),
+        super::log_import(),
         extism::Function::new(
             "asset_open",
             [extism::PTR, extism::PTR],
@@ -274,7 +306,10 @@ pub(crate) fn specs_to_outputs(
                 let stream = guard
                     .remove(&asset_id)
                     .ok_or_else(|| anyhow!("无效的资产句柄：{}", asset_id))?;
-                files.push(OutputFile::File { path, bytes: stream });
+                files.push(OutputFile::File {
+                    path,
+                    bytes: stream,
+                });
             }
             OutputSpec::File { path } => {
                 let rel = normalize_product_path(out_dir, &path)?;

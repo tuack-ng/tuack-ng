@@ -1,7 +1,5 @@
 use crate::keepalive::KeepAliveReader;
 use crate::prelude::*;
-use crate::ren::manifest::TemplateManifest;
-use crate::ren::renderers::unwrap_template;
 use std::collections::HashSet;
 use tempfile::TempDir;
 use tuack_lib::ren::{ProblemType, RenderDocument, Renderer};
@@ -15,18 +13,16 @@ use datajson::{DataJson, DateInfo, Problem, SupportLanguage};
 /// Typst 渲染器
 pub struct TypstRenderer {
     tmp: Arc<TempDir>,
+    /// 模板/工作目录（WASI 工作区 `/tmp`），由外部预先落好模板文件
+    work_dir: PathBuf,
 }
 
 impl TypstRenderer {
-    /// 解压模板到 `tmp` 并校验编译环境
-    pub fn new(
-        tmp: Arc<TempDir>,
-        manifest: &TemplateManifest,
-        assets_dirs: &[PathBuf],
-    ) -> Result<Self> {
-        unwrap_template(manifest, tmp.path(), assets_dirs)?;
-        Self::check_typst_env(tmp.path())?;
-        Ok(Self { tmp })
+    /// 校验编译环境；模板文件须已落到 `tmp/tmp`。
+    pub fn new(tmp: Arc<TempDir>) -> Result<Self> {
+        let work_dir = tmp.path().join("tmp");
+        Self::check_typst_env(&work_dir)?;
+        Ok(Self { tmp, work_dir })
     }
 
     /// 校验 typst 命令可用且模板文件齐全
@@ -118,7 +114,7 @@ impl TypstRenderer {
         assets: &dyn AssetProvider,
         images: &[(u64, PathBuf, PathBuf)],
     ) -> Result<()> {
-        let img_dir = self.tmp.path().join("img");
+        let img_dir = self.work_dir.join("img");
         let mut seen = HashSet::new();
         for (idx, url, target) in images {
             if !seen.insert(target.clone()) {
@@ -151,8 +147,7 @@ impl Renderer for TypstRenderer {
         for problem in &doc.problems {
             let typst_output = format!("#import \"utils.typ\": *\n{}", render_typst(&problem.ast));
             fs::write(
-                self.tmp.path()
-                    .join(format!("problem-{}.typ", problem.idx)),
+                self.work_dir.join(format!("problem-{}.typ", problem.idx)),
                 typst_output,
             )?;
 
@@ -163,16 +158,16 @@ impl Renderer for TypstRenderer {
 
         if let Some(precaution) = &doc.precaution {
             let typst_output = format!("#import \"utils.typ\": *\n{}", render_typst(precaution));
-            fs::write(self.tmp.path().join("precaution.typ"), typst_output)?;
+            fs::write(self.work_dir.join("precaution.typ"), typst_output)?;
         }
 
         let data_json = self.generate_conf(doc);
         let data_json_str = serde_json::to_string_pretty(&data_json)?;
-        fs::write(self.tmp.path().join("data.json"), data_json_str)?;
+        fs::write(self.work_dir.join("data.json"), data_json_str)?;
 
         self.write_images(&*assets, &images)?;
 
-        fs::create_dir(self.tmp.path().join("output"))?;
+        fs::create_dir(self.work_dir.join("output"))?;
 
         let output_filename = format!("output/{}.pdf", day_key);
         let typst_output = std::process::Command::new("typst")
@@ -180,7 +175,7 @@ impl Renderer for TypstRenderer {
             .arg("--font-path=fonts")
             .arg("main.typ")
             .arg(&output_filename)
-            .current_dir(&self.tmp.path())
+            .current_dir(&self.work_dir)
             .output()
             .context("typst 命令执行失败")?;
 
@@ -189,7 +184,7 @@ impl Renderer for TypstRenderer {
             bail!(anyhow!(stderr).context("Typst 编译失败"));
         }
 
-        let pdf_path = self.tmp.path().join(output_filename);
+        let pdf_path = self.work_dir.join(output_filename);
         let bytes = KeepAliveReader::new(std::fs::File::open(&pdf_path)?, self.tmp.clone());
         Ok((
             PathBuf::from(format!("{}.pdf", day_key)),

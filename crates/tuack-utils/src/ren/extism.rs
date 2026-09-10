@@ -13,7 +13,9 @@ use tuack_lib::utils::output::OutputFile;
 
 use crate::prelude::*;
 
-use super::context::{AssetStreams, PluginContext, common_imports, specs_to_outputs};
+use crate::plugin::extism::context::{
+    AssetStreams, PluginContext, common_imports, specs_to_outputs,
+};
 
 /// 一个基于 extism 的渲染器插件。
 ///
@@ -23,16 +25,29 @@ pub struct ExtismRenderer {
     plugin: Mutex<extism::Plugin>,
     function: String,
     tmp: Arc<TempDir>,
+    command: Vec<String>,
 }
 
 impl ExtismRenderer {
-    pub fn new(wasm: Vec<u8>, function: String, tmp: Arc<TempDir>) -> Result<Self> {
+    /// `asset_dir` 为插件随包资源目录，映射到只读 WASI 路径 `/assets`；
+    /// `command` 为允许执行的宿主命令白名单。
+    pub fn new(
+        wasm: Vec<u8>,
+        function: String,
+        tmp: Arc<TempDir>,
+        asset_dir: Option<PathBuf>,
+        command: Vec<String>,
+    ) -> Result<Self> {
         let tmp_dir = tmp.path();
         fs::create_dir_all(tmp_dir.join("tmp"))?;
         fs::create_dir_all(tmp_dir.join("out"))?;
 
-        let manifest = Manifest::new([Wasm::data(wasm)])
+        let mut manifest = Manifest::new([Wasm::data(wasm)])
             .with_allowed_path(tmp_dir.to_string_lossy().to_string(), "/");
+        if let Some(asset_dir) = &asset_dir {
+            manifest = manifest
+                .with_allowed_path(format!("ro:{}", asset_dir.to_string_lossy()), "/assets");
+        }
 
         let plugin = extism::Plugin::new(WasmInput::Manifest(manifest), common_imports(), true)
             .map_err(|e| anyhow!(e).context("加载 extism 渲染器失败"))?;
@@ -45,6 +60,7 @@ impl ExtismRenderer {
             plugin: Mutex::new(plugin),
             function,
             tmp,
+            command,
         })
     }
 }
@@ -58,7 +74,12 @@ impl Renderer for ExtismRenderer {
         let out_dir = self.tmp.path().join("out");
 
         let streams: AssetStreams = Arc::new(Mutex::new(HashMap::new()));
-        let ctx = PluginContext::new(assets, self.tmp.path().to_path_buf(), streams.clone());
+        let ctx = PluginContext::new(
+            assets,
+            self.tmp.path().to_path_buf(),
+            streams.clone(),
+            self.command.clone(),
+        );
 
         let mut plugin = self
             .plugin

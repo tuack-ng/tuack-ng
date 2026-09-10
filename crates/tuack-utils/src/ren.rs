@@ -1,3 +1,4 @@
+pub mod extism;
 pub mod lua;
 pub mod manifest;
 pub mod markdown;

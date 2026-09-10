@@ -3,6 +3,7 @@ use crate::dmk::DmkArgs;
 use crate::doc::DocArgs;
 use crate::dump::DumpArgs;
 use crate::generate::GenArgs;
+use crate::plugin::PluginArgs;
 use crate::prelude::*;
 use crate::ren::RenArgs;
 use crate::test::TestArgs;
@@ -16,9 +17,9 @@ mod develop;
 mod dmk;
 mod doc;
 mod dump;
-mod extism;
 mod generate;
 mod init;
+mod plugin;
 mod prelude;
 mod ren;
 mod test;
@@ -60,6 +61,8 @@ enum Commands {
     Doc(DocArgs),
     /// 开发工具
     Develop(develop::DevelopArgs),
+    /// 插件管理
+    Plugin(PluginArgs),
 }
 
 fn tuack_ng(cli: Cli) -> Result<()> {
@@ -88,6 +91,7 @@ fn tuack_ng(cli: Cli) -> Result<()> {
         Commands::Dump(args) => dump::main(args),
         Commands::Doc(args) => doc::main(args),
         Commands::Develop(args) => develop::main(args),
+        Commands::Plugin(args) => plugin::main(args),
     }
 }
 

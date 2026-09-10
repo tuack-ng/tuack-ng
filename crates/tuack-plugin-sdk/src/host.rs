@@ -69,6 +69,9 @@ impl Drop for AssetReader {
 }
 
 /// 执行外部命令（宿主侧执行，插件拿回退出码与输出）。
+///
+/// `cwd` 为工作目录，必须位于插件工作区内：留空表示工作区根，或传 [`get_path`]
+/// 返回的宿主路径；越界会被宿主拒绝。
 pub fn command(args: &[&str], cwd: &str) -> Result<CommandResult, Error> {
     let args = Json(args.iter().map(|s| s.to_string()).collect::<Vec<String>>());
     let cwd = Json(cwd.to_string());
@@ -76,7 +79,10 @@ pub fn command(args: &[&str], cwd: &str) -> Result<CommandResult, Error> {
     Ok(result.0)
 }
 
-/// 获取 WASI 路径对应的宿主真实文件系统路径（如 `/out` -> 宿主产物目录）。
+/// 获取 WASI 工作区路径对应的宿主真实文件系统路径（如 `/out` -> 宿主产物目录）。
+///
+/// 仅覆盖可写工作区（`/` / `/tmp` / `/out`）；只读资源目录 `/assets` 只能在插件内
+/// 用 WASI 文件 API 直接读取，不经此函数。
 pub fn get_path(path: &str) -> Result<String, Error> {
     let resolved = unsafe { host_get_path(path.to_string()) }?;
     Ok(resolved)

@@ -103,7 +103,12 @@ fn init_log(verbose: &bool) -> Result<MultiProgress> {
     Ok(multi)
 }
 
-fn init_context(multi: MultiProgress, migrating: bool, validating: bool) -> Result<()> {
+fn init_context(
+    multi: MultiProgress,
+    migrating: bool,
+    validating: bool,
+    quiet_plugins: bool,
+) -> Result<()> {
     let home_dir = dirs::home_dir().context("无法获取 HOME 环境变量")?;
 
     debug!(
@@ -112,6 +117,10 @@ fn init_context(multi: MultiProgress, migrating: bool, validating: bool) -> Resu
             .unwrap_or_else(|| home_dir.join(".local/share"))
             .join("tuack-ng")
     );
+
+    let user_dir = dirs::data_local_dir()
+        .unwrap_or_else(|| home_dir.join(".local/share"))
+        .join("tuack-ng");
 
     let assets_dirs = vec![
         // 开发资源目录（workspace 根的 assets/）
@@ -123,9 +132,7 @@ fn init_context(multi: MultiProgress, migrating: bool, validating: bool) -> Resu
             .unwrap()
             .join("assets"),
         // 用户目录
-        dirs::data_local_dir()
-            .unwrap_or_else(|| home_dir.join(".local/share"))
-            .join("tuack-ng"),
+        user_dir.clone(),
         // 系统目录
         #[cfg(not(windows))]
         {
@@ -203,12 +210,34 @@ fn init_context(multi: MultiProgress, migrating: bool, validating: bool) -> Resu
 
     let languages = serde_json::from_str(&langs_content)?;
 
+    let plugins = tuack_utils::plugin::manager::PluginManager::discover(
+        &assets_dirs,
+        &user_dir.join("plugins"),
+        env!("CARGO_PKG_VERSION"),
+    );
+    for status in plugins.failed_plugins() {
+        debug!(
+            "插件 {} 加载失败（{}）：{}",
+            status.name,
+            status.dir.display(),
+            status.reason().unwrap_or("")
+        );
+    }
+    let failed_plugins = plugins.failed_plugins().count();
+    if failed_plugins > 0 && !quiet_plugins {
+        msg_warn!(
+            "有 {} 个插件加载失败，运行 `tuack-ng plugin status` 以获取更多信息",
+            failed_plugins
+        );
+    }
+
     context::setup_context(context::Context {
         assets_dirs,
         multiprogress: multi,
         config,
         loadctx: ctx,
         languages,
+        plugins,
     })?;
     Ok(())
 }
@@ -230,8 +259,9 @@ pub fn init(verbose: &bool, cli: &crate::Cli) -> Result<()> {
        if matches!(args.target, crate::conf::Targets::Migrate));
         let validating = matches!(cli.command, crate::Commands::Doc(ref args)
        if matches!(args.target, crate::doc::Targets::Validate));
+        let quiet_plugins = matches!(cli.command, crate::Commands::Plugin(_));
 
-        init_context(multi, migrating, validating)?;
+        init_context(multi, migrating, validating, quiet_plugins)?;
     }
     Ok(())
 }

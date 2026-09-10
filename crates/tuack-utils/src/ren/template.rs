@@ -1,5 +1,4 @@
 use crate::prelude::*;
-use crate::ren::manifest::TemplateManifest;
 use crate::ren::tools;
 use anyhow::Result;
 use minijinja::{Environment, Value, context};
@@ -170,7 +169,7 @@ pub fn render_template(
     day: &ContestDayConfig,
     contest: &ContestConfig,
     base_path: PathBuf,
-    manifest: TemplateManifest,
+    file_io: bool,
 ) -> Result<(String, Vec<String>)> {
     let warnings: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
 
@@ -255,7 +254,7 @@ pub fn render_template(
             Value::from_function({
                 let problem = problem.clone();
                 move || -> Result<String, minijinja::Error> {
-                    input_file(&problem, problem.file_io.unwrap_or(manifest.file_io))
+                    input_file(&problem, problem.file_io.unwrap_or(file_io))
                 }
             }),
         ),
@@ -264,7 +263,7 @@ pub fn render_template(
             Value::from_function({
                 let problem = problem.clone();
                 move || -> Result<String, minijinja::Error> {
-                    output_file(&problem, problem.file_io.unwrap_or(manifest.file_io))
+                    output_file(&problem, problem.file_io.unwrap_or(file_io))
                 }
             }),
         ),

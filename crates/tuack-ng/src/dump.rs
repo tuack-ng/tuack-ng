@@ -1,40 +1,20 @@
 use crate::prelude::*;
 use clap::Args;
-use clap::ValueEnum;
 use std::collections::HashSet;
 use std::time::Duration;
 use tuack_lib::dump::{
     DumpCase, DumpChecker, DumpConfig, DumpDocument, DumpFile, DumpProblem, DumpSample,
-    DumpSubtask, Dumper, ScorePolicy,
+    DumpSubtask, ScorePolicy,
 };
 use tuack_lib::ren::ProblemType;
 use tuack_utils::assets::FsAssetProvider;
-use tuack_utils::dump::{arbiter, ccr_plus, lemon};
-
-#[derive(Debug, Clone, Copy, ValueEnum)]
-pub enum Target {
-    Lemon,
-    Arbiter,
-    CcrPlus,
-}
-
-impl Target {
-    /// 输出子目录名
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Target::Lemon => "lemon",
-            Target::Arbiter => "arbiter",
-            Target::CcrPlus => "ccr-plus",
-        }
-    }
-}
 
 #[derive(Args, Debug)]
 #[command(version)]
 pub struct DumpArgs {
-    /// 导出目标
+    /// 导出目标（内置裸名，或插件组件名）
     #[arg(required = true)]
-    pub target: Target,
+    pub target: String,
 }
 
 /// 递归枚举 down/ 目录的非样例附加文件
@@ -177,7 +157,7 @@ fn dump_main(
     contest: &ContestConfig,
     day: &ContestDayConfig,
     daynum: usize,
-    target: Target,
+    target: &str,
 ) -> Result<()> {
     let (doc, assets) = build_dump_document(contest, day, daynum)?;
     let dump_dir = day.path.join("dump");
@@ -189,14 +169,7 @@ fn dump_main(
             .context("创建临时目录失败")?,
     );
 
-    let dumper: Box<dyn Dumper> = match target {
-        Target::Lemon => Box::new(lemon::LemonDumper::new(tmp.clone())),
-        Target::Arbiter => Box::new(arbiter::ArbiterDumper::new(
-            tmp.clone(),
-            gctx().assets_dirs.clone(),
-        )),
-        Target::CcrPlus => Box::new(ccr_plus::CcrPlusDumper::new(tmp.clone())),
-    };
+    let (dumper, dir_name) = gctx().plugins.dumper(target, tmp.clone())?;
 
     let (files, warnings) = match dumper.dump(&doc, Box::new(assets)) {
         Ok(result) => result,
@@ -213,8 +186,7 @@ fn dump_main(
         msg_warn!("{}", warning);
     }
 
-    let dir_name = target.as_str();
-    let out_dir = dump_dir.join(dir_name);
+    let out_dir = dump_dir.join(&dir_name);
     if out_dir.exists() {
         fs::remove_dir_all(&out_dir)?;
     }
@@ -244,12 +216,12 @@ pub fn main(args: DumpArgs) -> Result<()> {
                 &config.config,
                 config.config.subconfig.get(&day).unwrap(),
                 1,
-                args.target,
+                &args.target,
             )?;
         }
         CurrentLocation::Root => {
             for (idx, (_, day_config)) in config.config.subconfig.iter().enumerate() {
-                dump_main(&config.config, day_config, idx + 1, args.target)?;
+                dump_main(&config.config, day_config, idx + 1, &args.target)?;
             }
         }
     }

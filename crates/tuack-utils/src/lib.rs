@@ -6,6 +6,7 @@ pub mod data;
 pub mod doc;
 pub mod dump;
 pub mod keepalive;
+pub mod plugin;
 pub mod prelude;
 pub mod process;
 pub mod ren;

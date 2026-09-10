@@ -2,8 +2,9 @@
 
 use std::sync::Mutex;
 
-use extism::convert::Json;
 use extism::WasmInput;
+use extism::convert::Json;
+use extism::{Manifest, Wasm};
 use tuack_lib::ren::{ProcessorOutput, RenProcessor};
 use tuack_ng_parser::ast::Document;
 
@@ -16,11 +17,21 @@ pub struct ExtismProcessor {
 }
 
 impl ExtismProcessor {
-    /// 从 WASM 字节构造处理器，并校验导出函数存在。
-    pub fn new(wasm: Vec<u8>, function: String, with_wasi: bool) -> Result<Self> {
+    /// `asset_dir` 为插件随包资源目录，映射到只读 WASI 路径 `/assets`。
+    pub fn new(
+        wasm: Vec<u8>,
+        function: String,
+        with_wasi: bool,
+        asset_dir: Option<PathBuf>,
+    ) -> Result<Self> {
+        let mut manifest = Manifest::new([Wasm::data(wasm)]);
+        if let Some(asset_dir) = &asset_dir {
+            manifest = manifest
+                .with_allowed_path(format!("ro:{}", asset_dir.to_string_lossy()), "/assets");
+        }
         let plugin = extism::Plugin::new(
-            WasmInput::Data(wasm.into()),
-            vec![crate::extism::log_import()],
+            WasmInput::Manifest(manifest),
+            vec![crate::plugin::extism::log_import()],
             with_wasi,
         )
         .map_err(|e| anyhow!(e).context("加载 extism 插件失败"))?;
@@ -36,7 +47,10 @@ impl ExtismProcessor {
 
 impl RenProcessor for ExtismProcessor {
     fn process(&self, doc: &Document) -> Result<ProcessorOutput> {
-        let mut plugin = self.plugin.lock().map_err(|e| anyhow!("插件锁中毒：{}", e))?;
+        let mut plugin = self
+            .plugin
+            .lock()
+            .map_err(|e| anyhow!("插件锁中毒：{}", e))?;
         let output: Json<ProcessorOutput> = plugin
             .call(&self.function, Json(doc))
             .map_err(|e| anyhow!(e).context("调用 extism 插件失败"))?;

@@ -348,11 +348,7 @@ impl CcrPlusDumper {
 
     /// 编译自定义 SPJ：源码与依赖经 assets 读取写入 tmp，再 g++ 编译。
     /// 返回可执行文件名（含平台后缀）。
-    fn compile_checker(
-        &self,
-        assets: &dyn AssetProvider,
-        prob: &DumpProblem,
-    ) -> Result<String> {
+    fn compile_checker(&self, assets: &dyn AssetProvider, prob: &DumpProblem) -> Result<String> {
         let checker = prob.checker.as_ref().context("无校验器配置")?;
         let stem = checker
             .source
