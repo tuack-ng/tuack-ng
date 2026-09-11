@@ -356,6 +356,32 @@ impl PluginManager {
                 .contains_key(&(ComponentKind::RenTemplate, name.to_string()))
     }
 
+    /// 可用模板名（自带模板 + 插件 `ren_template` 组件），已排序去重。
+    pub fn template_names(&self) -> Vec<String> {
+        let mut names: Vec<String> = self.templates.keys().cloned().collect();
+        names.extend(self.component_names(ComponentKind::RenTemplate));
+        names.sort();
+        names.dedup();
+        names
+    }
+
+    /// 可用导出器名（内置 + 插件 `dumper` 组件），已排序去重。
+    pub fn dumper_names(&self) -> Vec<String> {
+        let mut names: Vec<String> = BUILTIN_DUMPERS.iter().map(|s| s.to_string()).collect();
+        names.extend(self.component_names(ComponentKind::Dumper));
+        names.sort();
+        names.dedup();
+        names
+    }
+
+    /// 某域下所有已加载插件组件的名字。
+    fn component_names(&self, kind: ComponentKind) -> impl Iterator<Item = String> + '_ {
+        self.component_owner
+            .keys()
+            .filter(move |(k, _)| *k == kind)
+            .map(|(_, name)| name.clone())
+    }
+
     pub(crate) fn package(&self, name: &str) -> Option<&PluginPackage> {
         self.packages.get(name)
     }
@@ -591,7 +617,7 @@ fn component_io_error(manifest: &PluginManifest, pkg_dir: &Path) -> Option<Strin
 
 /// 校验受信任插件的清单并收集组件，产出可入库的包。
 ///
-/// 失败返回 `(状态名, 原因)`，由调用方登记为 `Error` 状态。
+/// 失败返回 `(状态名，原因)`，由调用方登记为 `Error` 状态。
 fn load_package(
     pkg_dir: &Path,
     dir_name: &str,

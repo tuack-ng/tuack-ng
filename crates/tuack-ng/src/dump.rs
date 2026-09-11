@@ -12,9 +12,13 @@ use tuack_utils::assets::FsAssetProvider;
 #[derive(Args, Debug)]
 #[command(version)]
 pub struct DumpArgs {
+    /// 列出可用导出器
+    #[arg(long)]
+    pub list: bool,
+
     /// 导出目标（内置名，或插件组件名）
-    #[arg(required = true)]
-    pub target: String,
+    #[arg(required_unless_present = "list")]
+    pub target: Option<String>,
 }
 
 /// 递归枚举 down/ 目录的非样例附加文件
@@ -204,6 +208,14 @@ fn dump_main(
 }
 
 pub fn main(args: DumpArgs) -> Result<()> {
+    if args.list {
+        msg!("可用导出器：");
+        for name in gctx().plugins.dumper_names() {
+            msg!("  {}", name);
+        }
+        return Ok(());
+    }
+    let target = args.target.as_deref().expect("clap 保证存在 target");
     if gctx().config.is_none() {
         bail!("没有有效的配置文件");
     }
@@ -216,12 +228,12 @@ pub fn main(args: DumpArgs) -> Result<()> {
                 &config.config,
                 config.config.subconfig.get(&day).unwrap(),
                 1,
-                &args.target,
+                target,
             )?;
         }
         CurrentLocation::Root => {
             for (idx, (_, day_config)) in config.config.subconfig.iter().enumerate() {
-                dump_main(&config.config, day_config, idx + 1, &args.target)?;
+                dump_main(&config.config, day_config, idx + 1, target)?;
             }
         }
     }

@@ -18,9 +18,13 @@ use tuack_utils::ren::template::render_template;
 #[derive(Args, Debug)]
 #[command(version)]
 pub struct RenArgs {
+    /// 列出可用模板
+    #[arg(long)]
+    pub list: bool,
+
     /// 渲染目标（内置模板名，或插件组件名）
-    #[arg(required = true)]
-    pub target: String,
+    #[arg(required_unless_present = "list")]
+    pub target: Option<String>,
 
     /// 保留临时目录用于调试
     #[arg(long)]
@@ -268,6 +272,7 @@ fn ren(
     statements_dir: &Path,
     args: &RenArgs,
 ) -> Result<()> {
+    let target = args.target.as_deref().expect("clap 保证存在 target");
     let tmp = Arc::new(
         tempfile::Builder::new()
             .prefix("tuack-ng-ren-")
@@ -291,7 +296,7 @@ fn ren(
             .progress_chars("=> "),
     );
 
-    let (renderer, options, processors) = match gctx().plugins.renderer(&args.target, tmp.clone()) {
+    let (renderer, options, processors) = match gctx().plugins.renderer(target, tmp.clone()) {
         Ok(triple) => triple,
         Err(e) => {
             problem_pb.finish_with_message("遇到错误，停止处理");
@@ -360,6 +365,15 @@ fn ren(
 }
 
 pub fn main(args: RenArgs) -> Result<()> {
+    if args.list {
+        msg!("可用模板：");
+        for name in gctx().plugins.template_names() {
+            msg!("  {}", name);
+        }
+        return Ok(());
+    }
+    let target = args.target.as_deref().expect("clap 保证存在 target");
+
     debug!(
         "当前目录：{}",
         dunce::canonicalize(Path::new("."))?.to_string_lossy()
@@ -385,17 +399,13 @@ pub fn main(args: RenArgs) -> Result<()> {
         fs::create_dir(&statements_dir)?;
     }
 
-    if !gctx().plugins.template_exists(&args.target) {
-        bail!("没有找到模板 {}", args.target);
+    if !gctx().plugins.template_exists(target) {
+        bail!("没有找到模板 {}", target);
     }
 
-    let statements_dir = statements_dir.join(&args.target);
+    let statements_dir = statements_dir.join(target);
     if !statements_dir.exists() {
-        info!(
-            "创建 {} 目标输出目录：{}",
-            args.target,
-            statements_dir.display()
-        );
+        info!("创建 {} 目标输出目录：{}", target, statements_dir.display());
         fs::create_dir(&statements_dir)?;
     }
 
