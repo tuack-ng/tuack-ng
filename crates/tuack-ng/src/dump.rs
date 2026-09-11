@@ -173,7 +173,7 @@ fn dump_main(
             .context("创建临时目录失败")?,
     );
 
-    let (dumper, dir_name) = gctx().plugins.dumper(target, tmp.clone())?;
+    let dumper = gctx().plugins.dumper(target, tmp.clone())?;
 
     let (files, warnings) = match dumper.dump(&doc, Box::new(assets)) {
         Ok(result) => result,
@@ -190,12 +190,13 @@ fn dump_main(
         msg_warn!("{}", warning);
     }
 
-    let out_dir = dump_dir.join(&dir_name);
+    let out_dir = dump_dir.join(target);
     if out_dir.exists() {
         fs::remove_dir_all(&out_dir)?;
     }
+    fs::create_dir_all(&out_dir)?;
 
-    if let Err(e) = crate::utils::filesystem::write_outputs(&dump_dir, files) {
+    if let Err(e) = crate::utils::filesystem::write_outputs(&out_dir, files) {
         msg_error!("写入导出结果失败：{:?}", e);
         msg_info!("保留临时目录以供调试：{}", tmp.path().display());
         // 同上

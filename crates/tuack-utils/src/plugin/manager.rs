@@ -404,21 +404,10 @@ impl PluginManager {
         Ok((renderer, options, processors))
     }
 
-    /// 构造导出器并返回输出子目录名。
-    pub fn dumper(&self, name: &str, tmp: Arc<TempDir>) -> Result<(Box<dyn Dumper>, String)> {
+    /// 构造导出器。
+    pub fn dumper(&self, name: &str, tmp: Arc<TempDir>) -> Result<Box<dyn Dumper>> {
         let dumper_ref = self.resolve_dumper(name)?;
-        let dumper =
-            crate::plugin::factory::build_dumper(&dumper_ref, self, tmp, &self.assets_dirs)?;
-        let out_name = match &dumper_ref {
-            DumperRef::Builtin(builtin) => match builtin {
-                BuiltinDumper::Lemon => "lemon",
-                BuiltinDumper::Arbiter => "arbiter",
-                BuiltinDumper::CcrPlus => "ccr-plus",
-            }
-            .to_string(),
-            DumperRef::Plugin(_) => name.to_string(),
-        };
-        Ok((dumper, out_name))
+        crate::plugin::factory::build_dumper(&dumper_ref, self, tmp, &self.assets_dirs)
     }
 
     /// 按 (类型，组件名) 查找所属包与组件。

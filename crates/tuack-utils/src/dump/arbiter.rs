@@ -130,17 +130,14 @@ impl Dumper for ArbiterDumper {
 
         // Arbiter 要求的目录结构（可能没有文件，需确保存在）
         for sub in ["data", "final", "players", "result", "filter", "tmp"] {
-            files.push(OutputFile::Dir(PathBuf::from(format!(
-                "arbiter/main/{}",
-                sub
-            ))));
+            files.push(OutputFile::Dir(PathBuf::from(format!("main/{}", sub))));
         }
         files.push(OutputFile::Dir(PathBuf::from(format!(
-            "arbiter/main/players/day{}",
+            "main/players/day{}",
             daynum
         ))));
         files.push(OutputFile::Dir(PathBuf::from(format!(
-            "arbiter/main/result/day{}",
+            "main/result/day{}",
             daynum
         ))));
 
@@ -153,7 +150,7 @@ impl Dumper for ArbiterDumper {
             ("TASKNUM=".into(), doc.problems.len().to_string()),
         ];
         files.push(OutputFile::File {
-            path: PathBuf::from(format!("arbiter/main/day{}.info", daynum)),
+            path: PathBuf::from(format!("main/day{}.info", daynum)),
             bytes: Box::new(std::io::Cursor::new(build_info(&dayinfo).into_bytes())),
         });
 
@@ -247,19 +244,19 @@ impl Dumper for ArbiterDumper {
                 let eval_output = assets.load(prob.idx, &case.output)?;
 
                 files.push(OutputFile::File {
-                    path: PathBuf::from(format!("arbiter/main/data/{}", in_name)),
+                    path: PathBuf::from(format!("main/data/{}", in_name)),
                     bytes: input,
                 });
                 files.push(OutputFile::File {
-                    path: PathBuf::from(format!("arbiter/main/data/{}", ans_name)),
+                    path: PathBuf::from(format!("main/data/{}", ans_name)),
                     bytes: output,
                 });
                 files.push(OutputFile::File {
-                    path: PathBuf::from(format!("arbiter/main/evaldata/{}", in_name)),
+                    path: PathBuf::from(format!("main/evaldata/{}", in_name)),
                     bytes: eval_input,
                 });
                 files.push(OutputFile::File {
-                    path: PathBuf::from(format!("arbiter/main/evaldata/{}", ans_name)),
+                    path: PathBuf::from(format!("main/evaldata/{}", ans_name)),
                     bytes: eval_output,
                 });
 
@@ -291,13 +288,13 @@ impl Dumper for ArbiterDumper {
             // Checker / filter
             if let Some(stream) = self.build_filter(&*assets, prob, &mut warnings)? {
                 files.push(OutputFile::File {
-                    path: PathBuf::from(format!("arbiter/main/filter/{}_e", prob.name)),
+                    path: PathBuf::from(format!("main/filter/{}_e", prob.name)),
                     bytes: stream,
                 });
             }
 
             files.push(OutputFile::File {
-                path: PathBuf::from(format!("arbiter/main/task{}_{}.info", daynum, probnum)),
+                path: PathBuf::from(format!("main/task{}_{}.info", daynum, probnum)),
                 bytes: Box::new(std::io::Cursor::new(build_info(&probinfo).into_bytes())),
             });
         }
@@ -312,20 +309,20 @@ impl Dumper for ArbiterDumper {
             ("MISC=".into(), "misc.info".into()),
         ];
         files.push(OutputFile::File {
-            path: PathBuf::from("arbiter/main/setup.cfg"),
+            path: PathBuf::from("main/setup.cfg"),
             bytes: Box::new(std::io::Cursor::new(build_info(&cfg).into_bytes())),
         });
 
         // 空的 team.info
         files.push(OutputFile::File {
-            path: PathBuf::from("arbiter/main/team.info"),
+            path: PathBuf::from("main/team.info"),
             bytes: Box::new(std::io::Cursor::new(Vec::new())),
         });
 
         // 复制样例到 down/{day}/{name}/，含附加文件
         for prob in &doc.problems {
             info!("处理题目样例：{}", prob.name);
-            let prob_down_dir = format!("arbiter/down/{}/{}", doc.config.day_name, prob.name);
+            let prob_down_dir = format!("down/{}/{}", doc.config.day_name, prob.name);
 
             for (idx, sample) in prob.samples.iter().enumerate() {
                 let idx = idx + 1;

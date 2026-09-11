@@ -77,17 +77,11 @@ impl Dumper for LemonDumper {
         for prob in &doc.problems {
             for case in &prob.data {
                 files.push(OutputFile::File {
-                    path: PathBuf::from(format!(
-                        "lemon/data/{}/{}{}.in",
-                        prob.name, prob.name, case.id
-                    )),
+                    path: PathBuf::from(format!("data/{}/{}{}.in", prob.name, prob.name, case.id)),
                     bytes: assets.load(prob.idx, &case.input)?,
                 });
                 files.push(OutputFile::File {
-                    path: PathBuf::from(format!(
-                        "lemon/data/{}/{}{}.ans",
-                        prob.name, prob.name, case.id
-                    )),
+                    path: PathBuf::from(format!("data/{}/{}{}.ans", prob.name, prob.name, case.id)),
                     bytes: assets.load(prob.idx, &case.output)?,
                 });
             }
@@ -169,7 +163,7 @@ impl Dumper for LemonDumper {
                     bail!("SPJ 编译错误");
                 }
                 files.push(OutputFile::File {
-                    path: PathBuf::from(format!("lemon/data/{}/{}", prob.name, chk_name)),
+                    path: PathBuf::from(format!("data/{}/{}", prob.name, chk_name)),
                     bytes: Box::new(KeepAliveReader::new(
                         std::fs::File::open(&chk_out)?,
                         self.tmp.clone(),
@@ -215,7 +209,7 @@ impl Dumper for LemonDumper {
 
         let cdf_str = serde_json::to_string_pretty(&day_cdf)?;
         files.push(OutputFile::File {
-            path: PathBuf::from(format!("lemon/{}.cdf", doc.config.day_name)),
+            path: PathBuf::from(format!("{}.cdf", doc.config.day_name)),
             bytes: Box::new(std::io::Cursor::new(cdf_str.into_bytes())),
         });
 

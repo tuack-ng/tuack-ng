@@ -403,7 +403,7 @@ impl Dumper for CcrPlusDumper {
         let mut warnings = Vec::new();
 
         for prob in &doc.problems {
-            let pdir = format!("ccr-plus/data/{}", prob.name);
+            let pdir = format!("data/{}", prob.name);
 
             // 复制数据文件（输入/输出）
             for case in &prob.data {
@@ -450,13 +450,13 @@ impl Dumper for CcrPlusDumper {
         // 竞赛信息 .ccr（题目顺序）
         let order: Vec<String> = doc.problems.iter().map(|p| p.name.clone()).collect();
         files.push(OutputFile::File {
-            path: PathBuf::from("ccr-plus/.ccr"),
+            path: PathBuf::from(".ccr"),
             bytes: Box::new(std::io::Cursor::new(build_ccr(&order).into_bytes())),
         });
 
         // 空目录：选手源文件与结果
-        files.push(OutputFile::Dir(PathBuf::from("ccr-plus/src")));
-        files.push(OutputFile::Dir(PathBuf::from("ccr-plus/result")));
+        files.push(OutputFile::Dir(PathBuf::from("src")));
+        files.push(OutputFile::Dir(PathBuf::from("result")));
 
         warnings.push(
             "CCR-Plus 使用文件 IO（`<题目名>.in` / `<题目名>.out`），请确认题目及标程采用该接口。"

@@ -19,7 +19,7 @@ use crate::plugin::extism::context::{
 
 /// 一个基于 extism 的导出器插件。
 ///
-/// 插件开启 WASI，宿主把临时目录映射为插件内的 `/`（`/out` 为产物工作区）；
+/// 插件声明 `wasi` 时，宿主把临时目录映射为插件内的 `/`（`/out` 为产物工作区）；
 /// 插件返回产物描述列表与警告，资产流由宿主直接取用（host-to-host）。
 pub struct ExtismDumper {
     plugin: Mutex<extism::Plugin>,
@@ -34,6 +34,7 @@ impl ExtismDumper {
     pub fn new(
         wasm: Vec<u8>,
         function: String,
+        wasi: bool,
         tmp: Arc<TempDir>,
         asset_dir: Option<PathBuf>,
         command: Vec<String>,
@@ -49,7 +50,7 @@ impl ExtismDumper {
                 .with_allowed_path(format!("ro:{}", asset_dir.to_string_lossy()), "/assets");
         }
 
-        let plugin = extism::Plugin::new(WasmInput::Manifest(manifest), common_imports(), true)
+        let plugin = extism::Plugin::new(WasmInput::Manifest(manifest), common_imports(), wasi)
             .map_err(|e| anyhow!(e).context("加载 extism 导出器失败"))?;
 
         if !plugin.function_exists(&function) {

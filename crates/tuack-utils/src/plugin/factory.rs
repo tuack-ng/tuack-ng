@@ -45,9 +45,9 @@ pub(crate) fn build_renderer(
         RendererRef::Builtin(BuiltinRenderer::Typst) => Ok(Box::new(TypstRenderer::new(tmp)?)),
         RendererRef::Builtin(BuiltinRenderer::Markdown) => Ok(Box::new(MarkdownRenderer::new())),
         RendererRef::Plugin(pref) => {
-            let (bytes, func, asset_dir, command) = renderer_component(registry, pref)?;
+            let (bytes, func, wasi, asset_dir, command) = renderer_component(registry, pref)?;
             Ok(Box::new(ExtismRenderer::new(
-                bytes, func, tmp, asset_dir, command,
+                bytes, func, wasi, tmp, asset_dir, command,
             )?))
         }
     }
@@ -112,6 +112,7 @@ pub(crate) fn build_dumper(
             Ok(Box::new(ExtismDumper::new(
                 bytes,
                 d.func.clone(),
+                d.wasi,
                 tmp,
                 asset_dir,
                 d.command.clone(),
@@ -120,8 +121,8 @@ pub(crate) fn build_dumper(
     }
 }
 
-/// renderer 组件解析结果：wasm 字节、函数名、资源目录、命令白名单。
-type RendererParts = (Vec<u8>, String, Option<PathBuf>, Vec<String>);
+/// renderer 组件解析结果：wasm 字节、函数名、是否开启 WASI、资源目录、命令白名单。
+type RendererParts = (Vec<u8>, String, bool, Option<PathBuf>, Vec<String>);
 
 /// 取插件 renderer 组件的 wasm 字节、函数名、资源目录与命令白名单。
 fn renderer_component(registry: &PluginManager, pref: &PluginRef) -> Result<RendererParts> {
@@ -136,7 +137,7 @@ fn renderer_component(registry: &PluginManager, pref: &PluginRef) -> Result<Rend
     };
     let bytes = read_wasm(&entry_path(package)?)?;
     let asset_dir = package.asset_dir.as_ref().map(|d| package.dir.join(d));
-    Ok((bytes, r.func.clone(), asset_dir, r.command.clone()))
+    Ok((bytes, r.func.clone(), r.wasi, asset_dir, r.command.clone()))
 }
 
 fn package<'a>(
