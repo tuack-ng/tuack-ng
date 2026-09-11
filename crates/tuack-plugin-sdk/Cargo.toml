@@ -6,9 +6,12 @@ version.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
+readme = "README.md"
+keywords = ["tuack-ng", "plugin", "wasm", "extism"]
+categories = ["wasm", "development-tools"]
 
 [dependencies]
-tuack-lib = { path = "../tuack-lib" }
+tuack-lib = { version = "1.1.0-alpha.2", path = "../tuack-lib" }
 tuack-ng-parser = { workspace = true, features = ["serde"] }
 
 log = "0.4"

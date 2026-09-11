@@ -293,6 +293,15 @@ impl PluginManager {
                     ));
                     continue;
                 }
+                if let Err(e) = semver::Version::parse(&manifest.version) {
+                    statuses.push(status(
+                        name.clone(),
+                        &pkg_dir,
+                        PluginState::Error(format!("插件 version 非法：{e}")),
+                        Some(manifest),
+                    ));
+                    continue;
+                }
                 if let Some(minver) = manifest.minver.clone() {
                     match meets_minver(current_version, &minver) {
                         Ok(true) => {}

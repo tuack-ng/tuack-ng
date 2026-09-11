@@ -84,7 +84,7 @@ fn status() -> Result<()> {
         return Ok(());
     }
     for s in statuses {
-        msg!("{} {}", s.name.blue(), state_label(&s.state));
+        msg!("{} {}", versioned(s).blue(), state_label(&s.state));
         msg!("    {}", describe(s.manifest.as_ref()));
         match &s.state {
             PluginState::Error(_) => {
@@ -116,6 +116,14 @@ fn describe(manifest: Option<&PluginManifest>) -> String {
     }
 }
 
+/// 状态行首列：`ID (版本号)`；无清单时仅 `ID`。
+fn versioned(s: &PluginStatus) -> String {
+    match s.manifest.as_ref() {
+        Some(m) => format!("{} ({})", s.name, m.version),
+        None => s.name.clone(),
+    }
+}
+
 fn show(name: &str) -> Result<()> {
     show_status(find(name)?)
 }
@@ -131,8 +139,12 @@ fn show_status(s: &PluginStatus) -> Result<()> {
         field("清单     ", "(无法解析)");
         return Ok(());
     };
+    field("版本     ", &m.version);
     if let Some(x) = &m.description {
         field("描述     ", x);
+    }
+    if !m.authors.is_empty() {
+        field("作者     ", m.authors.join(", "));
     }
     if let Some(x) = &m.license {
         field("许可证   ", x);

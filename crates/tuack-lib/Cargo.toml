@@ -6,6 +6,9 @@ version.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
+readme = "README.md"
+keywords = ["tuack-ng", "oi", "acm", "contest"]
+categories = ["development-tools"]
 
 [dependencies]
 anyhow.workspace = true

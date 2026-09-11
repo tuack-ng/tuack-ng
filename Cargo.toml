@@ -25,7 +25,7 @@ indexmap = { version = "2.13.0", features = ["serde"] }
 serde = { version = "1.0.228", features = ["rc"] }
 serde_many = { version = "0.1.0", features = ["derive"] }
 tokio = "1.49.0"
-tuack-ng-parser = { path = "crates/tuack-ng-parser" }
+tuack-ng-parser = { version = "1.0.3", path = "crates/tuack-ng-parser" }
 
 [profile.release]
 opt-level = 3

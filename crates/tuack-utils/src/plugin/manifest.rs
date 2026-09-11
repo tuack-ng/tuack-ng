@@ -7,8 +7,12 @@ use crate::prelude::*;
 pub struct PluginManifest {
     /// 包名（全局唯一）
     pub name: String,
+    /// 插件版本（语义化版本）
+    pub version: String,
     #[serde(default)]
     pub description: Option<String>,
+    #[serde(default)]
+    pub authors: Vec<String>,
     #[serde(default)]
     pub license: Option<String>,
     #[serde(default)]
@@ -24,6 +28,9 @@ pub struct PluginManifest {
     /// wasm 入口文件（相对包目录，全包唯一）；纯模板插件可省略
     #[serde(default)]
     pub entry: Option<PathBuf>,
+    /// 发布归档名（供插件市场使用；插件本体不消费）
+    #[serde(default)]
+    pub artifact_name: Option<String>,
     pub components: Vec<Component>,
 }
 
