@@ -1,9 +1,9 @@
 use crate::prelude::*;
+use crate::utils::aligned::AlignedFields;
 use clap::{Args, Subcommand};
 use owo_colors::OwoColorize;
 use tuack_utils::plugin::manager::{DISABLED_MARKER, PluginState, PluginStatus, TRUSTED_MARKER};
 use tuack_utils::plugin::manifest::{ComponentBody, ExecutableComponent, PluginManifest};
-use unicode_width::UnicodeWidthStr;
 
 mod market;
 
@@ -137,59 +137,64 @@ fn show(name: &str) -> Result<()> {
 }
 
 fn show_status(s: &PluginStatus) -> Result<()> {
-    field("名称     ", &s.name);
-    field("目录     ", s.dir.display());
-    field("状态     ", state_label(&s.state));
+    let mut fields = AlignedFields::new();
+    fields.push("名称", &s.name);
+    fields.push("目录", s.dir.display());
+    fields.push("状态", state_label(&s.state));
     if let PluginState::Error(reason) = &s.state {
-        field("错误     ", reason);
+        fields.push("错误", reason);
     }
     let Some(m) = &s.manifest else {
-        field("清单     ", "(无法解析)");
+        fields.push("清单", "(无法解析)");
+        msg!("{}", fields.render());
         return Ok(());
     };
-    field("版本     ", &m.version);
+    fields.push("版本", &m.version);
     if let Some(x) = &m.description {
-        field("描述     ", x);
+        fields.push("描述", x);
     }
     if !m.authors.is_empty() {
-        field("作者     ", m.authors.join(", "));
+        fields.push("作者", m.authors.join(", "));
     }
     if let Some(x) = &m.license {
-        field("许可证   ", x);
+        fields.push("许可证", x);
     }
     if let Some(x) = &m.repo_url {
-        field("仓库     ", x);
+        fields.push("仓库", x);
     }
     if let Some(x) = &m.url {
-        field("主页     ", x);
+        fields.push("主页", x);
     }
     if let Some(x) = &m.minver {
-        field("最低版本 ", x);
+        fields.push("最低版本", x);
     }
     if let Some(x) = &m.asset_dir {
-        field("资源目录 ", x.display());
+        fields.push("资源目录", x.display());
     }
-    msg!("{}", "组件     :".dimmed());
+    fields.push("组件", "");
+    msg!("{}", fields.render());
     for c in &m.components {
         msg!("  {} ({})", c.name.blue(), kind_name(&c.body));
+        let mut sub = AlignedFields::new();
         match &c.body {
             ComponentBody::RenTemplate(t) => {
-                field("    renderer   ", &t.renderer);
+                sub.push("    renderer", &t.renderer);
                 let processors = if t.processors.is_empty() {
                     "(无)".to_string()
                 } else {
                     t.processors.join(", ")
                 };
-                field("    processors ", processors);
+                sub.push("    processors", processors);
             }
             ComponentBody::Renderer(e) | ComponentBody::Dumper(e) | ComponentBody::Processor(e) => {
                 match permissions(e) {
-                    Some(p) => field("    权限       ", p.bright_yellow()),
-                    None => field("    权限       ", "无".dimmed()),
+                    Some(p) => sub.push("    权限", p.bright_yellow()),
+                    None => sub.push("    权限", "无".dimmed()),
                 }
-                field("    func       ", &e.func);
+                sub.push("    func", &e.func);
             }
         }
+        msg!("{}", sub.render());
     }
     Ok(())
 }
@@ -214,19 +219,6 @@ fn permissions(e: &ExecutableComponent) -> Option<String> {
         parts.push(format!("命令 ({})", e.command.join(",")));
     }
     (!parts.is_empty()).then(|| parts.join("，"))
-}
-
-/// 打印 `标签：值`；标签灰色，多行值续行按前缀宽度缩进对齐。
-fn field(label: &str, value: impl std::fmt::Display) {
-    let value = value.to_string();
-    let prefix = format!("{}:", label);
-    let indent = " ".repeat(prefix.width() + 1);
-    let mut lines = value.lines();
-    let first = lines.next().unwrap_or("");
-    msg!("{} {}", prefix.dimmed(), first);
-    for line in lines {
-        msg!("{}{}", indent, line);
-    }
 }
 
 fn set_disabled(name: &str, disabled: bool) -> Result<()> {

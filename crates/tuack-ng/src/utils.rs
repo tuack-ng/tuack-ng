@@ -1,3 +1,4 @@
+pub mod aligned;
 pub mod duration;
 pub mod filesystem;
 pub mod message;

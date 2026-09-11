@@ -1,9 +1,8 @@
 use crate::prelude::*;
+use crate::utils::aligned::AlignedFields;
 use clap::{Args, Subcommand};
 use owo_colors::OwoColorize;
 use tuack_utils::plugin::manager::{DISABLED_MARKER, TRUSTED_MARKER, meets_minver, valid_name};
-
-use super::field;
 
 #[derive(Args, Debug)]
 #[command(version)]
@@ -117,26 +116,28 @@ fn market_show(name: &str) -> Result<()> {
         .iter()
         .find(|p| p.name == name)
         .with_context(|| format!("市场中未找到：{}", name))?;
-    field("名称     ", &p.name);
-    field("版本     ", &p.version);
+    let mut fields = AlignedFields::new();
+    fields.push("名称", &p.name);
+    fields.push("版本", &p.version);
     if !p.description.is_empty() {
-        field("描述     ", &p.description);
+        fields.push("描述", &p.description);
     }
     if !p.authors.is_empty() {
-        field("作者     ", p.authors.join(", "));
+        fields.push("作者", p.authors.join(", "));
     }
     if !p.license.is_empty() {
-        field("许可证   ", &p.license);
+        fields.push("许可证", &p.license);
     }
     if !p.repo_url.is_empty() {
-        field("仓库     ", &p.repo_url);
+        fields.push("仓库", &p.repo_url);
     }
     if let Some(url) = &p.url {
-        field("主页     ", url);
+        fields.push("主页", url);
     }
     if let Some(minver) = &p.minver {
-        field("最低版本 ", minver);
+        fields.push("最低版本", minver);
     }
+    msg!("{}", fields.render());
     Ok(())
 }
 
