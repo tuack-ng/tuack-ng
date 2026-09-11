@@ -91,7 +91,8 @@ impl Renderer for ExtismRenderer {
             .map_err(|e| anyhow!(e).context("调用 extism 渲染器失败"))?;
 
         let files = specs_to_outputs(output.0.files, &streams, &out_dir, self.tmp.clone())?;
+        let main = crate::plugin::normalize_within(&out_dir, &output.0.main)?;
 
-        Ok((output.0.main, files))
+        Ok((main, files))
     }
 }

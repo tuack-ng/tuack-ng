@@ -73,7 +73,7 @@ pub(crate) fn build_processor(
                 bail!("组件 {} 不是 processor", pref.component);
             };
             let bytes = read_wasm(&entry_path(package)?)?;
-            let asset_dir = package.asset_dir.as_ref().map(|d| package.dir.join(d));
+            let asset_dir = resolve_asset_dir(package)?;
             Ok(Box::new(ExtismProcessor::new(
                 bytes,
                 p.func.clone(),
@@ -108,7 +108,7 @@ pub(crate) fn build_dumper(
                 bail!("组件 {} 不是 dumper", pref.component);
             };
             let bytes = read_wasm(&entry_path(package)?)?;
-            let asset_dir = package.asset_dir.as_ref().map(|d| package.dir.join(d));
+            let asset_dir = resolve_asset_dir(package)?;
             Ok(Box::new(ExtismDumper::new(
                 bytes,
                 d.func.clone(),
@@ -136,7 +136,7 @@ fn renderer_component(registry: &PluginManager, pref: &PluginRef) -> Result<Rend
         bail!("组件 {} 不是 renderer", pref.component);
     };
     let bytes = read_wasm(&entry_path(package)?)?;
-    let asset_dir = package.asset_dir.as_ref().map(|d| package.dir.join(d));
+    let asset_dir = resolve_asset_dir(package)?;
     Ok((bytes, r.func.clone(), r.wasi, asset_dir, r.command.clone()))
 }
 
@@ -159,13 +159,25 @@ fn component<'a>(
         .context(format!("未找到插件组件：{}", name))
 }
 
-/// 取插件的 wasm 入口宿主路径。
+/// 取插件的 wasm 入口宿主路径（约束在包目录内）。
 fn entry_path(package: &crate::plugin::manager::PluginPackage) -> Result<PathBuf> {
     let entry = package
         .entry
         .as_ref()
         .context("插件未声明 entry（wasm 入口）")?;
-    Ok(package.dir.join(entry))
+    crate::plugin::normalize_within(&package.dir, entry).map(|rel| package.dir.join(rel))
+}
+
+/// 取插件的资源目录宿主路径（约束在包目录内）。
+fn resolve_asset_dir(package: &crate::plugin::manager::PluginPackage) -> Result<Option<PathBuf>> {
+    match &package.asset_dir {
+        Some(dir) => Ok(Some(
+            package
+                .dir
+                .join(crate::plugin::normalize_within(&package.dir, dir)?),
+        )),
+        None => Ok(None),
+    }
 }
 
 fn read_wasm(path: &Path) -> Result<Vec<u8>> {

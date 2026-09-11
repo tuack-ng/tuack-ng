@@ -3,8 +3,9 @@
 //! - 自带模板：`<assets_dir>/templates/<name>.json`（`TemplateManifest` + store 内容寻址）。
 //! - 插件包：`<用户目录>/plugins/<pkg>/plugin.toml`（仅用户目录，见 [`PluginManager::discover`]）。
 //!
-//! 冲突与失败策略：插件包解析失败、`minver` 不满足、组件名与同域内置/其他插件冲突时，
-//! **跳过该包并警告**；自带模板解析失败为硬错误。不同域（dumper/renderer/processor/ren_template）允许同名。
+//! 冲突与失败策略：插件包解析失败、`minver` 不满足、包名与已发现插件重复、
+//! 组件名与同域内置/其他插件冲突时，**跳过该包并警告**；自带模板解析失败为硬错误。
+//! 不同域（dumper/renderer/processor/ren_template）允许同名。
 
 use tempfile::TempDir;
 use tuack_lib::dump::Dumper;
@@ -222,26 +223,26 @@ impl PluginManager {
         let mut statuses: Vec<PluginStatus> = Vec::new();
 
         if let Ok(entries) = fs::read_dir(plugin_dir) {
-            for entry in entries {
-                let entry = match entry {
-                    Ok(entry) => entry,
+            // 稳定排序，保证重名冲突时先命中者胜的结果可复现
+            let mut pkg_dirs: Vec<PathBuf> = entries
+                .filter_map(|entry| match entry {
+                    Ok(entry) => Some(entry.path()),
                     Err(e) => {
                         debug!("读取插件目录条目失败（{}）：{e}", plugin_dir.display());
-                        continue;
+                        None
                     }
-                };
-                let pkg_dir = entry.path();
-                if !pkg_dir.is_dir() {
-                    continue;
-                }
-                // 跳过隐藏目录（如安装暂存目录 .staging-*）
-                if pkg_dir
-                    .file_name()
-                    .and_then(|n| n.to_str())
-                    .is_some_and(|n| n.starts_with('.'))
-                {
-                    continue;
-                }
+                })
+                .filter(|path| path.is_dir())
+                .filter(|path| {
+                    !path
+                        .file_name()
+                        .and_then(|n| n.to_str())
+                        .is_some_and(|n| n.starts_with('.'))
+                })
+                .collect();
+            pkg_dirs.sort();
+
+            for pkg_dir in pkg_dirs {
                 let dir_name = pkg_dir
                     .file_name()
                     .map(|s| s.to_string_lossy().into_owned())
@@ -256,6 +257,17 @@ impl PluginManager {
                     Ok(m) => m.name.clone(),
                     Err(_) => dir_name.clone(),
                 };
+
+                // 拒绝重名：同名包/目录已登记则跳过该包（保证 `plugin` 按名查找唯一）
+                if let Some(prev) = statuses.iter().find(|s| s.name == name) {
+                    warn!(
+                        "跳过插件 {}（{}）：名称与 {} 重复",
+                        name,
+                        pkg_dir.display(),
+                        prev.dir.display()
+                    );
+                    continue;
+                }
 
                 // 门控：禁用优先，其次未信任；两者均不加载
                 let disabled = pkg_dir.join(DISABLED_MARKER).is_file();
@@ -304,6 +316,16 @@ impl PluginManager {
                         packages.insert(package.name.clone(), package);
                     }
                     Err((status_name, reason)) => {
+                        // `status_name` 可能是目录名兜底（非法包名），与上方查过的 `name` 不同
+                        if let Some(prev) = statuses.iter().find(|s| s.name == status_name) {
+                            warn!(
+                                "跳过插件 {}（{}）：名称与 {} 重复",
+                                status_name,
+                                pkg_dir.display(),
+                                prev.dir.display()
+                            );
+                            continue;
+                        }
                         statuses.push(status(
                             status_name,
                             &pkg_dir,
@@ -470,7 +492,11 @@ impl PluginManager {
             bail!("组件 {} 不是 ren_template", comp_name);
         };
         let source = match &t.template {
-            Some(dir) => TemplateSource::Dir(package.dir.join(dir)),
+            Some(dir) => TemplateSource::Dir(
+                package
+                    .dir
+                    .join(crate::plugin::normalize_within(&package.dir, dir)?),
+            ),
             None => TemplateSource::Empty,
         };
         let renderer = self.parse_renderer(&t.renderer, &package.name)?;
@@ -596,9 +622,12 @@ fn component_io_error(manifest: &PluginManifest, pkg_dir: &Path) -> Option<Strin
     for c in &manifest.components {
         if let ComponentBody::RenTemplate(t) = &c.body
             && let Some(dir) = &t.template
-            && !pkg_dir.join(dir).is_dir()
         {
-            return Some(format!("模板目录不存在：{}", dir.display()));
+            match crate::plugin::normalize_within(pkg_dir, dir) {
+                Ok(rel) if pkg_dir.join(&rel).is_dir() => {}
+                Ok(_) => return Some(format!("模板目录不存在：{}", dir.display())),
+                Err(e) => return Some(format!("模板目录非法：{e}")),
+            }
         }
     }
     None
@@ -640,16 +669,20 @@ fn load_package(
         }
     }
 
-    // 验证 wasm 入口与资源目录可访问
-    if let Some(entry) = manifest.entry.as_ref()
-        && !pkg_dir.join(entry).is_file()
-    {
-        return Err((name, format!("entry 不存在：{}", entry.display())));
+    // 验证 wasm 入口与资源目录可访问（且不越出包目录）
+    if let Some(entry) = manifest.entry.as_ref() {
+        match crate::plugin::normalize_within(pkg_dir, entry) {
+            Ok(rel) if pkg_dir.join(&rel).is_file() => {}
+            Ok(_) => return Err((name, format!("entry 不存在：{}", entry.display()))),
+            Err(e) => return Err((name, format!("entry 非法：{e}"))),
+        }
     }
-    if let Some(asset_dir) = manifest.asset_dir.as_ref()
-        && !pkg_dir.join(asset_dir).is_dir()
-    {
-        return Err((name, format!("asset_dir 不可访问：{}", asset_dir.display())));
+    if let Some(asset_dir) = manifest.asset_dir.as_ref() {
+        match crate::plugin::normalize_within(pkg_dir, asset_dir) {
+            Ok(rel) if pkg_dir.join(&rel).is_dir() => {}
+            Ok(_) => return Err((name, format!("asset_dir 不可访问：{}", asset_dir.display()))),
+            Err(e) => return Err((name, format!("asset_dir 非法：{e}"))),
+        }
     }
     if let Some(reason) = component_io_error(manifest, pkg_dir) {
         return Err((name, reason));

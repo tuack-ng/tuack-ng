@@ -272,23 +272,8 @@ pub(crate) fn common_imports() -> Vec<extism::Function> {
 /// 把 `rel`（WASI 风格，可能带前导 `/`）解析到 `base` 下；规范化后越出 `base` 则报错。
 fn resolve_within(base: &Path, rel: &str) -> Result<PathBuf> {
     let stripped = rel.strip_prefix('/').unwrap_or(rel);
-    let dest = base.join(stripped).clean();
-    if !dest.starts_with(base) {
-        bail!("非法路径：{}", rel);
-    }
-    Ok(dest)
-}
-
-/// 校验并规范化产物相对路径（相对基准 `base`）：必须是相对路径，且规范化后不越出 `base`；
-/// 返回规范化后的相对路径。
-fn normalize_product_path(base: &Path, path: &Path) -> Result<PathBuf> {
-    if path.is_absolute() {
-        bail!("非法产物路径（必须为相对路径）：{}", path.display());
-    }
-    let dest = base.join(path).clean();
-    dest.strip_prefix(base)
-        .map(Path::to_path_buf)
-        .map_err(|_| anyhow!("非法产物路径（越出输出根）：{}", path.display()))
+    let rel = crate::plugin::normalize_within(base, Path::new(stripped))?;
+    Ok(base.join(rel))
 }
 
 /// 把回传的 `OutputSpec` 转成宿主 `OutputFile`：资产流从共享句柄表取出（host-to-host），
@@ -304,7 +289,7 @@ pub(crate) fn specs_to_outputs(
     for spec in specs {
         match spec {
             OutputSpec::Asset { path, asset_id } => {
-                let path = normalize_product_path(out_dir, &path)?;
+                let path = crate::plugin::normalize_within(out_dir, &path)?;
                 let stream = guard
                     .remove(&asset_id)
                     .ok_or_else(|| anyhow!("无效的资产句柄：{}", asset_id))?;
@@ -314,7 +299,7 @@ pub(crate) fn specs_to_outputs(
                 });
             }
             OutputSpec::File { path } => {
-                let rel = normalize_product_path(out_dir, &path)?;
+                let rel = crate::plugin::normalize_within(out_dir, &path)?;
                 let dest = out_dir.join(&rel);
                 let file = std::fs::File::open(&dest)
                     .with_context(|| format!("打开产物文件失败：{}", dest.display()))?;
@@ -324,7 +309,7 @@ pub(crate) fn specs_to_outputs(
                 });
             }
             OutputSpec::Dir(path) => {
-                let path = normalize_product_path(out_dir, &path)?;
+                let path = crate::plugin::normalize_within(out_dir, &path)?;
                 files.push(OutputFile::Dir(path));
             }
         }
