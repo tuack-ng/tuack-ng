@@ -91,9 +91,9 @@ pub struct RenTemplateComponent {
     /// 模板目录（包内相对路径）；省略即空目录
     #[serde(default)]
     pub template: Option<PathBuf>,
-    /// 渲染器：内置裸名，或本包 renderer 组件名
+    /// 渲染器：内置名，或本包 renderer 组件名
     pub renderer: String,
-    /// 处理器引用列表（内置裸名，或本包 processor 组件名）
+    /// 处理器引用列表（内置名，或本包 processor 组件名）
     #[serde(default)]
     pub processors: Vec<String>,
     #[serde(default = "default_use_pretest")]

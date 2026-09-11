@@ -42,6 +42,14 @@ pub struct DateInfo {
     pub end: [u32; 6],
 }
 
+/// 渲染参数：模板展开与渲染共用的选项。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RenParams {
+    pub use_pretest: bool,
+    pub noi_style: bool,
+    pub file_io: bool,
+}
+
 /// 渲染配置，包含渲染所需的全部信息。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RenConfig {
@@ -50,9 +58,8 @@ pub struct RenConfig {
     pub day_key: String,
     pub dayname: String,
     pub date: Option<DateInfo>,
-    pub use_pretest: bool,
-    pub noi_style: bool,
-    pub file_io: bool,
+    #[serde(flatten)]
+    pub params: RenParams,
     pub support_languages: Vec<SupportLanguage>,
 }
 
@@ -63,14 +70,11 @@ pub struct Problem {
     pub idx: u64,
     pub meta: ProblemMeta,
     pub ast: Document,
-    /// 图片重写映射：原始 URL -> 目标 URL（题目层级，避免跨题重名）。
+    /// 图片重写映射：文档原始 URL -> 输出相对路径（如 `img/{题号}/...`）。
     pub images: IndexMap<PathBuf, PathBuf>,
 }
 
 /// 渲染文档，渲染器的输入。
-///
-/// 资源访问（`AssetProvider`）作为能力在 `Renderer::render` 时单独注入，
-/// 不随文档数据传递，因此本结构可序列化、可跨边界（如 WASM 插件）。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RenderDocument {
     pub config: RenConfig,

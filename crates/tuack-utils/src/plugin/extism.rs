@@ -7,7 +7,7 @@ use crate::prelude::*;
 
 pub mod context;
 
-/// 处理器与渲染器插件共用的日志 host 函数（插件经 `log` 门面转发而来）。
+/// 各类型插件共用的日志 host 函数（插件经 `log` 门面转发而来）。
 pub(crate) fn log_import() -> extism::Function {
     extism::Function::new(
         "plugin_log",

@@ -112,8 +112,6 @@ pub struct DumperOutput {
 }
 
 /// 导出器：`DumpDocument -> (产物文件列表，导出警告)`。
-///
-/// 资源访问（`AssetProvider`）由调用方注入，所有权移交给导出器。
 pub trait Dumper: Send + Sync {
     fn dump(
         &self,

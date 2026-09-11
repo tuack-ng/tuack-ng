@@ -25,7 +25,7 @@ impl log::Log for PluginLogger {
     fn flush(&self) {}
 }
 
-/// 初始化插件日志（幂等）：注册日志门面并把记录转发到宿主。
+/// 初始化插件日志：注册日志门面并把记录转发到宿主。
 #[doc(hidden)]
 pub fn __init_logger() {
     static INIT: std::sync::OnceLock<()> = std::sync::OnceLock::new();

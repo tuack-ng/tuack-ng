@@ -1,8 +1,6 @@
-//! 渲染处理器契约与插件协议。
+//! 渲染处理器契约。
 //!
-//! 处理器在题面解析为 AST 之后、交给渲染器之前运行，对 AST 做变换。
-//! 处理器可由内置实现或外部插件（如 WASM）提供；`ProcessorOutput` 是
-//! 宿主与插件之间统一的 JSON 协议形状。
+//! 处理器对单题 AST 做变换，返回变换结果与警告。
 
 use tuack_ng_parser::ast::Document;
 
@@ -13,7 +11,7 @@ pub trait RenProcessor: Send + Sync {
     fn process(&self, doc: &Document) -> Result<ProcessorOutput>;
 }
 
-/// 处理器返回的统一协议形状（宿主与插件两端共用，JSON 编解码）。
+/// 处理器返回值。
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProcessorOutput {
     /// 变换后的题目 AST。

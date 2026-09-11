@@ -11,7 +11,8 @@ pub mod processor;
 
 use crate::utils::output::{OutputFile, OutputSpec};
 pub use document::{
-    DateInfo, Problem, ProblemMeta, ProblemType, RenConfig, RenderDocument, SupportLanguage,
+    DateInfo, Problem, ProblemMeta, ProblemType, RenConfig, RenParams, RenderDocument,
+    SupportLanguage,
 };
 pub use processor::{ProcessorOutput, RenProcessor};
 
@@ -19,8 +20,6 @@ use crate::prelude::*;
 use crate::utils::asset::AssetProvider;
 
 /// 渲染器：`RenderDocument -> (主产物相对路径，产物文件列表)`。
-///
-/// 资源访问（`AssetProvider`）由调用方注入，所有权移交给渲染器。
 pub trait Renderer: Send + Sync {
     fn render(
         &self,

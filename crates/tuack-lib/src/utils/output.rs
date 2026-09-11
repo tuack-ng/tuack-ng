@@ -18,7 +18,7 @@ pub enum OutputFile {
     Dir(PathBuf),
 }
 
-/// 插件回传的产物描述（可序列化，跨 wasm 边界）。
+/// 插件回传的产物描述。
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum OutputSpec {
     /// 资产引用：以 `asset_id` 标识的资源，目标相对路径 `path`

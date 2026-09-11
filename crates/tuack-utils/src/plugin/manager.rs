@@ -22,14 +22,14 @@ pub struct RenderOptions {
     pub file_io: bool,
 }
 
-/// 内置渲染器（裸名引用）。
+/// 内置渲染器（按内置名引用）。
 #[derive(Debug, Clone)]
 pub(crate) enum BuiltinRenderer {
     Typst,
     Markdown,
 }
 
-/// 内置导出器（裸名引用）。
+/// 内置导出器（按内置名引用）。
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum BuiltinDumper {
     Lemon,
@@ -247,7 +247,7 @@ impl PluginManager {
                     .map(|s| s.to_string_lossy().into_owned())
                     .unwrap_or_default();
 
-                // 尽力解析清单（供展示；不执行任何代码）
+                // 解析插件清单
                 let manifest_path = pkg_dir.join("plugin.toml");
                 let parsed: Result<PluginManifest> = fs::read_to_string(&manifest_path)
                     .map_err(anyhow::Error::from)
@@ -282,127 +282,30 @@ impl PluginManager {
                         continue;
                     }
                 };
-                let name = manifest.name.clone();
-
-                if !valid_name(&name) {
-                    statuses.push(status(
-                        dir_name.clone(),
-                        &pkg_dir,
-                        PluginState::Error(format!("非法包名：{}", name)),
-                        Some(manifest),
-                    ));
-                    continue;
-                }
-
-                if packages.contains_key(&name) {
-                    statuses.push(status(
-                        name.clone(),
-                        &pkg_dir,
-                        PluginState::Error("包名重复".to_string()),
-                        Some(manifest),
-                    ));
-                    continue;
-                }
-                if let Err(e) = semver::Version::parse(&manifest.version) {
-                    statuses.push(status(
-                        name.clone(),
-                        &pkg_dir,
-                        PluginState::Error(format!("插件 version 非法：{e}")),
-                        Some(manifest),
-                    ));
-                    continue;
-                }
-                if let Some(minver) = manifest.minver.clone() {
-                    match meets_minver(current_version, &minver) {
-                        Ok(true) => {}
-                        Ok(false) => {
-                            statuses.push(status(
-                                name.clone(),
-                                &pkg_dir,
-                                PluginState::Error(format!(
-                                    "要求主程序 >= {}，当前 {}",
-                                    minver, current_version
-                                )),
-                                Some(manifest),
-                            ));
-                            continue;
-                        }
-                        Err(e) => {
-                            statuses.push(status(
-                                name.clone(),
-                                &pkg_dir,
-                                PluginState::Error(e.to_string()),
-                                Some(manifest),
-                            ));
-                            continue;
-                        }
-                    }
-                }
-
-                // 验证 wasm 入口与资源目录可访问
-                if let Some(entry) = manifest.entry.as_ref()
-                    && !pkg_dir.join(entry).is_file()
-                {
-                    let msg = format!("entry 不存在：{}", entry.display());
-                    statuses.push(status(
-                        name.clone(),
-                        &pkg_dir,
-                        PluginState::Error(msg),
-                        Some(manifest),
-                    ));
-                    continue;
-                }
-                if let Some(asset_dir) = manifest.asset_dir.as_ref()
-                    && !pkg_dir.join(asset_dir).is_dir()
-                {
-                    let msg = format!("asset_dir 不可访问：{}", asset_dir.display());
-                    statuses.push(status(
-                        name.clone(),
-                        &pkg_dir,
-                        PluginState::Error(msg),
-                        Some(manifest),
-                    ));
-                    continue;
-                }
-                if let Some(msg) = component_io_error(&manifest, &pkg_dir) {
-                    statuses.push(status(
-                        name.clone(),
-                        &pkg_dir,
-                        PluginState::Error(msg),
-                        Some(manifest),
-                    ));
-                    continue;
-                }
-
-                match collect_components(&manifest, &builtin_template_names, &component_owner) {
-                    Ok(components) => {
-                        for key in components.keys() {
-                            component_owner.insert(key.clone(), name.clone());
+                match load_package(
+                    &pkg_dir,
+                    &dir_name,
+                    &manifest,
+                    current_version,
+                    &builtin_template_names,
+                    &component_owner,
+                    &packages,
+                ) {
+                    Ok(package) => {
+                        for key in package.components.keys() {
+                            component_owner.insert(key.clone(), package.name.clone());
                         }
                         statuses.push(status(
-                            name.clone(),
+                            package.name.clone(),
                             &pkg_dir,
                             PluginState::Loaded,
-                            Some(manifest.clone()),
+                            Some(manifest),
                         ));
-                        packages.insert(
-                            name.clone(),
-                            PluginPackage {
-                                name: name.clone(),
-                                dir: pkg_dir.clone(),
-                                description: manifest.description,
-                                license: manifest.license,
-                                repo_url: manifest.repo_url,
-                                url: manifest.url,
-                                asset_dir: manifest.asset_dir,
-                                entry: manifest.entry,
-                                components,
-                            },
-                        );
+                        packages.insert(package.name.clone(), package);
                     }
-                    Err(reason) => {
+                    Err((status_name, reason)) => {
                         statuses.push(status(
-                            name.clone(),
+                            status_name,
                             &pkg_dir,
                             PluginState::Error(reason),
                             Some(manifest),
@@ -481,13 +384,18 @@ impl PluginManager {
         let dumper =
             crate::plugin::factory::build_dumper(&dumper_ref, self, tmp, &self.assets_dirs)?;
         let out_name = match &dumper_ref {
-            DumperRef::Builtin(builtin) => builtin_dumper_name(*builtin).to_string(),
+            DumperRef::Builtin(builtin) => match builtin {
+                BuiltinDumper::Lemon => "lemon",
+                BuiltinDumper::Arbiter => "arbiter",
+                BuiltinDumper::CcrPlus => "ccr-plus",
+            }
+            .to_string(),
             DumperRef::Plugin(_) => name.to_string(),
         };
         Ok((dumper, out_name))
     }
 
-    /// 按 (类型，组件名) 查找所属包与组件（经 `component_owner` 缓存，O(1)）。
+    /// 按 (类型，组件名) 查找所属包与组件。
     fn find_component(
         &self,
         kind: ComponentKind,
@@ -566,7 +474,7 @@ impl PluginManager {
         })
     }
 
-    /// 解析导出器：内置裸名（`lemon` / `arbiter` / `ccr-plus`），或插件 `dumper` 组件名。
+    /// 解析导出器：内置名（`lemon` / `arbiter` / `ccr-plus`），或插件 `dumper` 组件名。
     fn resolve_dumper(&self, name: &str) -> Result<DumperRef> {
         let builtin = match name {
             "lemon" => Some(BuiltinDumper::Lemon),
@@ -600,7 +508,7 @@ impl PluginManager {
         }))
     }
 
-    /// 解析渲染器：内置裸名（`typst` / `markdown`），或本包 `renderer` 组件名。
+    /// 解析渲染器：内置名（`typst` / `markdown`），或本包 `renderer` 组件名。
     fn parse_renderer(&self, s: &str, pkg: &str) -> Result<RendererRef> {
         match s {
             "typst" => return Ok(RendererRef::Builtin(BuiltinRenderer::Typst)),
@@ -619,7 +527,7 @@ impl PluginManager {
         }))
     }
 
-    /// 解析处理器：内置裸名，或本包 `processor` 组件名。
+    /// 解析处理器：内置名，或本包 `processor` 组件名。
     fn parse_processor(&self, s: &str, pkg: &str) -> Result<ProcessorRef> {
         if BUILTIN_PROCESSORS.contains(&s) {
             return Ok(ProcessorRef::Builtin(s.to_string()));
@@ -681,6 +589,73 @@ fn component_io_error(manifest: &PluginManifest, pkg_dir: &Path) -> Option<Strin
     None
 }
 
+/// 校验受信任插件的清单并收集组件，产出可入库的包。
+///
+/// 失败返回 `(状态名, 原因)`，由调用方登记为 `Error` 状态。
+fn load_package(
+    pkg_dir: &Path,
+    dir_name: &str,
+    manifest: &PluginManifest,
+    current_version: &str,
+    builtin_template_names: &[String],
+    component_owner: &IndexMap<(ComponentKind, String), String>,
+    existing_packages: &IndexMap<String, PluginPackage>,
+) -> std::result::Result<PluginPackage, (String, String)> {
+    let name = manifest.name.clone();
+
+    if !valid_name(&name) {
+        return Err((dir_name.to_string(), format!("非法包名：{}", name)));
+    }
+    if existing_packages.contains_key(&name) {
+        return Err((name, "包名重复".to_string()));
+    }
+    if let Err(e) = semver::Version::parse(&manifest.version) {
+        return Err((name, format!("插件 version 非法：{e}")));
+    }
+    if let Some(minver) = manifest.minver.clone() {
+        match meets_minver(current_version, &minver) {
+            Ok(true) => {}
+            Ok(false) => {
+                return Err((
+                    name,
+                    format!("要求主程序 >= {}，当前 {}", minver, current_version),
+                ));
+            }
+            Err(e) => return Err((name, e.to_string())),
+        }
+    }
+
+    // 验证 wasm 入口与资源目录可访问
+    if let Some(entry) = manifest.entry.as_ref()
+        && !pkg_dir.join(entry).is_file()
+    {
+        return Err((name, format!("entry 不存在：{}", entry.display())));
+    }
+    if let Some(asset_dir) = manifest.asset_dir.as_ref()
+        && !pkg_dir.join(asset_dir).is_dir()
+    {
+        return Err((name, format!("asset_dir 不可访问：{}", asset_dir.display())));
+    }
+    if let Some(reason) = component_io_error(manifest, pkg_dir) {
+        return Err((name, reason));
+    }
+
+    let components = collect_components(manifest, builtin_template_names, component_owner)
+        .map_err(|reason| (name.clone(), reason))?;
+
+    Ok(PluginPackage {
+        name,
+        dir: pkg_dir.to_path_buf(),
+        description: manifest.description.clone(),
+        license: manifest.license.clone(),
+        repo_url: manifest.repo_url.clone(),
+        url: manifest.url.clone(),
+        asset_dir: manifest.asset_dir.clone(),
+        entry: manifest.entry.clone(),
+        components,
+    })
+}
+
 /// 收集并校验一个插件包的组件（同域内包内唯一 + 不与内置/已登记组件冲突）。
 fn collect_components(
     manifest: &PluginManifest,
@@ -714,15 +689,6 @@ fn is_builtin_reserved(kind: ComponentKind, name: &str, builtin_template_names: 
         ComponentKind::Renderer => BUILTIN_RENDERERS.contains(&name),
         ComponentKind::Processor => BUILTIN_PROCESSORS.contains(&name),
         ComponentKind::Dumper => BUILTIN_DUMPERS.contains(&name),
-    }
-}
-
-/// 内置导出器的输出子目录名。
-fn builtin_dumper_name(dumper: BuiltinDumper) -> &'static str {
-    match dumper {
-        BuiltinDumper::Lemon => "lemon",
-        BuiltinDumper::Arbiter => "arbiter",
-        BuiltinDumper::CcrPlus => "ccr-plus",
     }
 }
 

@@ -15,8 +15,6 @@ pub trait Processor: Send + Sync {
 }
 
 /// 注册处理器为 extism 导出函数（默认导出名 `process`）。
-///
-/// 宿主侧按 manifest 里 `function` 字段调用，缺省即 `process`。
 #[macro_export]
 macro_rules! processor {
     ($ty:ty) => {

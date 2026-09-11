@@ -6,8 +6,8 @@ use indicatif::ProgressBar;
 use opener::open;
 use std::time::Duration;
 use tuack_lib::ren::{
-    DateInfo, Problem, ProblemMeta, ProblemType, RenConfig, RenProcessor, RenderDocument,
-    SupportLanguage,
+    DateInfo, Problem, ProblemMeta, ProblemType, RenConfig, RenParams, RenProcessor,
+    RenderDocument, SupportLanguage,
 };
 use tuack_ng_parser::parse;
 use tuack_utils::assets::FsAssetProvider;
@@ -31,30 +31,39 @@ pub struct RenArgs {
     pub no_auto_open: bool,
 }
 
+/// 解析 day -> contest -> 插件模板 覆盖链，得到最终渲染参数。
+fn resolve_ren_params(
+    config: &ContestConfig,
+    day_config: &ContestDayConfig,
+    options: &RenderOptions,
+) -> RenParams {
+    RenParams {
+        use_pretest: day_config
+            .use_pretest
+            .or(config.use_pretest)
+            .unwrap_or(options.use_pretest),
+        noi_style: day_config
+            .noi_style
+            .or(config.noi_style)
+            .unwrap_or(options.noi_style),
+        file_io: day_config
+            .file_io
+            .or(config.file_io)
+            .unwrap_or(options.file_io),
+    }
+}
+
 /// 构造自洽渲染配置（day -> contest -> template 覆盖链合并）
 fn build_ren_config(
     config: &ContestConfig,
     day_config: &ContestDayConfig,
-    options: &RenderOptions,
+    params: RenParams,
 ) -> Result<RenConfig> {
     let date = if let (Some(start), Some(end)) = (day_config.start_time, day_config.end_time) {
         Some(DateInfo { start, end })
     } else {
         None
     };
-
-    let use_pretest = day_config
-        .use_pretest
-        .or(config.use_pretest)
-        .unwrap_or(options.use_pretest);
-    let noi_style = day_config
-        .noi_style
-        .or(config.noi_style)
-        .unwrap_or(options.noi_style);
-    let file_io = day_config
-        .file_io
-        .or(config.file_io)
-        .unwrap_or(options.file_io);
 
     let mut support_languages = Vec::new();
     for (lang_key, compile_options) in &day_config.compile {
@@ -79,9 +88,7 @@ fn build_ren_config(
         day_key: day_config.name.clone(),
         dayname: day_config.title.clone(),
         date,
-        use_pretest,
-        noi_style,
-        file_io,
+        params,
         support_languages,
     })
 }
@@ -158,6 +165,7 @@ fn build_render_document(
         day_config.clone()
     };
 
+    let params = resolve_ren_params(config, day_config, options);
     let re = regex::Regex::new(r"<!--[\s\S]*?-->").unwrap();
     let mut assets = FsAssetProvider::new();
     let mut problems = Vec::new();
@@ -180,7 +188,7 @@ fn build_render_document(
             &day_to_render,
             config,
             problem_config.path.clone(),
-            options.file_io,
+            params,
         )
         .with_context(|| format!("读取题面文件/展开模板失败：{}", statement_path.display()))?;
 
@@ -241,7 +249,7 @@ fn build_render_document(
     }
     info!("处理注意事项文件：{}", precaution_path.display());
 
-    let config = build_ren_config(config, day_config, options)?;
+    let config = build_ren_config(config, day_config, params)?;
 
     Ok((
         RenderDocument {

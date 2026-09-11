@@ -100,9 +100,9 @@ impl TypstRenderer {
                 start: d.start,
                 end: d.end,
             }),
-            use_pretest: doc.config.use_pretest,
-            noi_style: doc.config.noi_style,
-            file_io: doc.config.file_io,
+            use_pretest: doc.config.params.use_pretest,
+            noi_style: doc.config.params.noi_style,
+            file_io: doc.config.params.file_io,
             support_languages,
             problems,
         }

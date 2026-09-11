@@ -12,7 +12,7 @@ use tuack_utils::assets::FsAssetProvider;
 #[derive(Args, Debug)]
 #[command(version)]
 pub struct DumpArgs {
-    /// 导出目标（内置裸名，或插件组件名）
+    /// 导出目标（内置名，或插件组件名）
     #[arg(required = true)]
     pub target: String,
 }

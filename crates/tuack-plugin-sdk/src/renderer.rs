@@ -8,9 +8,7 @@ use tuack_lib::utils::output::OutputFile;
 
 /// 插件渲染器：实现它即可接入 extism。
 ///
-/// `render` 接收可序列化的渲染文档，返回主产物相对路径与产物文件列表
-/// （与宿主侧 `tuack_lib::ren::Renderer` 同形）；SDK 把文件列表转成可回传的
-/// [`OutputSpec`](crate::OutputSpec)，由宿主落盘。
+/// `render` 接收渲染文档，返回主产物相对路径与产物文件列表。
 pub trait Renderer: Send + Sync {
     fn new() -> Self
     where
