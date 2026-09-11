@@ -174,6 +174,8 @@ pub struct PluginManager {
     statuses: Vec<PluginStatus>,
     /// 资源目录（自带模板 store 查找、arbiter 资源）
     assets_dirs: Vec<PathBuf>,
+    /// 用户插件目录
+    plugin_dir: PathBuf,
 }
 
 impl PluginManager {
@@ -230,6 +232,14 @@ impl PluginManager {
                 };
                 let pkg_dir = entry.path();
                 if !pkg_dir.is_dir() {
+                    continue;
+                }
+                // 跳过隐藏目录（如安装暂存目录 .staging-*）
+                if pkg_dir
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .is_some_and(|n| n.starts_with('.'))
+                {
                     continue;
                 }
                 let dir_name = pkg_dir
@@ -408,6 +418,7 @@ impl PluginManager {
             component_owner,
             statuses,
             assets_dirs: assets_dirs.to_vec(),
+            plugin_dir: plugin_dir.to_path_buf(),
         }
     }
 
@@ -427,6 +438,11 @@ impl PluginManager {
     /// 加载失败（`Error`）的插件。
     pub fn failed_plugins(&self) -> impl Iterator<Item = &PluginStatus> {
         self.statuses.iter().filter(|s| s.state.is_error())
+    }
+
+    /// 用户插件目录。
+    pub fn plugins_dir(&self) -> &Path {
+        &self.plugin_dir
     }
 
     /// 模板名是否存在（自带模板或插件 `ren_template` 组件）。
@@ -637,7 +653,7 @@ fn status(
 }
 
 /// 合法的包名 / 组件名（仅 ASCII 字母数字与 `-`/`_`，避免路径分隔与 `..`）。
-fn valid_name(s: &str) -> bool {
+pub fn valid_name(s: &str) -> bool {
     !s.is_empty()
         && s.chars()
             .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
@@ -711,7 +727,7 @@ fn builtin_dumper_name(dumper: BuiltinDumper) -> &'static str {
 }
 
 /// 语义化版本比较：`current >= required`。
-fn meets_minver(current: &str, required: &str) -> Result<bool> {
+pub fn meets_minver(current: &str, required: &str) -> Result<bool> {
     let current = semver::Version::parse(current)
         .with_context(|| format!("主程序版本号非法：{}", current))?;
     let required = semver::Version::parse(required)
