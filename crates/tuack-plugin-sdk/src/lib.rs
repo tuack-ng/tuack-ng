@@ -4,7 +4,7 @@
 //! [`Dumper`]；分别用 [`processor`] / [`renderer`] / [`dumper`] 宏注册为
 //! extism 导出函数，JSON 编解码、内存与错误处理均由 SDK 接管。
 //!
-//! 一个最小处理器插件（编译目标 `wasm32-unknown-unknown`）：
+//! 一个最小处理器插件（编译目标 `wasm32-wasip1`）：
 //! ```ignore
 //! #![no_main]
 //! use tuack_plugin_sdk::{processor, Document, Error, Processor, ProcessorOutput};

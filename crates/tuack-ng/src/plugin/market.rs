@@ -2,6 +2,7 @@ use crate::prelude::*;
 use crate::utils::aligned::AlignedFields;
 use clap::{Args, Subcommand};
 use owo_colors::OwoColorize;
+use std::time::Duration;
 use tuack_utils::plugin::manager::{DISABLED_MARKER, TRUSTED_MARKER, meets_minver, valid_name};
 
 #[derive(Args, Debug)]
@@ -40,11 +41,33 @@ pub enum MarketCommands {
         /// 更新全部已安装插件
         #[arg(long)]
         all: bool,
+        /// 覆盖非市场安装的本地插件
+        #[arg(long)]
+        force: bool,
     },
 }
 
 const INDEX_URL: &str =
     "https://raw.githubusercontent.com/tuack-ng/tuack-ng-plugins/master/index.json";
+
+/// 市场来源标记：安装时由宿主写入，供更新时识别非同源插件。
+const FROM_MARKET_MARKER: &str = ".from-market";
+/// 市场索引体大小上限。
+const MAX_INDEX_BYTES: u64 = 1024 * 1024;
+/// 插件归档下载与解压体积上限。
+const MAX_ARCHIVE_BYTES: u64 = 512 * 1024 * 1024;
+/// 插件归档条目数上限。
+const MAX_ENTRIES: usize = 10_000;
+
+/// 访问市场的 HTTP agent：强制 HTTPS，设置连接超时与整体超时。
+fn agent(global: Duration) -> ureq::Agent {
+    ureq::config::Config::builder()
+        .timeout_global(Some(global))
+        .timeout_connect(Some(Duration::from_secs(10)))
+        .https_only(true)
+        .build()
+        .new_agent()
+}
 
 #[derive(Debug, Deserialize)]
 struct MarketplaceIndex {
@@ -78,16 +101,19 @@ pub(super) fn main(args: MarketArgs) -> Result<()> {
         MarketCommands::List => market_list(),
         MarketCommands::Show { name } => market_show(&name),
         MarketCommands::Install { name, force } => market_install(&name, force),
-        MarketCommands::Update { name, all } => market_update(name, all),
+        MarketCommands::Update { name, all, force } => market_update(name, all, force),
     }
 }
 
 fn fetch_market() -> Result<MarketplaceIndex> {
-    let mut response = ureq::get(INDEX_URL)
+    let mut response = agent(Duration::from_secs(15))
+        .get(INDEX_URL)
         .call()
         .context("获取插件市场索引失败")?;
     let text = response
         .body_mut()
+        .with_config()
+        .limit(MAX_INDEX_BYTES)
         .read_to_string()
         .context("读取插件市场索引失败")?;
     serde_json::from_str(&text).context("解析插件市场索引失败")
@@ -170,7 +196,7 @@ fn market_install(name: &str, force: bool) -> Result<()> {
 }
 
 /// 更新已安装插件：指定单个插件名，或 `--all` 更新全部。更新后取消信任。
-fn market_update(name: Option<String>, all: bool) -> Result<()> {
+fn market_update(name: Option<String>, all: bool, force: bool) -> Result<()> {
     if all == name.is_some() {
         bail!("请指定插件名，或用 `--all` 更新全部");
     }
@@ -213,7 +239,7 @@ fn market_update(name: Option<String>, all: bool) -> Result<()> {
 
     let mut failed: Vec<String> = Vec::new();
     for plugin in targets {
-        if let Err(e) = market_update_one(plugin) {
+        if let Err(e) = market_update_one(plugin, force) {
             msg_error!("插件 {} 更新失败：{:?}", plugin.name, e);
             failed.push(plugin.name.clone());
         }
@@ -225,9 +251,16 @@ fn market_update(name: Option<String>, all: bool) -> Result<()> {
 }
 
 /// 更新单个插件（更新后取消信任）。
-fn market_update_one(plugin: &MarketplacePlugin) -> Result<()> {
+fn market_update_one(plugin: &MarketplacePlugin, force: bool) -> Result<()> {
     check_minver(plugin)?;
     let status = gctx().plugins.plugin(&plugin.name)?;
+    if !force && !status.dir.join(FROM_MARKET_MARKER).is_file() {
+        msg_warn!(
+            "{} 不是从市场安装的，跳过（加 `--force` 覆盖）",
+            plugin.name
+        );
+        return Ok(());
+    }
     if let Some(manifest) = status.manifest.as_ref() {
         match version_cmp(&plugin.version, &manifest.version)? {
             std::cmp::Ordering::Equal => {
@@ -286,7 +319,8 @@ fn install_plugin(plugin: &MarketplacePlugin, dest: &Path) -> Result<()> {
         bail!("非法的插件名：{}", plugin.name);
     }
     msg_info!("下载 {} ...", plugin.download_url.dimmed());
-    let mut response = ureq::get(&plugin.download_url)
+    let mut response = agent(Duration::from_secs(600))
+        .get(&plugin.download_url)
         .call()
         .context("下载插件失败")?;
 
@@ -295,8 +329,8 @@ fn install_plugin(plugin: &MarketplacePlugin, dest: &Path) -> Result<()> {
         .suffix(".zip")
         .tempfile()
         .context("创建临时文件失败")?;
-    std::io::copy(&mut response.body_mut().as_reader(), archive.as_file_mut())
-        .context("下载插件失败")?;
+    let body = response.body_mut().with_config().limit(MAX_ARCHIVE_BYTES);
+    std::io::copy(&mut body.reader(), archive.as_file_mut()).context("下载插件失败")?;
 
     let actual = sha256_hex(archive.reopen()?)?;
     if actual != plugin.sha256.to_lowercase() {
@@ -311,6 +345,7 @@ fn install_plugin(plugin: &MarketplacePlugin, dest: &Path) -> Result<()> {
     let staging = parent.join(format!(".staging-{}-{}", plugin.name, pid));
     let backup = parent.join(format!(".backup-{}-{}", plugin.name, pid));
     let had_dest = dest.exists();
+    let was_disabled = had_dest && dest.join(DISABLED_MARKER).exists();
     let mut backup_kept = false;
     let staged = (|| -> Result<()> {
         extract_zip(archive.path(), &staging)
@@ -340,8 +375,8 @@ fn install_plugin(plugin: &MarketplacePlugin, dest: &Path) -> Result<()> {
     }
     staged?;
 
-    // 移除作者可能误打包的本地标记，避免安装后被自动信任/禁用
-    for marker in [TRUSTED_MARKER, DISABLED_MARKER] {
+    // 移除作者可能误打包的标记（信任 / 禁用 / 市场来源），统一由宿主决定
+    for marker in [TRUSTED_MARKER, DISABLED_MARKER, FROM_MARKET_MARKER] {
         let path = dest.join(marker);
         if path.exists() {
             if let Err(e) = fs::remove_file(&path) {
@@ -351,6 +386,22 @@ fn install_plugin(plugin: &MarketplacePlugin, dest: &Path) -> Result<()> {
             }
         }
     }
+
+    // 保留用户此前的禁用意图
+    if was_disabled {
+        fs::write(dest.join(DISABLED_MARKER), "").context("恢复禁用标记失败")?;
+    }
+
+    // 记录市场来源，供更新时识别非同源插件
+    fs::write(
+        dest.join(FROM_MARKET_MARKER),
+        format!(
+            "{}\n{}\n",
+            plugin.download_url,
+            plugin.sha256.to_lowercase()
+        ),
+    )
+    .context("写入市场来源标记失败")?;
     Ok(())
 }
 
@@ -362,12 +413,20 @@ fn sha256_hex(mut reader: impl std::io::Read) -> Result<String> {
     Ok(format!("{:x}", hasher.finalize()))
 }
 
-/// 解包 zip 文件到 `dest`（拒绝越界路径）。
+/// 解包 zip 文件到 `dest`（拒绝越界路径，限制条目数与解压体积）。
 fn extract_zip(archive_path: &Path, dest: &Path) -> Result<()> {
     let mut archive = zip::ZipArchive::new(fs::File::open(archive_path)?)?;
+    if archive.len() > MAX_ENTRIES {
+        bail!("归档条目过多：{}", archive.len());
+    }
     fs::create_dir_all(dest)?;
+    let mut total = 0u64;
     for i in 0..archive.len() {
         let mut entry = archive.by_index(i)?;
+        total = total.saturating_add(entry.size());
+        if total > MAX_ARCHIVE_BYTES {
+            bail!("归档解压体积超出上限");
+        }
         let Some(rel) = entry.enclosed_name() else {
             bail!("归档内非法路径：{}", entry.name());
         };

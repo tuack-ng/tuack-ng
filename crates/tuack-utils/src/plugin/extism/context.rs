@@ -14,7 +14,7 @@ use tuack_lib::ren::CommandResult;
 use tuack_lib::utils::asset::AssetProvider;
 use tuack_lib::utils::output::{OutputFile, OutputSpec};
 
-use crate::keepalive::KeepAliveReader;
+use crate::utils::KeepAliveReader;
 
 use crate::prelude::*;
 
@@ -114,15 +114,18 @@ impl PluginContext {
         })
     }
 
-    /// 把插件传入的 `cwd` 限定在工作区内：空串为工作区根；`get_path` 返回的宿主路径直接用；
-    /// 其余按 WASI 路径解析。越界报错。
+    /// 把插件传入的 `cwd` 限定在工作区内：空串为工作区根；`get_path` 返回的宿主路径去前缀后，
+    /// 与其余路径一样按工作区相对路径做完整校验；越界或软链逃逸报错。
     fn resolve_cwd(&self, cwd: &str) -> Result<PathBuf> {
         if cwd.is_empty() {
             return Ok(self.tmp_dir.clone());
         }
         let path = Path::new(cwd);
-        if path.is_absolute() && path.clean().starts_with(&self.tmp_dir) {
-            return Ok(path.clean());
+        if path.is_absolute() {
+            let cleaned = path.clean();
+            if let Ok(rel) = cleaned.strip_prefix(&self.tmp_dir) {
+                return crate::utils::resolve_within(&self.tmp_dir, rel);
+            }
         }
         resolve_within(&self.tmp_dir, cwd)
     }
@@ -269,11 +272,10 @@ pub(crate) fn common_imports() -> Vec<extism::Function> {
     ]
 }
 
-/// 把 `rel`（WASI 风格，可能带前导 `/`）解析到 `base` 下；规范化后越出 `base` 则报错。
+/// 把 `rel`（WASI 风格，可能带前导 `/`）解析到 `base` 下；越出 `base` 或经符号链接逃逸则报错。
 fn resolve_within(base: &Path, rel: &str) -> Result<PathBuf> {
     let stripped = rel.strip_prefix('/').unwrap_or(rel);
-    let rel = crate::plugin::normalize_within(base, Path::new(stripped))?;
-    Ok(base.join(rel))
+    crate::utils::resolve_within(base, Path::new(stripped))
 }
 
 /// 把回传的 `OutputSpec` 转成宿主 `OutputFile`：资产流从共享句柄表取出（host-to-host），
@@ -289,7 +291,7 @@ pub(crate) fn specs_to_outputs(
     for spec in specs {
         match spec {
             OutputSpec::Asset { path, asset_id } => {
-                let path = crate::plugin::normalize_within(out_dir, &path)?;
+                let path = crate::utils::normalize_within(out_dir, &path)?;
                 let stream = guard
                     .remove(&asset_id)
                     .ok_or_else(|| anyhow!("无效的资产句柄：{}", asset_id))?;
@@ -299,8 +301,9 @@ pub(crate) fn specs_to_outputs(
                 });
             }
             OutputSpec::File { path } => {
-                let rel = crate::plugin::normalize_within(out_dir, &path)?;
+                let rel = crate::utils::normalize_within(out_dir, &path)?;
                 let dest = out_dir.join(&rel);
+                crate::utils::assert_within(out_dir, &dest)?;
                 let file = std::fs::File::open(&dest)
                     .with_context(|| format!("打开产物文件失败：{}", dest.display()))?;
                 files.push(OutputFile::File {
@@ -309,7 +312,7 @@ pub(crate) fn specs_to_outputs(
                 });
             }
             OutputSpec::Dir(path) => {
-                let path = crate::plugin::normalize_within(out_dir, &path)?;
+                let path = crate::utils::normalize_within(out_dir, &path)?;
                 files.push(OutputFile::Dir(path));
             }
         }

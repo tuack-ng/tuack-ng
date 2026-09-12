@@ -215,7 +215,9 @@ fn permissions(e: &ExecutableComponent) -> Option<String> {
     if e.wasi {
         parts.push("WASI".to_string());
     }
-    if !e.command.is_empty() {
+    if e.command.iter().any(|c| c == "*") {
+        parts.push("可执行任意程序".to_string());
+    } else if !e.command.is_empty() {
         parts.push(format!("命令 ({})", e.command.join(",")));
     }
     (!parts.is_empty()).then(|| parts.join("，"))

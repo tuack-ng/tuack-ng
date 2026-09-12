@@ -91,7 +91,11 @@ impl Renderer for ExtismRenderer {
             .map_err(|e| anyhow!(e).context("调用 extism 渲染器失败"))?;
 
         let files = specs_to_outputs(output.0.files, &streams, &out_dir, self.tmp.clone())?;
-        let main = crate::plugin::normalize_within(&out_dir, &output.0.main)?;
+        // `main` 契约上为相对 `out_dir` 的路径；经符号链接安全校验后取回相对路径
+        let main = crate::utils::resolve_within(&out_dir, &output.0.main)?
+            .strip_prefix(&out_dir)
+            .map(Path::to_path_buf)
+            .context("渲染主产物越出输出目录")?;
 
         Ok((main, files))
     }

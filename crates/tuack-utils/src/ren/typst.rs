@@ -1,5 +1,5 @@
-use crate::keepalive::KeepAliveReader;
 use crate::prelude::*;
+use crate::utils::KeepAliveReader;
 use std::collections::HashSet;
 use tempfile::TempDir;
 use tuack_lib::ren::{ProblemType, RenderDocument, Renderer};

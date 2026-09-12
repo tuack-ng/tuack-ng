@@ -22,8 +22,8 @@ use std::process::Command;
 use quick_xml::se::to_string;
 use strfmt::strfmt;
 
-use crate::keepalive::KeepAliveReader;
 use crate::prelude::*;
+use crate::utils::KeepAliveReader;
 use tempfile::TempDir;
 use tuack_lib::dump::{DumpProblem, Dumper, ScorePolicy};
 use tuack_lib::ren::ProblemType;

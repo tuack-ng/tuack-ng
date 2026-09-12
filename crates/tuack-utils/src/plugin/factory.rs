@@ -159,23 +159,19 @@ fn component<'a>(
         .context(format!("未找到插件组件：{}", name))
 }
 
-/// 取插件的 wasm 入口宿主路径（约束在包目录内）。
+/// 取插件的 wasm 入口宿主路径（约束在包目录内，且不经符号链接逃逸）。
 fn entry_path(package: &crate::plugin::manager::PluginPackage) -> Result<PathBuf> {
     let entry = package
         .entry
         .as_ref()
         .context("插件未声明 entry（wasm 入口）")?;
-    crate::plugin::normalize_within(&package.dir, entry).map(|rel| package.dir.join(rel))
+    crate::utils::resolve_within(&package.dir, entry)
 }
 
-/// 取插件的资源目录宿主路径（约束在包目录内）。
+/// 取插件的资源目录宿主路径（约束在包目录内，且不经符号链接逃逸）。
 fn resolve_asset_dir(package: &crate::plugin::manager::PluginPackage) -> Result<Option<PathBuf>> {
     match &package.asset_dir {
-        Some(dir) => Ok(Some(
-            package
-                .dir
-                .join(crate::plugin::normalize_within(&package.dir, dir)?),
-        )),
+        Some(dir) => Ok(Some(crate::utils::resolve_within(&package.dir, dir)?)),
         None => Ok(None),
     }
 }

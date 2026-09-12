@@ -495,7 +495,7 @@ impl PluginManager {
             Some(dir) => TemplateSource::Dir(
                 package
                     .dir
-                    .join(crate::plugin::normalize_within(&package.dir, dir)?),
+                    .join(crate::utils::normalize_within(&package.dir, dir)?),
             ),
             None => TemplateSource::Empty,
         };
@@ -623,7 +623,7 @@ fn component_io_error(manifest: &PluginManifest, pkg_dir: &Path) -> Option<Strin
         if let ComponentBody::RenTemplate(t) = &c.body
             && let Some(dir) = &t.template
         {
-            match crate::plugin::normalize_within(pkg_dir, dir) {
+            match crate::utils::normalize_within(pkg_dir, dir) {
                 Ok(rel) if pkg_dir.join(&rel).is_dir() => {}
                 Ok(_) => return Some(format!("模板目录不存在：{}", dir.display())),
                 Err(e) => return Some(format!("模板目录非法：{e}")),
@@ -671,14 +671,14 @@ fn load_package(
 
     // 验证 wasm 入口与资源目录可访问（且不越出包目录）
     if let Some(entry) = manifest.entry.as_ref() {
-        match crate::plugin::normalize_within(pkg_dir, entry) {
+        match crate::utils::normalize_within(pkg_dir, entry) {
             Ok(rel) if pkg_dir.join(&rel).is_file() => {}
             Ok(_) => return Err((name, format!("entry 不存在：{}", entry.display()))),
             Err(e) => return Err((name, format!("entry 非法：{e}"))),
         }
     }
     if let Some(asset_dir) = manifest.asset_dir.as_ref() {
-        match crate::plugin::normalize_within(pkg_dir, asset_dir) {
+        match crate::utils::normalize_within(pkg_dir, asset_dir) {
             Ok(rel) if pkg_dir.join(&rel).is_dir() => {}
             Ok(_) => return Err((name, format!("asset_dir 不可访问：{}", asset_dir.display()))),
             Err(e) => return Err((name, format!("asset_dir 非法：{e}"))),

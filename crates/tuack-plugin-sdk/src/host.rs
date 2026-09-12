@@ -70,6 +70,8 @@ impl Drop for AssetReader {
 
 /// 执行外部命令（宿主侧执行，插件拿回退出码与输出）。
 ///
+/// 不建议使用此命令获取大输出，优先使用命令自带的重定向方法。
+///
 /// `cwd` 为工作目录，必须位于插件工作区内：留空表示工作区根，或传 [`get_path`]
 /// 返回的宿主路径；越界会被宿主拒绝。
 pub fn command(args: &[&str], cwd: &str) -> Result<CommandResult, Error> {
