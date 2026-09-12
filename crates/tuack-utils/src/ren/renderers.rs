@@ -1,4 +1,3 @@
-use crate::ren::manifest::TemplateManifest;
 use tuack_ng_parser::ast::Document;
 use tuack_ng_parser::ast::inline::Image;
 use tuack_ng_parser::transform::Transform;
@@ -68,15 +67,15 @@ pub fn rewrite_images(ast: Document, idx: u64) -> Result<(Document, IndexMap<Pat
     Ok((ast, map))
 }
 
-/// 按 manifest.filelist 从 assets store 解压模板到目标目录
+/// 按 `filelist`（相对路径 -> store 内文件名）从 assets store 解压模板到目标目录
 pub fn unwrap_template(
-    manifest: &TemplateManifest,
+    filelist: &IndexMap<String, String>,
     output_dir: &Path,
     assets_dirs: &[PathBuf],
 ) -> Result<()> {
     fs::create_dir_all(output_dir)?;
 
-    for (relative_path, sha256) in &manifest.filelist {
+    for (relative_path, sha256) in filelist {
         let source_file = find_file_in_store(assets_dirs, sha256)
             .with_context(|| format!("查找文件失败：{} (sha256: {})", relative_path, sha256))?;
 

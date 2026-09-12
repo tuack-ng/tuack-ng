@@ -1,12 +1,9 @@
 use std::io;
 use std::path::PathBuf;
 
-use async_trait::async_trait;
-use tokio::fs::File;
-
 use crate::prelude::*;
 use tuack_config::{DmkConfig, ExpandedDataItem, ExpandedSampleItem, ProblemConfig};
-use tuack_lib::data::{AsyncReader, Data, DmkData};
+use tuack_lib::data::{Data, DmkData, Reader};
 use tuack_lib::utils::testlib::Arg;
 
 /// 构造正式数据的 `FsTestData` 列表（从 `data/` 读取）。
@@ -125,20 +122,18 @@ impl<'a> FsTestData<'a> {
     }
 }
 
-#[async_trait]
 impl Data for FsTestData<'_> {
-    async fn input(&self) -> io::Result<Box<dyn AsyncReader>> {
-        let f = File::open(self.base_dir.join(self.input_name())).await?;
+    fn input(&self) -> io::Result<Box<dyn Reader>> {
+        let f = std::fs::File::open(self.base_dir.join(self.input_name()))?;
         Ok(Box::new(f))
     }
 
-    async fn answer(&self) -> io::Result<Box<dyn AsyncReader>> {
-        let f = File::open(self.base_dir.join(self.answer_name())).await?;
+    fn answer(&self) -> io::Result<Box<dyn Reader>> {
+        let f = std::fs::File::open(self.base_dir.join(self.answer_name()))?;
         Ok(Box::new(f))
     }
 }
 
-#[async_trait]
 impl DmkData for FsTestData<'_> {
     fn args(&self) -> &IndexMap<String, Arg> {
         match &self.item {
@@ -147,15 +142,15 @@ impl DmkData for FsTestData<'_> {
         }
     }
 
-    async fn write_input(&self, mut input: Box<dyn AsyncReader>) -> Result<()> {
-        let mut f = File::create(self.input_path()).await?;
-        tokio::io::copy(&mut *input, &mut f).await?;
+    fn write_input(&self, mut input: Box<dyn Reader>) -> Result<()> {
+        let mut f = std::fs::File::create(self.input_path())?;
+        std::io::copy(&mut *input, &mut f)?;
         Ok(())
     }
 
-    async fn write_output(&self, mut output: Box<dyn AsyncReader>) -> Result<()> {
-        let mut f = File::create(self.output_path()).await?;
-        tokio::io::copy(&mut *output, &mut f).await?;
+    fn write_output(&self, mut output: Box<dyn Reader>) -> Result<()> {
+        let mut f = std::fs::File::create(self.output_path())?;
+        std::io::copy(&mut *output, &mut f)?;
         Ok(())
     }
 }

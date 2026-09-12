@@ -3,8 +3,12 @@
 use super::inline::Inline;
 use crate::span::Spanned;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 /// 表格：行集合 + 列对齐。
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Table {
     /// 每行是一组单元格；首行为表头（row 0）。
     pub rows: Vec<Vec<TableCell>>,
@@ -17,6 +21,7 @@ pub type TableCell = Spanned<TableCellKind>;
 
 /// 单元格数据。
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct TableCellKind {
     pub content: Vec<Inline>,
     pub colspan: Option<usize>,
@@ -37,6 +42,7 @@ impl TableCellKind {
 
 /// 单元格对齐。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Alignment {
     #[default]
     None,

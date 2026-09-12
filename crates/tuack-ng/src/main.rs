@@ -3,6 +3,7 @@ use crate::dmk::DmkArgs;
 use crate::doc::DocArgs;
 use crate::dump::DumpArgs;
 use crate::generate::GenArgs;
+use crate::plugin::PluginArgs;
 use crate::prelude::*;
 use crate::ren::RenArgs;
 use crate::test::TestArgs;
@@ -18,6 +19,7 @@ mod doc;
 mod dump;
 mod generate;
 mod init;
+mod plugin;
 mod prelude;
 mod ren;
 mod test;
@@ -59,9 +61,11 @@ enum Commands {
     Doc(DocArgs),
     /// 开发工具
     Develop(develop::DevelopArgs),
+    /// 插件管理
+    Plugin(PluginArgs),
 }
 
-async fn tuack_ng(cli: Cli) -> Result<()> {
+fn tuack_ng(cli: Cli) -> Result<()> {
     init::init(
         &{
             #[cfg(debug_assertions)]
@@ -78,23 +82,23 @@ async fn tuack_ng(cli: Cli) -> Result<()> {
     info!("booting up");
 
     match cli.command {
-        Commands::Ren(args) => ren::main(args).await,
+        Commands::Ren(args) => ren::main(args),
         Commands::Gen(args) => generate::main(args),
-        Commands::Test(args) => test::main(args).await,
+        Commands::Test(args) => test::main(args),
         Commands::Conf(args) => conf::main(args),
-        Commands::Dmk(args) => dmk::main(args).await,
-        Commands::Validate(args) => validate::main(args).await,
-        Commands::Dump(args) => dump::main(args).await,
+        Commands::Dmk(args) => dmk::main(args),
+        Commands::Validate(args) => validate::main(args),
+        Commands::Dump(args) => dump::main(args),
         Commands::Doc(args) => doc::main(args),
         Commands::Develop(args) => develop::main(args),
+        Commands::Plugin(args) => plugin::main(args),
     }
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     let cli = Cli::parse_i18n_or_exit();
 
-    let result = tuack_ng(cli).await;
+    let result = tuack_ng(cli);
 
     if cfg!(debug_assertions) {
         result?;

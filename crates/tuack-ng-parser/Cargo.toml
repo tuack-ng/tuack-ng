@@ -1,6 +1,6 @@
 [package]
 name = "tuack-ng-parser"
-version = "1.0.2"
+version = "1.0.3"
 edition = "2024"
 description = "Markdown parser for Tuack-NG, based on rushdown"
 license = "MIT"
@@ -13,4 +13,11 @@ rust-version = "1.85"
 
 [dependencies]
 rushdown = "0.18"
+serde = { workspace = true, features = ["derive"], optional = true }
 unicode-width = "0.1"
+
+[features]
+serde = ["dep:serde"]
+
+[dev-dependencies]
+serde_json = "1"

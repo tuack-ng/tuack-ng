@@ -1,8 +1,9 @@
 use crate::prelude::*;
-use crate::ren::manifest::TemplateManifest;
-use crate::ren::renderers::{rewrite_images, unwrap_template};
+use crate::utils::KeepAliveReader;
 use std::collections::HashSet;
+use tempfile::TempDir;
 use tuack_lib::ren::{ProblemType, RenderDocument, Renderer};
+use tuack_lib::utils::asset::AssetProvider;
 use tuack_lib::utils::output::OutputFile;
 use tuack_ng_parser::printers::render_typst;
 
@@ -11,21 +12,17 @@ use datajson::{DataJson, DateInfo, Problem, SupportLanguage};
 
 /// Typst 渲染器
 pub struct TypstRenderer {
-    template_dir: PathBuf,
+    tmp: Arc<TempDir>,
+    /// 模板/工作目录（WASI 工作区 `/tmp`），由外部预先落好模板文件
+    work_dir: PathBuf,
 }
 
 impl TypstRenderer {
-    /// 解压模板到 `tmp_root` 并校验编译环境
-    pub fn new(
-        tmp_root: PathBuf,
-        manifest: &TemplateManifest,
-        assets_dirs: &[PathBuf],
-    ) -> Result<Self> {
-        unwrap_template(manifest, &tmp_root, assets_dirs)?;
-        Self::check_typst_env(&tmp_root)?;
-        Ok(Self {
-            template_dir: tmp_root,
-        })
+    /// 校验编译环境；模板文件须已落到 `tmp/tmp`。
+    pub fn new(tmp: Arc<TempDir>) -> Result<Self> {
+        let work_dir = tmp.path().join("tmp");
+        Self::check_typst_env(&work_dir)?;
+        Ok(Self { tmp, work_dir })
     }
 
     /// 校验 typst 命令可用且模板文件齐全
@@ -103,21 +100,21 @@ impl TypstRenderer {
                 start: d.start,
                 end: d.end,
             }),
-            use_pretest: doc.config.use_pretest,
-            noi_style: doc.config.noi_style,
-            file_io: doc.config.file_io,
+            use_pretest: doc.config.params.use_pretest,
+            noi_style: doc.config.params.noi_style,
+            file_io: doc.config.params.file_io,
             support_languages,
             problems,
         }
     }
 
     /// 将各题图片流写入模板目录 img/ 下，供 typst 按相对路径引用（按目标路径去重）
-    async fn write_images(
+    fn write_images(
         &self,
-        doc: &RenderDocument,
+        assets: &dyn AssetProvider,
         images: &[(u64, PathBuf, PathBuf)],
     ) -> Result<()> {
-        let img_dir = self.template_dir.join("img");
+        let img_dir = self.work_dir.join("img");
         let mut seen = HashSet::new();
         for (idx, url, target) in images {
             if !seen.insert(target.clone()) {
@@ -130,72 +127,65 @@ impl TypstRenderer {
             if let Some(parent) = dest.parent() {
                 fs::create_dir_all(parent)?;
             }
-            let mut stream = doc.assets.load(*idx, url).await?;
-            let mut file = tokio::fs::File::create(&dest).await?;
-            tokio::io::copy(&mut stream, &mut file).await?;
-            drop(file);
+            let mut stream = assets.load(*idx, url)?;
+            let mut file = std::fs::File::create(&dest)?;
+            std::io::copy(&mut stream, &mut file)?;
         }
         Ok(())
     }
 }
 
-#[async_trait]
 impl Renderer for TypstRenderer {
-    async fn render(&self, doc: &RenderDocument) -> Result<(PathBuf, Vec<OutputFile>)> {
+    fn render(
+        &self,
+        doc: &RenderDocument,
+        assets: Box<dyn AssetProvider>,
+    ) -> Result<(PathBuf, Vec<OutputFile>)> {
         let day_key = doc.config.day_key.clone();
 
         let mut images = Vec::new();
         for problem in &doc.problems {
-            let (ast, map) = rewrite_images(problem.ast.clone(), problem.idx)?;
-
-            let typst_output = format!("#import \"utils.typ\": *\n{}", render_typst(&ast));
-            tokio::fs::write(
-                self.template_dir
-                    .join(format!("problem-{}.typ", problem.idx)),
+            let typst_output = format!("#import \"utils.typ\": *\n{}", render_typst(&problem.ast));
+            fs::write(
+                self.work_dir.join(format!("problem-{}.typ", problem.idx)),
                 typst_output,
-            )
-            .await?;
+            )?;
 
-            for (url, target) in &map {
+            for (url, target) in &problem.images {
                 images.push((problem.idx, url.clone(), target.clone()));
             }
         }
 
         if let Some(precaution) = &doc.precaution {
             let typst_output = format!("#import \"utils.typ\": *\n{}", render_typst(precaution));
-            tokio::fs::write(self.template_dir.join("precaution.typ"), typst_output).await?;
+            fs::write(self.work_dir.join("precaution.typ"), typst_output)?;
         }
 
         let data_json = self.generate_conf(doc);
         let data_json_str = serde_json::to_string_pretty(&data_json)?;
-        tokio::fs::write(self.template_dir.join("data.json"), data_json_str).await?;
+        fs::write(self.work_dir.join("data.json"), data_json_str)?;
 
-        self.write_images(doc, &images).await?;
+        self.write_images(&*assets, &images)?;
 
-        fs::create_dir(self.template_dir.join("output"))?;
+        fs::create_dir(self.work_dir.join("output"))?;
 
-        let template_dir = self.template_dir.clone();
         let output_filename = format!("output/{}.pdf", day_key);
-        let filename = output_filename.clone();
-        let typst_output = tokio::task::spawn_blocking(move || {
-            std::process::Command::new("typst")
-                .arg("compile")
-                .arg("--font-path=fonts")
-                .arg("main.typ")
-                .arg(filename)
-                .current_dir(&template_dir)
-                .output()
-        })
-        .await?
-        .context("typst 命令执行失败")?;
+        let typst_output = std::process::Command::new("typst")
+            .arg("compile")
+            .arg("--font-path=fonts")
+            .arg("main.typ")
+            .arg(&output_filename)
+            .current_dir(&self.work_dir)
+            .output()
+            .context("typst 命令执行失败")?;
 
         if !typst_output.status.success() {
             let stderr = String::from_utf8_lossy(&typst_output.stderr).to_string();
             bail!(anyhow!(stderr).context("Typst 编译失败"));
         }
 
-        let pdf_path = self.template_dir.join(output_filename);
-        let bytes = tokio::fs::File::open(&pdf_path).await?;
+        let pdf_path = self.work_dir.join(output_filename);
+        let bytes = KeepAliveReader::new(std::fs::File::open(&pdf_path)?, self.tmp.clone());
         Ok((
             PathBuf::from(format!("{}.pdf", day_key)),
             vec![OutputFile::File {

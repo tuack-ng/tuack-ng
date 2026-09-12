@@ -3,8 +3,7 @@ use std::process::{Command, Stdio};
 use tempfile::{NamedTempFile, TempDir};
 
 use crate::prelude::*;
-use async_trait::async_trait;
-use tuack_lib::data::AsyncReader;
+use tuack_lib::data::Reader;
 use tuack_lib::utils::testlib::{Validator, ValidatorResult};
 
 pub struct CppValidator {
@@ -45,7 +44,6 @@ impl CppValidator {
     }
 }
 
-#[async_trait]
 impl Validator for CppValidator {
     fn prepare(&mut self) -> Result<()> {
         if !self.tmp_dir.path().exists() {
@@ -90,13 +88,14 @@ impl Validator for CppValidator {
         Ok(())
     }
 
-    async fn validate(&self, input: &mut dyn AsyncReader) -> Result<ValidatorResult> {
+    fn validate(&self, input: &mut dyn Reader) -> Result<ValidatorResult> {
         let binary = self.binary_path.as_ref().context("Validator 未编译")?;
 
         let input_file = NamedTempFile::with_prefix("tuack-ng-validator-in-")?;
-        let mut f = tokio::fs::File::create(input_file.path()).await?;
-        tokio::io::copy(input, &mut f).await?;
-        drop(f);
+        {
+            let mut f = File::create(input_file.path())?;
+            std::io::copy(input, &mut f)?;
+        }
         let stdin_file = File::open(input_file.path())?;
 
         let stderr_file = NamedTempFile::with_prefix("tuack-ng-validator-err-")?;

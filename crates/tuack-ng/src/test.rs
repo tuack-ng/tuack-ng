@@ -175,7 +175,7 @@ fn write_results_to_csv(results: Vec<ProblemTestResult>, csv_path: &Path) -> Res
     Ok(())
 }
 
-pub async fn test_problem(
+pub fn test_problem(
     day_config: &ContestDayConfig,
     problem_config: &ProblemConfig,
     target: Target,
@@ -426,7 +426,7 @@ pub async fn test_problem(
             case_count += 1;
             info!("运行测试点：{}", data_item.id());
 
-            let result = session.judge(data_item).await?;
+            let result = session.judge(data_item)?;
             info!("测试点结果：{:?}", result.status);
 
             let display_status: DisplayStatus = (&result.status).into();
@@ -588,7 +588,7 @@ pub async fn test_problem(
     Ok(())
 }
 
-async fn test_day(day_config: &ContestDayConfig, target: Target, in_day: bool) -> Result<()> {
+fn test_day(day_config: &ContestDayConfig, target: Target, in_day: bool) -> Result<()> {
     let total_problems = day_config.subconfig.len();
     let day_pb = gctx()
         .multiprogress
@@ -601,7 +601,7 @@ async fn test_day(day_config: &ContestDayConfig, target: Target, in_day: bool) -
     );
     for (idx, (_, problem_config)) in day_config.subconfig.iter().enumerate() {
         day_pb.set_message(format!("处理第 {}/{} 题", idx + 1, total_problems));
-        test_problem(day_config, problem_config, target, false).await?;
+        test_problem(day_config, problem_config, target, false)?;
         day_pb.inc(1);
     }
     if in_day {
@@ -612,7 +612,7 @@ async fn test_day(day_config: &ContestDayConfig, target: Target, in_day: bool) -
     Ok(())
 }
 
-pub async fn main(args: TestArgs) -> Result<()> {
+pub fn main(args: TestArgs) -> Result<()> {
     let Config {
         config,
         location: current_location,
@@ -628,14 +628,14 @@ pub async fn main(args: TestArgs) -> Result<()> {
                 .subconfig
                 .get(prob_key)
                 .with_context(|| format!("未找到题目配置：{}", prob_key))?;
-            test_problem(day_config, problem_config, args.target, true).await?;
+            test_problem(day_config, problem_config, args.target, true)?;
         }
         CurrentLocation::Day(day_key) => {
             let day_config = config
                 .subconfig
                 .get(day_key)
                 .with_context(|| format!("未找到天配置：{}", day_key))?;
-            test_day(day_config, args.target, true).await?;
+            test_day(day_config, args.target, true)?;
         }
         CurrentLocation::Root => {
             let total_days = config.subconfig.len();
@@ -650,7 +650,7 @@ pub async fn main(args: TestArgs) -> Result<()> {
             );
             for (day_idx, (_, day_config)) in config.subconfig.iter().enumerate() {
                 day_pb.set_message(format!("处理第 {}/{} 天", day_idx + 1, total_days));
-                test_day(day_config, args.target, false).await?; // 复用 test_day
+                test_day(day_config, args.target, false)?; // 复用 test_day
                 day_pb.inc(1);
             }
             day_pb.finish_with_message("测试完成！");

@@ -1,5 +1,5 @@
 use std::cmp::max;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Duration;
 use tokio::time::{Instant, sleep};
 
@@ -7,6 +7,19 @@ use sysinfo::{Pid, ProcessesToUpdate, System};
 
 use crate::prelude::*;
 use tuack_lib::utils::compiler::{ResourceLimits, RunStatus};
+
+/// 监视器专用 runtime：同步代码短时进入异步监督子进程用。
+static RUNTIME: OnceLock<tokio::runtime::Runtime> = OnceLock::new();
+
+/// 返回监视器 runtime（首次调用时惰性构建 current_thread runtime）。
+pub fn monitor_runtime() -> &'static tokio::runtime::Runtime {
+    RUNTIME.get_or_init(|| {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("构建监视 runtime 失败")
+    })
+}
 
 /// 已 spawn 子进程的 TLE/MLE 监控器。
 pub struct ProcessSupervisor {
@@ -16,6 +29,19 @@ pub struct ProcessSupervisor {
 impl ProcessSupervisor {
     pub fn new(limits: ResourceLimits) -> Self {
         Self { limits }
+    }
+
+    /// 同步入口：将 `cmd` 作为子进程 spawn，并监督其运行。
+    ///
+    /// 内部在监视器 runtime 上 `block_on`，短暂进入异步执行 `supervise`。
+    pub fn supervise_blocking(
+        self,
+        cmd: std::process::Command,
+    ) -> Result<(RunStatus, Option<Duration>, Option<u64>)> {
+        monitor_runtime().block_on(async move {
+            let mut child = tokio::process::Command::from(cmd).spawn()?;
+            self.supervise(&mut child).await
+        })
     }
 
     /// 监控子进程，返回结束状态、用时和峰值内存。

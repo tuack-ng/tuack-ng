@@ -4,6 +4,8 @@
 //!   导出产物文件与导出过程中的面向用户警告（如平台限制、编译失败提示），由调用方负责展示。
 //! - dumper 不访问配置对象；用户资源（data/sample/down/checker）一律经 `AssetProvider` 获取。
 //! - dumper 可进行为生成导出产物所必需的内部 I/O（写临时目录、编译 checker 等）
+//! - 资源访问（`AssetProvider`）作为能力在 `Dumper::dump` 时单独注入，不随文档数据传递，
+//!   因此本结构可序列化、可跨边界（如 WASM 插件）。
 
 use bytesize::ByteSize;
 use std::collections::BTreeMap;
@@ -13,10 +15,10 @@ use std::time::Duration;
 use crate::prelude::*;
 use crate::ren::ProblemType;
 use crate::utils::asset::AssetProvider;
-use crate::utils::output::OutputFile;
+use crate::utils::output::{OutputFile, OutputSpec};
 
 /// 评分策略（渲染后端无关枚举）
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ScorePolicy {
     Sum,
     Min,
@@ -24,7 +26,7 @@ pub enum ScorePolicy {
 }
 
 /// day 级导出配置
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DumpConfig {
     pub contest_name: String,
     pub day_name: String,
@@ -34,7 +36,7 @@ pub struct DumpConfig {
 }
 
 /// 单个测试点
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DumpCase {
     pub id: u32,
     pub score: u32,
@@ -46,7 +48,7 @@ pub struct DumpCase {
 }
 
 /// Subtask
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DumpSubtask {
     /// 数据点在 data 中的下标
     pub items: Vec<usize>,
@@ -55,20 +57,20 @@ pub struct DumpSubtask {
 }
 
 /// 样例（相对路径，如 `sample/a.in`）
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DumpSample {
     pub input: PathBuf,
     pub output: PathBuf,
 }
 
 /// 一个待导出的文件，相对题目根的逻辑路径
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DumpFile {
     pub path: PathBuf,
 }
 
 /// 校验器信息（源文件与依赖）
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DumpChecker {
     /// 源文件逻辑路径（如 `data/chk/chk.cpp`）
     pub source: PathBuf,
@@ -77,7 +79,7 @@ pub struct DumpChecker {
 }
 
 /// 单题导出数据
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DumpProblem {
     /// 题目编号（与 assets 登记一致）
     pub idx: u64,
@@ -96,15 +98,24 @@ pub struct DumpProblem {
 }
 
 /// 导出文档：dumper 的唯一输入（day 级）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DumpDocument {
     pub config: DumpConfig,
     pub problems: Vec<DumpProblem>,
-    /// 资源 handle：按 `(题目编号，相对路径)` 惰性返回数据/样例流
-    pub assets: Box<dyn AssetProvider>,
+}
+
+/// 导出器插件返回：导出过程中的面向用户警告与产物描述列表。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DumperOutput {
+    pub warnings: Vec<String>,
+    pub files: Vec<OutputSpec>,
 }
 
 /// 导出器：`DumpDocument -> (产物文件列表，导出警告)`。
-#[async_trait]
 pub trait Dumper: Send + Sync {
-    async fn dump(&self, doc: &DumpDocument) -> Result<(Vec<OutputFile>, Vec<String>)>;
+    fn dump(
+        &self,
+        doc: &DumpDocument,
+        assets: Box<dyn AssetProvider>,
+    ) -> Result<(Vec<OutputFile>, Vec<String>)>;
 }

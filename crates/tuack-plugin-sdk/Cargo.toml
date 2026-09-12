@@ -1,0 +1,19 @@
+[package]
+name = "tuack-plugin-sdk"
+description = "tuack-ng 处理器插件 Rust SDK"
+edition.workspace = true
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+readme = "README.md"
+keywords = ["tuack-ng", "plugin", "wasm", "extism"]
+categories = ["wasm", "development-tools"]
+
+[dependencies]
+tuack-lib = { version = "1.1.0-alpha.2", path = "../tuack-lib" }
+tuack-ng-parser = { workspace = true, features = ["serde"] }
+
+log = "0.4"
+
+extism-pdk = { version = "1", default-features = false }

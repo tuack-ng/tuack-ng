@@ -1,8 +1,11 @@
 use std::process::Command;
 
 use crate::prelude::*;
+use crate::utils::KeepAliveReader;
+use tempfile::TempDir;
 use tuack_lib::dump::Dumper;
 use tuack_lib::ren::ProblemType;
+use tuack_lib::utils::asset::AssetProvider;
 use tuack_lib::utils::output::OutputFile;
 
 /// 生成 key=value 配置文件内容
@@ -17,44 +20,43 @@ fn build_info(info: &[(String, String)]) -> String {
 }
 
 pub struct ArbiterDumper {
-    tmp_dir: PathBuf,
+    tmp: Arc<TempDir>,
     assets_dirs: Vec<PathBuf>,
 }
 
 impl ArbiterDumper {
-    pub fn new(tmp_dir: PathBuf, assets_dirs: Vec<PathBuf>) -> Self {
-        Self {
-            tmp_dir,
-            assets_dirs,
-        }
+    pub fn new(tmp: Arc<TempDir>, assets_dirs: Vec<PathBuf>) -> Self {
+        Self { tmp, assets_dirs }
     }
 
     /// 生成 filter 可执行文件：有自定义 SPJ 则编译 checker（经 handle 取源码），
     /// 否则编译默认比较器源码；编译失败时 `None`（不产生文件），资源缺失则失败
-    async fn build_filter(
+    fn build_filter(
         &self,
-        doc: &tuack_lib::dump::DumpDocument,
+        assets: &dyn AssetProvider,
         prob: &tuack_lib::dump::DumpProblem,
         warnings: &mut Vec<String>,
-    ) -> Result<Option<Box<dyn tuack_lib::data::AsyncReader>>> {
-        let filter_path = self.tmp_dir.join(format!("{}_e", prob.name));
+    ) -> Result<Option<Box<dyn tuack_lib::data::Reader>>> {
+        let filter_path = self.tmp.path().join(format!("{}_e", prob.name));
 
         // 有自定义 SPJ：编译 checker
         if let Some(checker) = &prob.checker {
             info!("发现 chk，尝试编译。");
-            let src_tmp = self.tmp_dir.join("chk-src.cpp");
-            let mut src = doc.assets.load(prob.idx, &checker.source).await?;
-            let mut f = tokio::fs::File::create(&src_tmp).await?;
-            tokio::io::copy(&mut src, &mut f).await?;
-            drop(f);
+            let src_tmp = self.tmp.path().join("chk-src.cpp");
+            let mut src = assets.load(prob.idx, &checker.source)?;
+            {
+                let mut f = std::fs::File::create(&src_tmp)?;
+                std::io::copy(&mut src, &mut f)?;
+            }
 
             for dep in &checker.deps {
-                let mut dep_src = doc.assets.load(prob.idx, dep).await?;
+                let mut dep_src = assets.load(prob.idx, dep)?;
                 let dep_name = dep.file_name().context("依赖路径缺少文件名")?.to_owned();
-                let dep_tmp = self.tmp_dir.join(&dep_name);
-                let mut f = tokio::fs::File::create(&dep_tmp).await?;
-                tokio::io::copy(&mut dep_src, &mut f).await?;
-                drop(f);
+                let dep_tmp = self.tmp.path().join(&dep_name);
+                {
+                    let mut f = std::fs::File::create(&dep_tmp)?;
+                    std::io::copy(&mut dep_src, &mut f)?;
+                }
             }
 
             let status = Command::new("g++")
@@ -70,7 +72,10 @@ impl ArbiterDumper {
                 warnings.push(format!("chk 编译失败：{}", checker.source.display()));
                 return Ok(None);
             }
-            return Ok(Some(Box::new(tokio::fs::File::open(&filter_path).await?)));
+            return Ok(Some(Box::new(KeepAliveReader::new(
+                std::fs::File::open(&filter_path)?,
+                self.tmp.clone(),
+            ))));
         }
 
         // 无自定义 SPJ：编译默认比较器源码（跨平台，比预编译二进制更可维护）
@@ -94,7 +99,10 @@ impl ArbiterDumper {
                     warnings.push(format!("默认比较器编译失败：{}", src.display()));
                     return Ok(None);
                 }
-                Ok(Some(Box::new(tokio::fs::File::open(&filter_path).await?)))
+                Ok(Some(Box::new(KeepAliveReader::new(
+                    std::fs::File::open(&filter_path)?,
+                    self.tmp.clone(),
+                ))))
             }
             None => {
                 bail!(
@@ -106,11 +114,11 @@ impl ArbiterDumper {
     }
 }
 
-#[async_trait]
 impl Dumper for ArbiterDumper {
-    async fn dump(
+    fn dump(
         &self,
         doc: &tuack_lib::dump::DumpDocument,
+        assets: Box<dyn AssetProvider>,
     ) -> Result<(Vec<OutputFile>, Vec<String>)> {
         if !cfg!(target_os = "linux") {
             bail!("Arbiter 不支持 Linux 之外的操作系统，也不支持在 Linux 之外的操作系统导出");
@@ -122,17 +130,14 @@ impl Dumper for ArbiterDumper {
 
         // Arbiter 要求的目录结构（可能没有文件，需确保存在）
         for sub in ["data", "final", "players", "result", "filter", "tmp"] {
-            files.push(OutputFile::Dir(PathBuf::from(format!(
-                "arbiter/main/{}",
-                sub
-            ))));
+            files.push(OutputFile::Dir(PathBuf::from(format!("main/{}", sub))));
         }
         files.push(OutputFile::Dir(PathBuf::from(format!(
-            "arbiter/main/players/day{}",
+            "main/players/day{}",
             daynum
         ))));
         files.push(OutputFile::Dir(PathBuf::from(format!(
-            "arbiter/main/result/day{}",
+            "main/result/day{}",
             daynum
         ))));
 
@@ -145,7 +150,7 @@ impl Dumper for ArbiterDumper {
             ("TASKNUM=".into(), doc.problems.len().to_string()),
         ];
         files.push(OutputFile::File {
-            path: PathBuf::from(format!("arbiter/main/day{}.info", daynum)),
+            path: PathBuf::from(format!("main/day{}.info", daynum)),
             bytes: Box::new(std::io::Cursor::new(build_info(&dayinfo).into_bytes())),
         });
 
@@ -233,25 +238,25 @@ impl Dumper for ArbiterDumper {
                 let in_name = format!("{}{}.in", prob.name, idx);
                 let ans_name = format!("{}{}.ans", prob.name, idx);
 
-                let input = doc.assets.load(prob.idx, &case.input).await?;
-                let output = doc.assets.load(prob.idx, &case.output).await?;
-                let eval_input = doc.assets.load(prob.idx, &case.input).await?;
-                let eval_output = doc.assets.load(prob.idx, &case.output).await?;
+                let input = assets.load(prob.idx, &case.input)?;
+                let output = assets.load(prob.idx, &case.output)?;
+                let eval_input = assets.load(prob.idx, &case.input)?;
+                let eval_output = assets.load(prob.idx, &case.output)?;
 
                 files.push(OutputFile::File {
-                    path: PathBuf::from(format!("arbiter/main/data/{}", in_name)),
+                    path: PathBuf::from(format!("main/data/{}", in_name)),
                     bytes: input,
                 });
                 files.push(OutputFile::File {
-                    path: PathBuf::from(format!("arbiter/main/data/{}", ans_name)),
+                    path: PathBuf::from(format!("main/data/{}", ans_name)),
                     bytes: output,
                 });
                 files.push(OutputFile::File {
-                    path: PathBuf::from(format!("arbiter/main/evaldata/{}", in_name)),
+                    path: PathBuf::from(format!("main/evaldata/{}", in_name)),
                     bytes: eval_input,
                 });
                 files.push(OutputFile::File {
-                    path: PathBuf::from(format!("arbiter/main/evaldata/{}", ans_name)),
+                    path: PathBuf::from(format!("main/evaldata/{}", ans_name)),
                     bytes: eval_output,
                 });
 
@@ -281,15 +286,15 @@ impl Dumper for ArbiterDumper {
             }
 
             // Checker / filter
-            if let Some(stream) = self.build_filter(doc, prob, &mut warnings).await? {
+            if let Some(stream) = self.build_filter(&*assets, prob, &mut warnings)? {
                 files.push(OutputFile::File {
-                    path: PathBuf::from(format!("arbiter/main/filter/{}_e", prob.name)),
+                    path: PathBuf::from(format!("main/filter/{}_e", prob.name)),
                     bytes: stream,
                 });
             }
 
             files.push(OutputFile::File {
-                path: PathBuf::from(format!("arbiter/main/task{}_{}.info", daynum, probnum)),
+                path: PathBuf::from(format!("main/task{}_{}.info", daynum, probnum)),
                 bytes: Box::new(std::io::Cursor::new(build_info(&probinfo).into_bytes())),
             });
         }
@@ -304,30 +309,30 @@ impl Dumper for ArbiterDumper {
             ("MISC=".into(), "misc.info".into()),
         ];
         files.push(OutputFile::File {
-            path: PathBuf::from("arbiter/main/setup.cfg"),
+            path: PathBuf::from("main/setup.cfg"),
             bytes: Box::new(std::io::Cursor::new(build_info(&cfg).into_bytes())),
         });
 
         // 空的 team.info
         files.push(OutputFile::File {
-            path: PathBuf::from("arbiter/main/team.info"),
+            path: PathBuf::from("main/team.info"),
             bytes: Box::new(std::io::Cursor::new(Vec::new())),
         });
 
         // 复制样例到 down/{day}/{name}/，含附加文件
         for prob in &doc.problems {
             info!("处理题目样例：{}", prob.name);
-            let prob_down_dir = format!("arbiter/down/{}/{}", doc.config.day_name, prob.name);
+            let prob_down_dir = format!("down/{}/{}", doc.config.day_name, prob.name);
 
             for (idx, sample) in prob.samples.iter().enumerate() {
                 let idx = idx + 1;
                 files.push(OutputFile::File {
                     path: PathBuf::from(format!("{}/{}{}.in", prob_down_dir, prob.name, idx)),
-                    bytes: doc.assets.load(prob.idx, &sample.input).await?,
+                    bytes: assets.load(prob.idx, &sample.input)?,
                 });
                 files.push(OutputFile::File {
                     path: PathBuf::from(format!("{}/{}{}.ans", prob_down_dir, prob.name, idx)),
-                    bytes: doc.assets.load(prob.idx, &sample.output).await?,
+                    bytes: assets.load(prob.idx, &sample.output)?,
                 });
             }
 
@@ -337,7 +342,7 @@ impl Dumper for ArbiterDumper {
                 info!("发现附加文件：{}", rel.display());
                 files.push(OutputFile::File {
                     path: PathBuf::from(format!("{}/{}", prob_down_dir, rel.display())),
-                    bytes: doc.assets.load(prob.idx, &file.path).await?,
+                    bytes: assets.load(prob.idx, &file.path)?,
                 });
             }
         }

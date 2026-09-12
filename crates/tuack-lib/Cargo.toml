@@ -6,15 +6,17 @@ version.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
+readme = "README.md"
+keywords = ["tuack-ng", "oi", "acm", "contest"]
+categories = ["development-tools"]
 
 [dependencies]
 anyhow.workspace = true
-async-trait.workspace = true
 bytesize.workspace = true
 indexmap.workspace = true
 serde.workspace = true
 serde_many.workspace = true
-tokio.workspace = true
 
 [dependencies.tuack-ng-parser]
 workspace = true
+features = ["serde"]

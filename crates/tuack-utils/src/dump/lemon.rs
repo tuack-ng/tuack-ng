@@ -2,8 +2,11 @@ use serde_json::{Map, Value, json};
 use std::process::Command;
 
 use crate::prelude::*;
+use crate::utils::KeepAliveReader;
+use tempfile::TempDir;
 use tuack_lib::dump::{Dumper, ScorePolicy};
 use tuack_lib::ren::ProblemType;
+use tuack_lib::utils::asset::AssetProvider;
 use tuack_lib::utils::output::OutputFile;
 
 #[derive(Serialize)]
@@ -52,20 +55,20 @@ fn case_rel_path(prob_name: &str, case_id: u32, ext: &str) -> String {
 }
 
 pub struct LemonDumper {
-    tmp_dir: PathBuf,
+    tmp: Arc<TempDir>,
 }
 
 impl LemonDumper {
-    pub fn new(tmp_dir: PathBuf) -> Self {
-        Self { tmp_dir }
+    pub fn new(tmp: Arc<TempDir>) -> Self {
+        Self { tmp }
     }
 }
 
-#[async_trait]
 impl Dumper for LemonDumper {
-    async fn dump(
+    fn dump(
         &self,
         doc: &tuack_lib::dump::DumpDocument,
+        assets: Box<dyn AssetProvider>,
     ) -> Result<(Vec<OutputFile>, Vec<String>)> {
         let mut files = Vec::new();
         let mut prob_jsons: Vec<Value> = Vec::new();
@@ -74,18 +77,12 @@ impl Dumper for LemonDumper {
         for prob in &doc.problems {
             for case in &prob.data {
                 files.push(OutputFile::File {
-                    path: PathBuf::from(format!(
-                        "lemon/data/{}/{}{}.in",
-                        prob.name, prob.name, case.id
-                    )),
-                    bytes: doc.assets.load(prob.idx, &case.input).await?,
+                    path: PathBuf::from(format!("data/{}/{}{}.in", prob.name, prob.name, case.id)),
+                    bytes: assets.load(prob.idx, &case.input)?,
                 });
                 files.push(OutputFile::File {
-                    path: PathBuf::from(format!(
-                        "lemon/data/{}/{}{}.ans",
-                        prob.name, prob.name, case.id
-                    )),
-                    bytes: doc.assets.load(prob.idx, &case.output).await?,
+                    path: PathBuf::from(format!("data/{}/{}{}.ans", prob.name, prob.name, case.id)),
+                    bytes: assets.load(prob.idx, &case.output)?,
                 });
             }
 
@@ -136,22 +133,24 @@ impl Dumper for LemonDumper {
                 info!("尝试编译 SPJ");
 
                 // 源码与依赖经 assets 读取写入 tmp，再 g++ 编译
-                let src_tmp = self.tmp_dir.join("chk-src.cpp");
-                let mut src = doc.assets.load(prob.idx, &checker.source).await?;
-                let mut f = tokio::fs::File::create(&src_tmp).await?;
-                tokio::io::copy(&mut src, &mut f).await?;
-                drop(f);
-
-                for dep in &checker.deps {
-                    let mut dep_src = doc.assets.load(prob.idx, dep).await?;
-                    let dep_name = dep.file_name().context("依赖路径缺少文件名")?.to_owned();
-                    let dep_tmp = self.tmp_dir.join(&dep_name);
-                    let mut f = tokio::fs::File::create(&dep_tmp).await?;
-                    tokio::io::copy(&mut dep_src, &mut f).await?;
-                    drop(f);
+                let src_tmp = self.tmp.path().join("chk-src.cpp");
+                let mut src = assets.load(prob.idx, &checker.source)?;
+                {
+                    let mut f = std::fs::File::create(&src_tmp)?;
+                    std::io::copy(&mut src, &mut f)?;
                 }
 
-                let chk_out = self.tmp_dir.join(&chk_name);
+                for dep in &checker.deps {
+                    let mut dep_src = assets.load(prob.idx, dep)?;
+                    let dep_name = dep.file_name().context("依赖路径缺少文件名")?.to_owned();
+                    let dep_tmp = self.tmp.path().join(&dep_name);
+                    {
+                        let mut f = std::fs::File::create(&dep_tmp)?;
+                        std::io::copy(&mut dep_src, &mut f)?;
+                    }
+                }
+
+                let chk_out = self.tmp.path().join(&chk_name);
                 let compile_status = Command::new("g++")
                     .arg("-o")
                     .arg(&chk_out)
@@ -164,8 +163,11 @@ impl Dumper for LemonDumper {
                     bail!("SPJ 编译错误");
                 }
                 files.push(OutputFile::File {
-                    path: PathBuf::from(format!("lemon/data/{}/{}", prob.name, chk_name)),
-                    bytes: Box::new(tokio::fs::File::open(&chk_out).await?),
+                    path: PathBuf::from(format!("data/{}/{}", prob.name, chk_name)),
+                    bytes: Box::new(KeepAliveReader::new(
+                        std::fs::File::open(&chk_out)?,
+                        self.tmp.clone(),
+                    )),
                 });
             }
 
@@ -207,7 +209,7 @@ impl Dumper for LemonDumper {
 
         let cdf_str = serde_json::to_string_pretty(&day_cdf)?;
         files.push(OutputFile::File {
-            path: PathBuf::from(format!("lemon/{}.cdf", doc.config.day_name)),
+            path: PathBuf::from(format!("{}.cdf", doc.config.day_name)),
             bytes: Box::new(std::io::Cursor::new(cdf_str.into_bytes())),
         });
 

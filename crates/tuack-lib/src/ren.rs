@@ -7,16 +7,38 @@
 //! - 渲染器禁止：访问 `gctx()`（获取资源可能除外）、直接读取用户资源（除非经 `AssetProvider`）、写最终输出目录。
 
 pub mod document;
+pub mod processor;
 
-use crate::utils::output::OutputFile;
+use crate::utils::output::{OutputFile, OutputSpec};
 pub use document::{
-    DateInfo, Problem, ProblemMeta, ProblemType, RenConfig, RenderDocument, SupportLanguage,
+    DateInfo, Problem, ProblemMeta, ProblemType, RenConfig, RenParams, RenderDocument,
+    SupportLanguage,
 };
+pub use processor::{ProcessorOutput, RenProcessor};
 
 use crate::prelude::*;
+use crate::utils::asset::AssetProvider;
 
 /// 渲染器：`RenderDocument -> (主产物相对路径，产物文件列表)`。
-#[async_trait]
 pub trait Renderer: Send + Sync {
-    async fn render(&self, doc: &RenderDocument) -> Result<(PathBuf, Vec<OutputFile>)>;
+    fn render(
+        &self,
+        doc: &RenderDocument,
+        assets: Box<dyn AssetProvider>,
+    ) -> Result<(PathBuf, Vec<OutputFile>)>;
+}
+
+/// 外部命令执行结果（宿主暴露给插件的 `run_command` 返回值）。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CommandResult {
+    pub exit_code: i32,
+    pub stdout: Vec<u8>,
+    pub stderr: Vec<u8>,
+}
+
+/// 渲染器插件返回：主产物相对路径（用于自动打开）与产物描述列表。
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RendererOutput {
+    pub main: PathBuf,
+    pub files: Vec<OutputSpec>,
 }

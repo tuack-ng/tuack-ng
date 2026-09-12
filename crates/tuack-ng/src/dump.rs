@@ -1,40 +1,24 @@
 use crate::prelude::*;
 use clap::Args;
-use clap::ValueEnum;
 use std::collections::HashSet;
 use std::time::Duration;
 use tuack_lib::dump::{
     DumpCase, DumpChecker, DumpConfig, DumpDocument, DumpFile, DumpProblem, DumpSample,
-    DumpSubtask, Dumper, ScorePolicy,
+    DumpSubtask, ScorePolicy,
 };
 use tuack_lib::ren::ProblemType;
 use tuack_utils::assets::FsAssetProvider;
-use tuack_utils::dump::{arbiter, ccr_plus, lemon};
-
-#[derive(Debug, Clone, Copy, ValueEnum)]
-pub enum Target {
-    Lemon,
-    Arbiter,
-    CcrPlus,
-}
-
-impl Target {
-    /// 输出子目录名
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Target::Lemon => "lemon",
-            Target::Arbiter => "arbiter",
-            Target::CcrPlus => "ccr-plus",
-        }
-    }
-}
 
 #[derive(Args, Debug)]
 #[command(version)]
 pub struct DumpArgs {
-    /// 导出目标
-    #[arg(required = true)]
-    pub target: Target,
+    /// 列出可用导出器
+    #[arg(long)]
+    pub list: bool,
+
+    /// 导出目标（内置名，或插件组件名）
+    #[arg(required_unless_present = "list")]
+    pub target: Option<String>,
 }
 
 /// 递归枚举 down/ 目录的非样例附加文件
@@ -70,7 +54,7 @@ fn build_dump_document(
     contest: &ContestConfig,
     day: &ContestDayConfig,
     daynum: usize,
-) -> Result<DumpDocument> {
+) -> Result<(DumpDocument, FsAssetProvider)> {
     let compile = day
         .compile
         .iter()
@@ -159,47 +143,45 @@ fn build_dump_document(
         });
     }
 
-    Ok(DumpDocument {
-        config: DumpConfig {
-            contest_name: contest.name.clone(),
-            day_name: day.name.clone(),
-            dayidx: daynum,
-            compile,
+    Ok((
+        DumpDocument {
+            config: DumpConfig {
+                contest_name: contest.name.clone(),
+                day_name: day.name.clone(),
+                dayidx: daynum,
+                compile,
+            },
+            problems,
         },
-        problems,
-        assets: Box::new(assets),
-    })
+        assets,
+    ))
 }
 
-async fn dump_main(
+fn dump_main(
     contest: &ContestConfig,
     day: &ContestDayConfig,
     daynum: usize,
-    target: Target,
+    target: &str,
 ) -> Result<()> {
-    let doc = build_dump_document(contest, day, daynum)?;
+    let (doc, assets) = build_dump_document(contest, day, daynum)?;
     let dump_dir = day.path.join("dump");
 
-    let tmp = tempfile::Builder::new()
-        .prefix("tuack-ng-dump-")
-        .tempdir()
-        .context("创建临时目录失败")?;
+    let tmp = Arc::new(
+        tempfile::Builder::new()
+            .prefix("tuack-ng-dump-")
+            .tempdir()
+            .context("创建临时目录失败")?,
+    );
 
-    let dumper: Box<dyn Dumper> = match target {
-        Target::Lemon => Box::new(lemon::LemonDumper::new(tmp.path().to_path_buf())),
-        Target::Arbiter => Box::new(arbiter::ArbiterDumper::new(
-            tmp.path().to_path_buf(),
-            gctx().assets_dirs.clone(),
-        )),
-        Target::CcrPlus => Box::new(ccr_plus::CcrPlusDumper::new(tmp.path().to_path_buf())),
-    };
+    let dumper = gctx().plugins.dumper(target, tmp.clone())?;
 
-    let (files, warnings) = match dumper.dump(&doc).await {
+    let (files, warnings) = match dumper.dump(&doc, Box::new(assets)) {
         Ok(result) => result,
         Err(e) => {
             msg_error!("导出失败:\n{:?}", e);
-            let kept = tmp.keep();
-            msg_info!("保留临时目录以供调试：{}", kept.display());
+            msg_info!("保留临时目录以供调试：{}", tmp.path().display());
+            // 同上
+            std::mem::forget(tmp.clone());
             bail!("导出过程出错");
         }
     };
@@ -208,16 +190,17 @@ async fn dump_main(
         msg_warn!("{}", warning);
     }
 
-    let dir_name = target.as_str();
-    let out_dir = dump_dir.join(dir_name);
+    let out_dir = dump_dir.join(target);
     if out_dir.exists() {
         fs::remove_dir_all(&out_dir)?;
     }
+    fs::create_dir_all(&out_dir)?;
 
-    if let Err(e) = crate::utils::filesystem::write_outputs(&dump_dir, files).await {
+    if let Err(e) = crate::utils::filesystem::write_outputs(&out_dir, files) {
         msg_error!("写入导出结果失败：{:?}", e);
-        let kept = tmp.keep();
-        msg_info!("保留临时目录以供调试：{}", kept.display());
+        msg_info!("保留临时目录以供调试：{}", tmp.path().display());
+        // 同上
+        std::mem::forget(tmp.clone());
         bail!("写入导出结果失败");
     }
     msg_info!("导出完成，输出目录：{}", out_dir.display());
@@ -225,7 +208,15 @@ async fn dump_main(
     Ok(())
 }
 
-pub async fn main(args: DumpArgs) -> Result<()> {
+pub fn main(args: DumpArgs) -> Result<()> {
+    if args.list {
+        msg!("可用导出器：");
+        for name in gctx().plugins.dumper_names() {
+            msg!("  {}", name);
+        }
+        return Ok(());
+    }
+    let target = args.target.as_deref().expect("clap 保证存在 target");
     if gctx().config.is_none() {
         bail!("没有有效的配置文件");
     }
@@ -238,13 +229,12 @@ pub async fn main(args: DumpArgs) -> Result<()> {
                 &config.config,
                 config.config.subconfig.get(&day).unwrap(),
                 1,
-                args.target,
-            )
-            .await?;
+                target,
+            )?;
         }
         CurrentLocation::Root => {
             for (idx, (_, day_config)) in config.config.subconfig.iter().enumerate() {
-                dump_main(&config.config, day_config, idx + 1, args.target).await?;
+                dump_main(&config.config, day_config, idx + 1, target)?;
             }
         }
     }

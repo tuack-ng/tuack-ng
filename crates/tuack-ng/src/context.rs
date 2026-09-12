@@ -4,6 +4,7 @@ use std::sync::OnceLock;
 use tuack_config::Config;
 use tuack_config::lang::Language;
 use tuack_config::msgs::LoadContext;
+use tuack_utils::plugin::manager::PluginManager;
 
 pub struct Context {
     pub assets_dirs: Vec<PathBuf>,
@@ -12,6 +13,7 @@ pub struct Context {
     pub config: Option<Config>,
     pub loadctx: LoadContext,
     pub languages: IndexMap<String, Language>,
+    pub plugins: PluginManager,
 }
 
 pub static GLOBAL_CONTEXT: OnceLock<Context> = OnceLock::new();

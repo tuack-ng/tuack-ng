@@ -78,7 +78,7 @@ pub fn compile_validator(
     result
 }
 
-async fn validate_problem(
+fn validate_problem(
     problem_config: &ProblemConfig,
     target: Target,
     object: &str,
@@ -115,8 +115,8 @@ async fn validate_problem(
 
     let mut failed = 0;
     for (idx, data_item) in data_items.iter().enumerate() {
-        let result = match data_item.input().await {
-            Ok(mut reader) => validator.validate(&mut *reader).await,
+        let result = match data_item.input() {
+            Ok(mut reader) => validator.validate(&mut *reader),
             Err(e) => {
                 msg_item!(
                     "FAIL".red().bold(),
@@ -181,7 +181,7 @@ async fn validate_problem(
     Ok(())
 }
 
-async fn validate_day(
+fn validate_day(
     day_config: &ContestDayConfig,
     target: Target,
     object: &str,
@@ -199,7 +199,7 @@ async fn validate_day(
     );
     for (idx, (_, problem_config)) in day_config.subconfig.iter().enumerate() {
         day_pb.set_message(format!("处理第 {}/{} 题", idx + 1, total_problems));
-        validate_problem(problem_config, target, object, false).await?;
+        validate_problem(problem_config, target, object, false)?;
         day_pb.inc(1);
     }
     if in_day {
@@ -210,7 +210,7 @@ async fn validate_day(
     Ok(())
 }
 
-pub async fn main(args: ValidateArgs) -> Result<()> {
+pub fn main(args: ValidateArgs) -> Result<()> {
     let Config {
         config,
         location: current_location,
@@ -226,14 +226,14 @@ pub async fn main(args: ValidateArgs) -> Result<()> {
                 .subconfig
                 .get(prob_key)
                 .with_context(|| format!("未找到题目配置：{}", prob_key))?;
-            validate_problem(problem_config, args.target, &args.object, true).await?;
+            validate_problem(problem_config, args.target, &args.object, true)?;
         }
         CurrentLocation::Day(day_key) => {
             let day_config = config
                 .subconfig
                 .get(day_key)
                 .with_context(|| format!("未找到天配置：{}", day_key))?;
-            validate_day(day_config, args.target, &args.object, true).await?;
+            validate_day(day_config, args.target, &args.object, true)?;
         }
         CurrentLocation::Root => {
             let total_days = config.subconfig.len();
@@ -248,7 +248,7 @@ pub async fn main(args: ValidateArgs) -> Result<()> {
             );
             for (day_idx, (_, day_config)) in config.subconfig.iter().enumerate() {
                 day_pb.set_message(format!("处理第 {}/{} 天", day_idx + 1, total_days));
-                validate_day(day_config, args.target, &args.object, false).await?;
+                validate_day(day_config, args.target, &args.object, false)?;
                 day_pb.inc(1);
             }
             day_pb.finish_with_message("校验完成！");

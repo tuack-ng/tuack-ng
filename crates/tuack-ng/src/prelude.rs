@@ -21,5 +21,3 @@ pub use serde_many::{AsSerde, DeserializeMany, SerializeMany};
 
 pub use tuack_lib::utils::compiler::{IoMode, ResourceLimits, RunResult, RunStatus, Runner};
 pub use tuack_lib::utils::many::IndexMapMany;
-
-pub use async_trait::async_trait;

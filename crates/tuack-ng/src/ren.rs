@@ -1,4 +1,3 @@
-use crate::context;
 use crate::context::gctx;
 use crate::prelude::*;
 use clap::Args;
@@ -7,24 +6,25 @@ use indicatif::ProgressBar;
 use opener::open;
 use std::time::Duration;
 use tuack_lib::ren::{
-    DateInfo, Problem, ProblemMeta, ProblemType, RenConfig, RenderDocument, Renderer,
-    SupportLanguage,
+    DateInfo, Problem, ProblemMeta, ProblemType, RenConfig, RenParams, RenProcessor,
+    RenderDocument, SupportLanguage,
 };
 use tuack_ng_parser::parse;
 use tuack_utils::assets::FsAssetProvider;
-use tuack_utils::ren::manifest::{TargetType, TemplateManifest};
-use tuack_utils::ren::markdown::MarkdownRenderer;
-use tuack_utils::ren::processors::process_ast;
-use tuack_utils::ren::renderers::ImageCollector;
+use tuack_utils::plugin::manager::RenderOptions;
+use tuack_utils::ren::renderers::{ImageCollector, rewrite_images};
 use tuack_utils::ren::template::render_template;
-use tuack_utils::ren::typst::TypstRenderer;
 
 #[derive(Args, Debug)]
 #[command(version)]
 pub struct RenArgs {
-    /// 渲染目标模板
-    #[arg(required = true)]
-    pub target: String,
+    /// 列出可用模板
+    #[arg(long)]
+    pub list: bool,
+
+    /// 渲染目标（内置模板名，或插件组件名）
+    #[arg(required_unless_present = "list")]
+    pub target: Option<String>,
 
     /// 保留临时目录用于调试
     #[arg(long)]
@@ -35,30 +35,39 @@ pub struct RenArgs {
     pub no_auto_open: bool,
 }
 
-/// 构造自洽渲染配置（day -> contest -> manifest 覆盖链合并）
+/// 解析 day -> contest -> 插件模板 覆盖链，得到最终渲染参数。
+fn resolve_ren_params(
+    config: &ContestConfig,
+    day_config: &ContestDayConfig,
+    options: &RenderOptions,
+) -> RenParams {
+    RenParams {
+        use_pretest: day_config
+            .use_pretest
+            .or(config.use_pretest)
+            .unwrap_or(options.use_pretest),
+        noi_style: day_config
+            .noi_style
+            .or(config.noi_style)
+            .unwrap_or(options.noi_style),
+        file_io: day_config
+            .file_io
+            .or(config.file_io)
+            .unwrap_or(options.file_io),
+    }
+}
+
+/// 构造自洽渲染配置（day -> contest -> template 覆盖链合并）
 fn build_ren_config(
     config: &ContestConfig,
     day_config: &ContestDayConfig,
-    manifest: &TemplateManifest,
+    params: RenParams,
 ) -> Result<RenConfig> {
     let date = if let (Some(start), Some(end)) = (day_config.start_time, day_config.end_time) {
         Some(DateInfo { start, end })
     } else {
         None
     };
-
-    let use_pretest = day_config
-        .use_pretest
-        .or(config.use_pretest)
-        .unwrap_or(manifest.use_pretest);
-    let noi_style = day_config
-        .noi_style
-        .or(config.noi_style)
-        .unwrap_or(manifest.noi_style);
-    let file_io = day_config
-        .file_io
-        .or(config.file_io)
-        .unwrap_or(manifest.file_io);
 
     let mut support_languages = Vec::new();
     for (lang_key, compile_options) in &day_config.compile {
@@ -83,9 +92,7 @@ fn build_ren_config(
         day_key: day_config.name.clone(),
         dayname: day_config.title.clone(),
         date,
-        use_pretest,
-        noi_style,
-        file_io,
+        params,
         support_languages,
     })
 }
@@ -124,11 +131,12 @@ fn build_problem_meta(problem: &ProblemConfig, day_config: &ContestDayConfig) ->
 /// 构造一天的可渲染文档：读题面 -> 模板展开 -> 解析 -> 处理器 -> 图片扫描登记。
 fn build_render_document(
     config: &ContestConfig,
-    manifest: &TemplateManifest,
+    options: &RenderOptions,
     day_config: &ContestDayConfig,
     problem: Option<String>,
+    processors: &[Box<dyn RenProcessor>],
     problem_pb: &ProgressBar,
-) -> Result<RenderDocument> {
+) -> Result<(RenderDocument, FsAssetProvider)> {
     let problems_to_render: IndexMap<String, &ProblemConfig> = match problem {
         Some(ref problem_key) => day_config
             .subconfig
@@ -161,6 +169,7 @@ fn build_render_document(
         day_config.clone()
     };
 
+    let params = resolve_ren_params(config, day_config, options);
     let re = regex::Regex::new(r"<!--[\s\S]*?-->").unwrap();
     let mut assets = FsAssetProvider::new();
     let mut problems = Vec::new();
@@ -183,7 +192,7 @@ fn build_render_document(
             &day_to_render,
             config,
             problem_config.path.clone(),
-            manifest.clone(),
+            params,
         )
         .with_context(|| format!("读取题面文件/展开模板失败：{}", statement_path.display()))?;
 
@@ -201,7 +210,25 @@ fn build_render_document(
         }
 
         let mut ast = parse(&content);
-        ast = process_ast(&mut ast, &manifest.processor)?;
+        for processor in processors {
+            let output = processor.process(&ast)?;
+            ast = output.ast;
+            if !output.warnings.is_empty() {
+                let joined = output
+                    .warnings
+                    .iter()
+                    .map(|w| format!("  {}", w))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                msg_warn!(
+                    "处理器在题目 {} 上产生了警告：\n{}",
+                    problem_config.name.magenta(),
+                    joined
+                );
+            }
+        }
+
+        let (ast, images) = rewrite_images(ast, idx as u64)?;
 
         assets.register(idx as u64, problem_config.path.clone());
 
@@ -209,6 +236,7 @@ fn build_render_document(
             idx: idx as u64,
             meta: build_problem_meta(problem_config, day_config),
             ast,
+            images,
         });
 
         problem_pb.inc(1);
@@ -225,28 +253,32 @@ fn build_render_document(
     }
     info!("处理注意事项文件：{}", precaution_path.display());
 
-    let config = build_ren_config(config, day_config, manifest)?;
+    let config = build_ren_config(config, day_config, params)?;
 
-    Ok(RenderDocument {
-        config,
-        problems,
-        precaution: Some(precaution_ast),
-        assets: Box::new(assets),
-    })
+    Ok((
+        RenderDocument {
+            config,
+            problems,
+            precaution: Some(precaution_ast),
+        },
+        assets,
+    ))
 }
 
-async fn ren(
+fn ren(
     config: &ContestConfig,
-    manifest: &TemplateManifest,
     day_config: &ContestDayConfig,
     problem: Option<String>,
     statements_dir: &Path,
     args: &RenArgs,
 ) -> Result<()> {
-    let tmp = tempfile::Builder::new()
-        .prefix("tuack-ng-ren-")
-        .tempdir()
-        .context("创建临时目录失败")?;
+    let target = args.target.as_deref().expect("clap 保证存在 target");
+    let tmp = Arc::new(
+        tempfile::Builder::new()
+            .prefix("tuack-ng-ren-")
+            .tempdir()
+            .context("创建临时目录失败")?,
+    );
     let tmp_dir = tmp.path().to_path_buf();
     info!("创建临时目录：{}", tmp_dir.display());
 
@@ -264,8 +296,23 @@ async fn ren(
             .progress_chars("=> "),
     );
 
-    let doc = match build_render_document(config, manifest, day_config, problem, &problem_pb) {
-        Ok(doc) => doc,
+    let (renderer, options, processors) = match gctx().plugins.renderer(target, tmp.clone()) {
+        Ok(triple) => triple,
+        Err(e) => {
+            problem_pb.finish_with_message("遇到错误，停止处理");
+            return Err(e);
+        }
+    };
+
+    let (doc, assets) = match build_render_document(
+        config,
+        &options,
+        day_config,
+        problem,
+        &processors,
+        &problem_pb,
+    ) {
+        Ok(pair) => pair,
         Err(e) => {
             problem_pb.finish_with_message("遇到错误，停止处理");
             return Err(e);
@@ -278,16 +325,7 @@ async fn ren(
     compile_pb.enable_steady_tick(Duration::from_millis(100));
     compile_pb.set_message(format!("渲染：{}", day_config.name));
 
-    let renderer: Box<dyn Renderer> = match manifest.target {
-        TargetType::Typst => Box::new(TypstRenderer::new(
-            tmp_dir.clone(),
-            manifest,
-            &gctx().assets_dirs,
-        )?),
-        TargetType::Markdown => Box::new(MarkdownRenderer::new()),
-    };
-
-    let render_result = renderer.render(&doc).await;
+    let render_result = renderer.render(&doc, Box::new(assets));
 
     compile_pb.finish_and_clear();
 
@@ -295,16 +333,18 @@ async fn ren(
         Ok(result) => result,
         Err(e) => {
             msg_error!("渲染失败:\n{:?}", e);
-            let kept = tmp.keep();
-            msg_info!("保留临时目录以供调试：{}", kept.display());
+            msg_info!("保留临时目录以供调试：{}", tmp_dir.display());
+            // Arc<TempDir> 无 keep()；泄漏一个引用阻止 drop，从而保留目录
+            std::mem::forget(tmp.clone());
             bail!("渲染过程出错");
         }
     };
 
-    if let Err(e) = crate::utils::filesystem::write_outputs(statements_dir, files).await {
+    if let Err(e) = crate::utils::filesystem::write_outputs(statements_dir, files) {
         msg_error!("写入渲染结果失败：{:?}", e);
-        let kept = tmp.keep();
-        msg_info!("保留临时目录以供调试：{}", kept.display());
+        msg_info!("保留临时目录以供调试：{}", tmp_dir.display());
+        // 同上
+        std::mem::forget(tmp.clone());
         bail!("写入渲染结果失败");
     }
     msg_info!("结果已保存到：{}", statements_dir.display());
@@ -314,8 +354,9 @@ async fn ren(
     }
 
     if args.keep_tmp {
-        let kept = tmp.keep();
-        msg_info!("保留临时目录：{}", kept.display());
+        msg_info!("保留临时目录：{}", tmp_dir.display());
+        // 同上
+        std::mem::forget(tmp.clone());
     } else {
         info!("清理临时目录");
     }
@@ -323,7 +364,16 @@ async fn ren(
     Ok(())
 }
 
-pub async fn main(args: RenArgs) -> Result<()> {
+pub fn main(args: RenArgs) -> Result<()> {
+    if args.list {
+        msg!("可用模板：");
+        for name in gctx().plugins.template_names() {
+            msg!("  {}", name);
+        }
+        return Ok(());
+    }
+    let target = args.target.as_deref().expect("clap 保证存在 target");
+
     debug!(
         "当前目录：{}",
         dunce::canonicalize(Path::new("."))?.to_string_lossy()
@@ -333,29 +383,6 @@ pub async fn main(args: RenArgs) -> Result<()> {
         config,
         location: current_location,
     } = gctx().config.as_ref().context("找不到配置文件")?;
-
-    let manifest_file = context::gctx().assets_dirs.iter().find(|dir| {
-        let subdir = dir.join("templates").join(format!("{}.json", args.target));
-        subdir.exists() && subdir.is_file()
-    });
-
-    let manifest_file = match manifest_file {
-        Some(dir) => {
-            info!(
-                "找到清单文件：{}",
-                dir.join("templates")
-                    .join(format!("{}.json", args.target))
-                    .to_string_lossy()
-            );
-            dir.join("templates").join(format!("{}.json", args.target))
-        }
-        None => {
-            msg_error!("没有找到模板 {}", args.target);
-            bail!("没有找到模板 {}", args.target);
-        }
-    };
-
-    let manifest = serde_json::from_str::<TemplateManifest>(&fs::read_to_string(&manifest_file)?)?;
 
     let statements_dir = match current_location {
         CurrentLocation::Problem(day_name, problem_name) => Path::new(&config.path)
@@ -372,13 +399,13 @@ pub async fn main(args: RenArgs) -> Result<()> {
         fs::create_dir(&statements_dir)?;
     }
 
-    let statements_dir = statements_dir.join(&args.target);
+    if !gctx().plugins.template_exists(target) {
+        bail!("没有找到模板 {}", target);
+    }
+
+    let statements_dir = statements_dir.join(target);
     if !statements_dir.exists() {
-        info!(
-            "创建 {} 目标输出目录：{}",
-            args.target,
-            statements_dir.display()
-        );
+        info!("创建 {} 目标输出目录：{}", target, statements_dir.display());
         fs::create_dir(&statements_dir)?;
     }
 
@@ -397,9 +424,7 @@ pub async fn main(args: RenArgs) -> Result<()> {
             let mut failed_days = Vec::new();
             for (day_count, (day_name, day_config)) in config.subconfig.iter().enumerate() {
                 day_pb.set_message(format!("处理第 {}/{} 天", day_count, total_days));
-                if let Err(e) =
-                    ren(config, &manifest, day_config, None, &statements_dir, &args).await
-                {
+                if let Err(e) = ren(config, day_config, None, &statements_dir, &args) {
                     msg_error!("第 {} 天渲染失败：{:?}", day_name, e);
                     failed_days.push(day_name.clone());
                 }
@@ -413,24 +438,20 @@ pub async fn main(args: RenArgs) -> Result<()> {
         CurrentLocation::Day(day) => {
             ren(
                 config,
-                &manifest,
                 config.subconfig.get(day).unwrap(),
                 None,
                 &statements_dir,
                 &args,
-            )
-            .await?;
+            )?;
         }
         CurrentLocation::Problem(day, problem) => {
             ren(
                 config,
-                &manifest,
                 config.subconfig.get(day).unwrap(),
                 Some(problem.to_string()),
                 &statements_dir,
                 &args,
-            )
-            .await?;
+            )?;
         }
         CurrentLocation::None => bail!("没有有效的配置文件"),
     }

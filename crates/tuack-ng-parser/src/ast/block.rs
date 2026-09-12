@@ -5,8 +5,13 @@ use super::list::List;
 use super::table::Table;
 use crate::span::Spanned;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 /// 块级构造。
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(tag = "kind", content = "data"))]
 pub enum BlockKind {
     /// 普通段落。
     Paragraph(Vec<Inline>),
@@ -41,6 +46,7 @@ pub type Block = Spanned<BlockKind>;
 
 /// 容器块。
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Container {
     pub kind: String,
     pub params: Vec<ContainerParam>,
@@ -52,6 +58,8 @@ pub struct Container {
 /// 来源可为键值对（`:::{caption="标题"}`）或无值的裸属性（`:::{right}`）；
 /// 裸属性按布尔标记处理，后续可扩展混合列表（`:::{aa, bb, b=c, c=d}`）。
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(tag = "kind", content = "data"))]
 pub enum ContainerParam {
     /// 键值对，如 `caption="标题"`、`id="x"`。
     KeyValue(String, String),
@@ -79,6 +87,7 @@ impl ContainerParam {
 
 /// 标题。
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Heading {
     pub kind: HeadingKind,
     pub content: Vec<Inline>,
@@ -86,6 +95,8 @@ pub struct Heading {
 
 /// 标题种类。
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(tag = "kind", content = "data"))]
 pub enum HeadingKind {
     /// ATX 标题（`# Heading`）。
     Atx(u8),
@@ -95,6 +106,7 @@ pub enum HeadingKind {
 
 /// Setext 标题种类。
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum SetextHeading {
     /// `===` 下划线。
     Level1,
@@ -104,6 +116,7 @@ pub enum SetextHeading {
 
 /// 代码块。
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct CodeBlock {
     pub kind: CodeBlockKind,
     pub literal: String,
@@ -111,6 +124,8 @@ pub struct CodeBlock {
 
 /// 代码块种类。
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(tag = "kind", content = "data"))]
 pub enum CodeBlockKind {
     Indented,
     Fenced { info: Option<String> },
@@ -120,6 +135,7 @@ pub enum CodeBlockKind {
 ///
 /// `label` 是纯文本标识符（可含 `*` 等字符但不解析行内语法），用于匹配引用链接。
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct LinkDefinition {
     pub label: String,
     pub destination: String,
@@ -128,6 +144,7 @@ pub struct LinkDefinition {
 
 /// 脚注定义。
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct FootnoteDefinition {
     pub label: String,
     pub blocks: Vec<Block>,
