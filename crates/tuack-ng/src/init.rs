@@ -226,7 +226,7 @@ fn init_context(
     let failed_plugins = plugins.failed_plugins().count();
     if failed_plugins > 0 && !quiet_plugins {
         msg_warn!(
-            "有 {} 个插件加载失败，运行 `tuack-ng plugin status` 以获取更多信息",
+            "有 {} 个插件加载失败，运行 `tuack-ng plugin list` 以获取更多信息",
             failed_plugins
         );
     }

@@ -21,10 +21,10 @@ pub struct PluginArgs {
 pub enum PluginCommands {
     /// 列出所有插件与状态
     #[command(version)]
-    Status,
+    List,
     /// 输出单个插件的详细信息
     #[command(version)]
-    Show {
+    Status {
         /// 插件名（包名或目录名）
         name: String,
     },
@@ -59,8 +59,8 @@ pub enum PluginCommands {
 
 pub fn main(args: PluginArgs) -> Result<()> {
     match args.command {
-        PluginCommands::Status => status(),
-        PluginCommands::Show { name } => show(&name),
+        PluginCommands::List => list(),
+        PluginCommands::Status { name } => status(&name),
         PluginCommands::Enable { name } => set_disabled(&name, false),
         PluginCommands::Disable { name } => set_disabled(&name, true),
         PluginCommands::Trust { name, yes } => set_trusted(&name, true, yes),
@@ -85,7 +85,7 @@ fn find(name: &str) -> Result<&'static PluginStatus> {
     gctx().plugins.plugin(name)
 }
 
-fn status() -> Result<()> {
+fn list() -> Result<()> {
     let statuses = gctx().plugins.plugin_statuses();
     if statuses.is_empty() {
         msg_info!("没有已发现的插件");
@@ -98,7 +98,7 @@ fn status() -> Result<()> {
             PluginState::Error(_) => {
                 msg!(
                     "    {}",
-                    format!("使用 `tuack-ng plugin show {}` 以显示错误信息", s.name).dimmed()
+                    format!("使用 `tuack-ng plugin status {}` 以显示错误信息", s.name).dimmed()
                 );
             }
             PluginState::Untrusted => {
@@ -132,11 +132,11 @@ fn versioned(s: &PluginStatus) -> String {
     }
 }
 
-fn show(name: &str) -> Result<()> {
-    show_status(find(name)?)
+fn status(name: &str) -> Result<()> {
+    print_status(find(name)?)
 }
 
-fn show_status(s: &PluginStatus) -> Result<()> {
+fn print_status(s: &PluginStatus) -> Result<()> {
     let mut fields = AlignedFields::new();
     fields.push("名称", &s.name);
     fields.push("目录", s.dir.display());
@@ -246,7 +246,7 @@ fn set_trusted(name: &str, trusted: bool, yes: bool) -> Result<()> {
             msg_info!("插件已是信任状态：{}", s.name);
             return Ok(());
         }
-        show_status(s)?;
+        print_status(s)?;
         if !confirm(
             &format!(
                 "信任插件 `{}`？插件可执行任意代码，请确认其来源可信",
